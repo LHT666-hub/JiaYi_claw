@@ -39,15 +39,14 @@ const kimiScopeKeywords = [
   "报告",
   "配药",
   "开药",
-  "药",
   "长处方",
   "延伸处方",
   "随访",
   "转诊",
-  "血压",
-  "血糖",
   "高血压",
   "糖尿病",
+  "血压",
+  "血糖",
   "慢病",
   "用药",
   "小课堂",
@@ -72,7 +71,7 @@ const emergencyReply: AskReply = {
   nextStep: "不要在线上等待回复，请尽快寻求线下急救帮助。",
   suggestDoctor: true,
   riskLevel: "emergency",
-  category: "安全边界和紧急情况",
+  category: "安全提示",
   source: "safety",
 };
 
@@ -82,7 +81,7 @@ const medicalBoundaryReply: AskReply = {
   nextStep: "如果是流程、配药规则、随访安排或签约服务问题，我可以继续帮您整理下一步。",
   suggestDoctor: true,
   riskLevel: "high",
-  category: "安全边界和紧急情况",
+  category: "安全提示",
   source: "safety",
 };
 
@@ -116,34 +115,13 @@ const emptyReply: AskReply = {
 };
 
 const normalizationMap: Array<[string, string]> = [
-  ["健康云平台", "健康云"],
-  ["小程序", "平台"],
-  ["咋", "怎么"],
   ["如何", "怎么"],
-  ["登陆", "登录"],
+  ["怎样", "怎么"],
+  ["不会操作", "不会用"],
   ["拿药", "配药"],
-  ["开药", "配药"],
+  ["开方", "配药"],
   ["药没了", "药吃完了"],
   ["检查结果", "体检报告"],
-];
-
-const coreTokens = [
-  "健康云",
-  "登录",
-  "预约",
-  "体检",
-  "平台",
-  "家庭医生",
-  "家医",
-  "找医生",
-  "配药",
-  "服药",
-  "积分",
-  "小课堂",
-  "群聊",
-  "老人",
-  "手机",
-  "不会用",
 ];
 
 const weakKeywords = new Set([
@@ -152,7 +130,6 @@ const weakKeywords = new Set([
   "药",
   "报告",
   "体检",
-  "平台",
   "怎么",
   "随访",
 ]);
@@ -167,53 +144,37 @@ export function normalizeQuestion(question: string) {
   return normalized;
 }
 
-function scoreCoreTokens(textA: string, textB: string) {
-  return coreTokens.reduce((total, token) => {
-    if (textA.includes(token) && textB.includes(token)) {
-      return total + 4;
-    }
-
-    return total;
-  }, 0);
-}
-
 function scoreFaqItem(item: FaqItem, normalized: string) {
   const itemQuestion = normalizeQuestion(item.question);
+  let score = 0;
   let directKeywordHit = false;
-  let strongQuestionHit = false;
 
-  const keywordScore = item.keywords.reduce((total, keyword) => {
+  if (normalized === itemQuestion) {
+    score += 80;
+  } else if (normalized.includes(itemQuestion) || itemQuestion.includes(normalized)) {
+    score += 36;
+  }
+
+  for (const keyword of item.keywords) {
     const normalizedKeyword = normalizeQuestion(keyword);
 
     if (!normalizedKeyword) {
-      return total;
+      continue;
     }
 
     if (normalized.includes(normalizedKeyword)) {
+      score += Math.max(18, normalizedKeyword.length * 5);
       if (normalizedKeyword.length >= 3 && !weakKeywords.has(normalizedKeyword)) {
         directKeywordHit = true;
       }
-      return total + Math.max(30, normalizedKeyword.length + 16);
+    } else if (normalizedKeyword.includes(normalized) && normalized.length >= 3) {
+      score += 10;
     }
-
-    if (normalizedKeyword.includes(normalized)) {
-      return total + Math.max(10, normalized.length + 6);
-    }
-
-    return total + scoreCoreTokens(normalized, normalizedKeyword);
-  }, 0);
-
-  const questionScore =
-    (normalized === itemQuestion ? 18 : 0) +
-    (normalized.includes(itemQuestion) || itemQuestion.includes(normalized)
-      ? ((strongQuestionHit = true), 8)
-      : 0) +
-    scoreCoreTokens(normalized, itemQuestion);
+  }
 
   return {
-    score: keywordScore + questionScore,
+    score,
     directKeywordHit,
-    strongQuestionHit,
   };
 }
 
@@ -224,43 +185,33 @@ export function matchFaq(question: string) {
     return null;
   }
 
-  let bestDirectMatch: { item: FaqItem; score: number } | null = null;
-  let bestStrongQuestionMatch: { item: FaqItem; score: number } | null = null;
+  let bestMatch: { item: FaqItem; score: number; directKeywordHit: boolean } | null = null;
 
   for (const item of faqs) {
     const result = scoreFaqItem(item, normalized);
 
-    if (result.directKeywordHit) {
-      if (!bestDirectMatch || result.score > bestDirectMatch.score) {
-        bestDirectMatch = {
-          item,
-          score: result.score,
-        };
-      }
-
-      continue;
-    }
-
-    if (result.strongQuestionHit) {
-      if (!bestStrongQuestionMatch || result.score > bestStrongQuestionMatch.score) {
-        bestStrongQuestionMatch = {
-          item,
-          score: result.score,
-        };
-      }
+    if (!bestMatch || result.score > bestMatch.score) {
+      bestMatch = {
+        item,
+        score: result.score,
+        directKeywordHit: result.directKeywordHit,
+      };
     }
   }
 
-  if (bestDirectMatch) {
-    return bestDirectMatch;
-  }
-
-  // 只在问题文本与 FAQ 题干有明显重叠时才兜底匹配，避免把低频相关问题误归到 FAQ。
-  if (!bestStrongQuestionMatch || bestStrongQuestionMatch.score < 12) {
+  if (!bestMatch) {
     return null;
   }
 
-  return bestStrongQuestionMatch;
+  if (bestMatch.directKeywordHit && bestMatch.score >= 18) {
+    return bestMatch;
+  }
+
+  if (bestMatch.score >= 36) {
+    return bestMatch;
+  }
+
+  return null;
 }
 
 export function getGuardrailReply(question: string) {
@@ -281,7 +232,7 @@ export function getGuardrailReply(question: string) {
   return null;
 }
 
-export function getLocalAskReply(question: string) {
+export function getLocalAskReply(question: string): AskReply | null {
   const guardrailReply = getGuardrailReply(question);
 
   if (guardrailReply) {
@@ -308,14 +259,24 @@ export function getLocalAskReply(question: string) {
 
 export function getFallbackAskReply(reason: AskFallbackReason = "unknown") {
   return {
-    ...fallbackReply,
+    answer: fallbackReply.answer,
+    nextStep: fallbackReply.nextStep,
+    suggestDoctor: fallbackReply.suggestDoctor,
+    riskLevel: fallbackReply.riskLevel,
+    category: fallbackReply.category,
+    source: "fallback" as const,
     reason,
   };
 }
 
 export function getBusyAskReply(reason: "rate_limit" | "timeout") {
   return {
-    ...busyReply,
+    answer: busyReply.answer,
+    nextStep: busyReply.nextStep,
+    suggestDoctor: busyReply.suggestDoctor,
+    riskLevel: busyReply.riskLevel,
+    category: busyReply.category,
+    source: "fallback" as const,
     reason,
   };
 }

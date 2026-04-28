@@ -13,8 +13,8 @@ const kimiSystemPrompt =
   "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。你只能回答家庭医生签约、体检流程、报告领取、配药规则、长处方、延伸处方、随访安排、转诊流程、慢病基础科普、平台任务积分、健康小组使用等问题。回答要简明、温和、适合老年居民理解。每次回答最后给出“下一步建议”。";
 
 export const runtime = "nodejs";
+
 const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
-// Increase timeout to 40 seconds to accommodate occasional Kimi latency spikes.
 const KIMI_TIMEOUT_MS = 40_000;
 const kimiCache = new Map<string, { expiresAt: number; reply: AskReply }>();
 const kimiInFlight = new Map<string, Promise<AskReply>>();
@@ -26,7 +26,7 @@ function readEnvValue(name: "KIMI_API_KEY" | "KIMI_BASE_URL" | "KIMI_MODEL") {
     return "";
   }
 
-  return value.trim().replace(/^['\"]|['\"]$/g, "");
+  return value.trim().replace(/^['"]|['"]$/g, "");
 }
 
 function pruneExpiredCache() {
@@ -41,13 +41,7 @@ function pruneExpiredCache() {
 
 function getCachedKimiReply(question: string) {
   pruneExpiredCache();
-  const cached = kimiCache.get(question);
-
-  if (!cached) {
-    return null;
-  }
-
-  return cached.reply;
+  return kimiCache.get(question)?.reply ?? null;
 }
 
 function setCachedKimiReply(question: string, reply: AskReply) {
@@ -85,19 +79,19 @@ function extractTextContent(content: unknown) {
 
 function parseKimiReply(text: string): AskReply {
   const trimmed = text.trim();
-  const segments = trimmed.split(/(?:\n|^)\s*下一步建议[:：]\s*/);
+  const segments = trimmed.split(/(?:\n|^)\s*下一步建议[：:]\s*/);
   const answer = segments[0]?.trim() || trimmed;
   const nextStep =
     segments.length > 1
       ? `下一步建议：${segments.slice(1).join(" ").trim()}`
-      : "下一步建议：如果仍拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。";
+      : "下一步建议：如果仍然拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。";
 
   return {
     answer,
     nextStep,
     suggestDoctor: false,
     riskLevel: "low",
-    category: "Kimi 补充",
+    category: "Kimi 生成",
     source: "kimi",
   };
 }
@@ -198,7 +192,7 @@ export async function POST(request: NextRequest) {
         const completion = (await Promise.race([
           client.chat.completions.create({
             model,
-            temperature: 1,
+            temperature: 0.8,
             messages: [
               {
                 role: "system",
@@ -239,9 +233,8 @@ export async function POST(request: NextRequest) {
         ...getFallbackAskReply("auth_error"),
         reason: "auth_error",
         answer:
-          "API Key 未通过认证，请检查 .env.local 中的 KIMI_API_KEY 和 KIMI_BASE_URL",
-        nextStep:
-          "请确认 KIMI_API_KEY 和 KIMI_BASE_URL 配置正确后再重试。",
+          "API Key 未通过认证，请检查 .env.local 中的 KIMI_API_KEY 和 KIMI_BASE_URL。",
+        nextStep: "请确认 KIMI_API_KEY 和 KIMI_BASE_URL 配置正确后再重试。",
       });
     }
 
