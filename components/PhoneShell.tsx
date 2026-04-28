@@ -1,0 +1,22 @@
+import { BottomNav } from "@/components/BottomNav";
+
+type PhoneShellProps = {
+  children: React.ReactNode;
+  showBottomNav?: boolean;
+};
+
+export function PhoneShell({ children, showBottomNav = false }: PhoneShellProps) {
+  return (
+    <main className="mx-auto flex min-h-dvh w-full items-center justify-center px-3 py-6 sm:px-6">
+      <div className="relative w-full max-w-[430px] overflow-hidden rounded-[40px] border border-[#E6CFB1] bg-paper shadow-float">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center pt-3">
+          <div className="h-1.5 w-20 rounded-full bg-navy/18" />
+        </div>
+        <div className={`phone-scroll min-h-dvh overflow-y-auto ${showBottomNav ? "pb-28" : "pb-8"}`}>
+          {children}
+        </div>
+        {showBottomNav ? <BottomNav /> : null}
+      </div>
+    </main>
+  );
+}
