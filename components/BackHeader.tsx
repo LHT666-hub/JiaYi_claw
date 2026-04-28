@@ -6,13 +6,20 @@ import { ArrowLeft } from "lucide-react";
 type BackHeaderProps = {
   title: string;
   subtitle?: string;
+  sticky?: boolean;
 };
 
-export function BackHeader({ title, subtitle }: BackHeaderProps) {
+export function BackHeader({ title, subtitle, sticky = false }: BackHeaderProps) {
   const router = useRouter();
 
   return (
-    <div className="flex items-start gap-4 px-5 pt-8">
+    <div
+      className={`flex items-start gap-4 px-5 pt-8 ${
+        sticky
+          ? "sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-8 backdrop-blur-sm"
+          : ""
+      }`}
+    >
       <button
         type="button"
         onClick={() => router.back()}

@@ -171,6 +171,7 @@ function AskPageContent() {
     <PhoneShell>
       <div className="space-y-5 px-4 pb-44">
         <BackHeader
+          sticky
           title="问家医 Claw"
           subtitle="流程问题、配药规则、体检报告、随访安排，可以先问我"
         />
@@ -283,6 +284,7 @@ export default function AskPage() {
         <PhoneShell>
           <div className="space-y-5 px-4 pb-44">
             <BackHeader
+              sticky
               title="问家医 Claw"
               subtitle="流程问题、配药规则、体检报告、随访安排，可以先问我"
             />

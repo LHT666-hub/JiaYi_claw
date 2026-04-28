@@ -78,10 +78,10 @@ export default function GroupPage() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-[18rem]">
-        <header className="relative px-1 pt-8 text-center">
+        <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-8 text-center backdrop-blur-sm">
           <Link
             href="/"
-            className="absolute left-0 top-8 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft"
+            className="absolute left-5 top-8 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft"
             aria-label="回到首页"
           >
             <House className="h-5 w-5" strokeWidth={2.1} />
