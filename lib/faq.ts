@@ -65,6 +65,21 @@ const kimiScopeKeywords = [
   "家属",
 ];
 
+const greetingKeywords = [
+  "你好",
+  "您好",
+  "嗨",
+  "哈喽",
+  "hello",
+  "hi",
+  "在吗",
+  "在嘛",
+  "早上好",
+  "中午好",
+  "下午好",
+  "晚上好",
+];
+
 const emergencyReply: AskReply = {
   answer:
     "如出现胸痛、呼吸困难、意识异常、严重低血糖、肢体无力、言语不清等情况，请立即就医或拨打急救电话。家医 Claw 不能替代急诊判断。",
@@ -114,6 +129,17 @@ const emptyReply: AskReply = {
   riskLevel: "low",
   category: "引导",
   source: "fallback",
+};
+
+const greetingReply: AskReply = {
+  answer:
+    "您好，我是家医 Claw。可以帮您问家庭医生服务、体检报告、配药规则、随访安排和慢病日常管理这些问题。",
+  nextStep:
+    "您可以直接说问题，比如“药吃完了怎么办”“体检报告怎么看”或“我要找李医生”。",
+  suggestDoctor: false,
+  riskLevel: "low",
+  category: "问候",
+  source: "greeting",
 };
 
 const normalizationMap: Array<[string, string]> = [
@@ -228,6 +254,11 @@ export function getLocalAskReply(question: string): AskReply | null {
 
   if (guardrailReply) {
     return guardrailReply;
+  }
+
+  const normalized = normalizeQuestion(question);
+  if (greetingKeywords.includes(normalized)) {
+    return greetingReply;
   }
 
   const matchedFaq = matchFaq(question);

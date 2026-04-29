@@ -1,5 +1,5 @@
-import { ChatMessage } from "@/lib/types";
 import { formatMessageTime } from "@/lib/format";
+import { ChatMessage } from "@/lib/types";
 
 const roleStyleMap = {
   user: "ml-auto max-w-[82%] bg-navy text-white",
@@ -8,14 +8,15 @@ const roleStyleMap = {
   nurse: "mr-auto max-w-[88%] bg-[#F5F1E6] text-navy border border-line/70",
   leader: "mr-auto max-w-[88%] bg-[#F7F2FF] text-navy border border-[#D5CCE9]",
   family: "mr-auto max-w-[88%] bg-[#FDEEE7] text-navy border border-[#E4C7B8]",
-};
+} as const;
 
 const sourceLabelMap = {
   safety: "安全提示",
   faq: "FAQ 回答",
   kimi: "Kimi 生成",
   fallback: "兜底提示",
-};
+  greeting: "问候回复",
+} as const;
 
 type ChatBubbleProps = {
   message: ChatMessage;

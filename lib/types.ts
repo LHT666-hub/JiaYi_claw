@@ -1,5 +1,5 @@
 export type RiskLevel = "low" | "medium" | "high" | "emergency";
-export type AskSource = "safety" | "faq" | "kimi" | "fallback";
+export type AskSource = "safety" | "faq" | "kimi" | "fallback" | "greeting";
 export type AskFallbackReason =
   | "no_faq_match"
   | "no_env_key"
