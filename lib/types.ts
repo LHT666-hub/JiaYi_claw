@@ -1,5 +1,11 @@
 export type RiskLevel = "low" | "medium" | "high" | "emergency";
-export type AskSource = "safety" | "faq" | "kimi" | "fallback" | "greeting";
+export type AskSource =
+  | "safety"
+  | "faq"
+  | "kimi"
+  | "fallback"
+  | "greeting"
+  | "knowledge";
 export type AskFallbackReason =
   | "no_faq_match"
   | "no_env_key"
@@ -88,6 +94,34 @@ export type AskReply = {
   category: string;
   source: AskSource;
   reason?: AskFallbackReason;
+};
+
+export type PublicInfoItem = {
+  id: string;
+  title: string;
+  category: string;
+  keywords: string[];
+  summary: string;
+  details: string;
+  nextStep: string;
+  sourceName: string;
+  sourceUrl: string;
+  updatedAt: string;
+  suggestDoctor?: boolean;
+};
+
+export type KnowledgeSnippet = {
+  id: string;
+  title: string;
+  category: string;
+  summary: string;
+  details: string;
+  nextStep: string;
+  sourceName: string;
+  sourceUrl?: string;
+  updatedAt?: string;
+  suggestDoctor: boolean;
+  sourceType: "faq" | "public";
 };
 
 export type NotificationItem = {

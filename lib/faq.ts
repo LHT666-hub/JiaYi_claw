@@ -31,6 +31,21 @@ export const medicalBoundaryKeywords = [
   "治疗方案",
 ];
 
+const greetingKeywords = [
+  "你好",
+  "您好",
+  "嗨",
+  "哈喽",
+  "hello",
+  "hi",
+  "在吗",
+  "在嘛",
+  "早上好",
+  "中午好",
+  "下午好",
+  "晚上好",
+];
+
 const kimiScopeKeywords = [
   "家庭医生",
   "家医",
@@ -63,21 +78,16 @@ const kimiScopeKeywords = [
   "药师",
   "医生",
   "家属",
-];
-
-const greetingKeywords = [
-  "你好",
-  "您好",
-  "嗨",
-  "哈喽",
-  "hello",
-  "hi",
-  "在吗",
-  "在嘛",
-  "早上好",
-  "中午好",
-  "下午好",
-  "晚上好",
+  "医保",
+  "政策",
+  "公众号",
+  "海湾",
+  "奉贤",
+  "通知",
+  "门诊时间",
+  "排班",
+  "互联网医院",
+  "送药",
 ];
 
 const emergencyReply: AskReply = {
@@ -94,7 +104,7 @@ const medicalBoundaryReply: AskReply = {
   answer:
     "这个问题需要家庭医生或线下医生结合个人情况判断。家医 Claw 不能提供诊断、处方、停药、换药或个体化治疗建议。建议联系家庭医生或前往社区卫生服务中心/医院咨询。",
   nextStep:
-    "如果是流程、配药规则、随访安排或签约服务问题，我可以继续帮您整理下一步。",
+    "如果您想问的是配药流程、随访安排、报告领取、签约服务或转诊路径，我可以继续帮您整理。",
   suggestDoctor: true,
   riskLevel: "high",
   category: "安全提示",
@@ -105,7 +115,7 @@ const fallbackReply: AskReply = {
   answer:
     "这个问题我暂时还不能确定。建议联系家庭医生或社区卫生服务中心进一步咨询。",
   nextStep:
-    "您也可以换一种更具体的说法，例如“药吃完了怎么办”或“怎么联系家庭医生”。",
+    "您也可以换一种更具体的说法，例如“药吃完了怎么办”“上海社区配药和医院配药有什么区别”或“奉贤老年体检怎么安排”。",
   suggestDoctor: true,
   riskLevel: "medium",
   category: "兜底提示",
@@ -135,7 +145,7 @@ const greetingReply: AskReply = {
   answer:
     "您好，我是家医 Claw。可以帮您问家庭医生服务、体检报告、配药规则、随访安排和慢病日常管理这些问题。",
   nextStep:
-    "您可以直接说问题，比如“药吃完了怎么办”“体检报告怎么看”或“我要找李医生”。",
+    "您可以直接说问题，比如“药吃完了怎么办”“体检报告怎么看”或“上海社区配药和医院配药有什么区别”。",
   suggestDoctor: false,
   riskLevel: "low",
   category: "问候",
@@ -150,6 +160,8 @@ const normalizationMap: Array<[string, string]> = [
   ["开方", "配药"],
   ["药没了", "药吃完了"],
   ["检查结果", "体检报告"],
+  ["社区医院", "社区卫生服务中心"],
+  ["医院药房", "医院配药"],
 ];
 
 const weakKeywords = new Set(["社区", "医生", "药", "报告", "体检", "怎么", "随访"]);
@@ -231,6 +243,11 @@ export function matchFaq(question: string) {
   return null;
 }
 
+export function getGreetingReply(question: string) {
+  const normalized = normalizeQuestion(question);
+  return greetingKeywords.includes(normalized) ? greetingReply : null;
+}
+
 export function getGuardrailReply(question: string) {
   const normalized = normalizeQuestion(question);
 
@@ -256,9 +273,9 @@ export function getLocalAskReply(question: string): AskReply | null {
     return guardrailReply;
   }
 
-  const normalized = normalizeQuestion(question);
-  if (greetingKeywords.includes(normalized)) {
-    return greetingReply;
+  const greeting = getGreetingReply(question);
+  if (greeting) {
+    return greeting;
   }
 
   const matchedFaq = matchFaq(question);
