@@ -139,6 +139,38 @@ export function buildClarifyReply(question: string): AskReply {
     };
   }
 
+  if (normalized.includes("海湾") || normalized.includes("奉贤")) {
+    return {
+      answer:
+        "您这个问题已经接近公开信息范围了。像海湾镇、奉贤区这类问题，通常要先分清是问门诊时间、体检通知、接种安排、互联网医院，还是家庭医生服务。",
+      nextStep:
+        "您可以继续说得更具体一点，例如“海湾镇社区卫生服务中心电话”“奉贤老年体检报告怎么领”或“奉贤卫生公众号怎么进互联网医院”。",
+      suggestDoctor: false,
+      riskLevel: "low",
+      category: "信息分流",
+      source: "knowledge",
+    };
+  }
+
+  if (
+    normalized.includes("门诊") ||
+    normalized.includes("电话") ||
+    normalized.includes("地址") ||
+    normalized.includes("公众号") ||
+    normalized.includes("接种")
+  ) {
+    return {
+      answer:
+        "这类问题一般都属于可以公开查询的服务信息，不一定需要直接打扰医生。我可以先帮您按公开信息分流。",
+      nextStep:
+        "您可以补充一句更具体的问法，例如“海湾镇接种门诊时间”“社区卫生服务中心地址电话”或“奉贤卫生公众号怎么进”。",
+      suggestDoctor: false,
+      riskLevel: "low",
+      category: "信息分流",
+      source: "knowledge",
+    };
+  }
+
   return {
     answer:
       "这个问题我暂时没有检索到足够的公开材料，但它看起来像是社区服务流程问题，不一定需要直接打扰医生。",
