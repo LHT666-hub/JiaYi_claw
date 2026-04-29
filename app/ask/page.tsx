@@ -260,9 +260,7 @@ function AskPageContent() {
             onClick={() => submitQuestion(input)}
             disabled={isLoading || !input.trim()}
             className={`flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-white transition ${
-              isLoading || !input.trim()
-                ? "bg-navy/55"
-                : "bg-navy"
+              isLoading || !input.trim() ? "bg-navy/55" : "bg-navy"
             }`}
           >
             {isLoading ? (

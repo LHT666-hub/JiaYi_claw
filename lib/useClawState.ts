@@ -321,10 +321,7 @@ export function useClawState() {
         readNotificationIds: current.readNotificationIds.includes("notification-followup")
           ? current.readNotificationIds
           : [...current.readNotificationIds, "notification-followup"],
-        completedTaskIds: appendUnique(
-          current.completedTaskIds,
-          "task-followup-confirm",
-        ),
+        completedTaskIds: appendUnique(current.completedTaskIds, "task-followup-confirm"),
       };
     });
 

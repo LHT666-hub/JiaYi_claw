@@ -21,17 +21,11 @@ const kimiInFlight = new Map<string, Promise<AskReply>>();
 
 function readEnvValue(name: "KIMI_API_KEY" | "KIMI_BASE_URL" | "KIMI_MODEL") {
   const value = process.env[name];
-
-  if (!value) {
-    return "";
-  }
-
-  return value.trim().replace(/^['"]|['"]$/g, "");
+  return value ? value.trim().replace(/^['"]|['"]$/g, "") : "";
 }
 
 function pruneExpiredCache() {
   const now = Date.now();
-
   for (const [key, value] of kimiCache.entries()) {
     if (value.expiresAt <= now) {
       kimiCache.delete(key);
@@ -70,7 +64,6 @@ function extractTextContent(content: unknown) {
       ) {
         return part.text;
       }
-
       return "";
     })
     .join("")
@@ -124,6 +117,7 @@ function isTimeoutError(error: unknown) {
   return (
     code === "ETIMEDOUT" ||
     name === "AbortError" ||
+    message.includes("kimi_timeout") ||
     message.includes("timeout") ||
     message.includes("timed out") ||
     message.includes("aborted")
@@ -147,6 +141,30 @@ function isAuthError(error: unknown) {
   );
 }
 
+async function requestKimiReply(question: string, client: OpenAI, model: string) {
+  const completion = (await Promise.race([
+    client.chat.completions.create({
+      model,
+      temperature: 1,
+      messages: [
+        { role: "system", content: kimiSystemPrompt },
+        { role: "user", content: question },
+      ],
+    }),
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("KIMI_TIMEOUT")), KIMI_TIMEOUT_MS);
+    }),
+  ])) as OpenAI.Chat.Completions.ChatCompletion;
+
+  const text = extractTextContent(completion.choices[0]?.message?.content);
+
+  if (!text) {
+    throw new Error("KIMI_EMPTY_REPLY");
+  }
+
+  return parseKimiReply(text);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { question?: string };
@@ -158,7 +176,6 @@ export async function POST(request: NextRequest) {
     }
 
     const localReply = getLocalAskReply(normalizedQuestion);
-
     if (localReply) {
       return NextResponse.json(localReply);
     }
@@ -168,7 +185,6 @@ export async function POST(request: NextRequest) {
     }
 
     const cachedReply = getCachedKimiReply(normalizedQuestion);
-
     if (cachedReply) {
       return NextResponse.json(cachedReply);
     }
@@ -189,33 +205,7 @@ export async function POST(request: NextRequest) {
     const pendingReply =
       kimiInFlight.get(normalizedQuestion) ??
       (async () => {
-        const completion = (await Promise.race([
-          client.chat.completions.create({
-            model,
-            temperature: 0.8,
-            messages: [
-              {
-                role: "system",
-                content: kimiSystemPrompt,
-              },
-              {
-                role: "user",
-                content: normalizedQuestion,
-              },
-            ],
-          }),
-          new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error("KIMI_TIMEOUT")), KIMI_TIMEOUT_MS);
-          }),
-        ])) as OpenAI.Chat.Completions.ChatCompletion;
-
-        const text = extractTextContent(completion.choices[0]?.message?.content);
-
-        if (!text) {
-          throw new Error("KIMI_EMPTY_REPLY");
-        }
-
-        const kimiReply = parseKimiReply(text);
+        const kimiReply = await requestKimiReply(normalizedQuestion, client, model);
         setCachedKimiReply(normalizedQuestion, kimiReply);
         return kimiReply;
       })();
@@ -247,13 +237,9 @@ export async function POST(request: NextRequest) {
     }
 
     const status =
-      typeof error === "object" && error !== null && "status" in error
-        ? error.status
-        : null;
+      typeof error === "object" && error !== null && "status" in error ? error.status : null;
     const message =
-      typeof error === "object" && error !== null && "message" in error
-        ? String(error.message)
-        : "";
+      typeof error === "object" && error !== null && "message" in error ? String(error.message) : "";
     const reason = status !== null || message ? "kimi_error" : "unknown";
 
     return NextResponse.json(getFallbackAskReply(reason));

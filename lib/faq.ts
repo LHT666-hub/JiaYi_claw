@@ -78,7 +78,8 @@ const emergencyReply: AskReply = {
 const medicalBoundaryReply: AskReply = {
   answer:
     "这个问题需要家庭医生或线下医生结合个人情况判断。家医 Claw 不能提供诊断、处方、停药、换药或个体化治疗建议。建议联系家庭医生或前往社区卫生服务中心/医院咨询。",
-  nextStep: "如果是流程、配药规则、随访安排或签约服务问题，我可以继续帮您整理下一步。",
+  nextStep:
+    "如果是流程、配药规则、随访安排或签约服务问题，我可以继续帮您整理下一步。",
   suggestDoctor: true,
   riskLevel: "high",
   category: "安全提示",
@@ -88,7 +89,8 @@ const medicalBoundaryReply: AskReply = {
 const fallbackReply: AskReply = {
   answer:
     "这个问题我暂时还不能确定。建议联系家庭医生或社区卫生服务中心进一步咨询。",
-  nextStep: "您也可以换一种更具体的说法，例如“药吃完了怎么办”或“怎么联系家庭医生”。",
+  nextStep:
+    "您也可以换一种更具体的说法，例如“药吃完了怎么办”或“怎么联系家庭医生”。",
   suggestDoctor: true,
   riskLevel: "medium",
   category: "兜底提示",
@@ -124,15 +126,7 @@ const normalizationMap: Array<[string, string]> = [
   ["检查结果", "体检报告"],
 ];
 
-const weakKeywords = new Set([
-  "社区",
-  "医生",
-  "药",
-  "报告",
-  "体检",
-  "怎么",
-  "随访",
-]);
+const weakKeywords = new Set(["社区", "医生", "药", "报告", "体检", "怎么", "随访"]);
 
 export function normalizeQuestion(question: string) {
   let normalized = question.trim().toLowerCase().replace(/\s+/g, "");
@@ -172,10 +166,7 @@ function scoreFaqItem(item: FaqItem, normalized: string) {
     }
   }
 
-  return {
-    score,
-    directKeywordHit,
-  };
+  return { score, directKeywordHit };
 }
 
 export function matchFaq(question: string) {
@@ -253,30 +244,20 @@ export function getLocalAskReply(question: string): AskReply | null {
     suggestDoctor: item.suggestDoctor,
     riskLevel: item.riskLevel,
     category: item.category,
-    source: "faq" as const,
+    source: "faq",
   };
 }
 
 export function getFallbackAskReply(reason: AskFallbackReason = "unknown") {
   return {
-    answer: fallbackReply.answer,
-    nextStep: fallbackReply.nextStep,
-    suggestDoctor: fallbackReply.suggestDoctor,
-    riskLevel: fallbackReply.riskLevel,
-    category: fallbackReply.category,
-    source: "fallback" as const,
+    ...fallbackReply,
     reason,
   };
 }
 
 export function getBusyAskReply(reason: "rate_limit" | "timeout") {
   return {
-    answer: busyReply.answer,
-    nextStep: busyReply.nextStep,
-    suggestDoctor: busyReply.suggestDoctor,
-    riskLevel: busyReply.riskLevel,
-    category: busyReply.category,
-    source: "fallback" as const,
+    ...busyReply,
     reason,
   };
 }
