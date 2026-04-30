@@ -1,0 +1,7 @@
+node_modules
+.next
+.deploy-target
+.local-next.log
+.local-next.err.log
+.next-dev.log
+.next.zip

@@ -27,9 +27,10 @@ export const medicalBoundaryKeywords = [
   "是不是得了",
   "要不要住院",
   "诊断",
-  "处方",
   "治疗方案",
 ];
+
+const medicalBoundaryContextKeywords = ["开处方", "给我开药", "处方能不能开", "直接开药"];
 
 const greetingKeywords = [
   "你好",
@@ -207,7 +208,7 @@ function scoreFaqItem(item: FaqItem, normalized: string) {
   return { score, directKeywordHit };
 }
 
-export function matchFaq(question: string) {
+export function matchFaqFromItems(question: string, items: FaqItem[]) {
   const normalized = normalizeQuestion(question);
 
   if (!normalized) {
@@ -216,7 +217,7 @@ export function matchFaq(question: string) {
 
   let bestMatch: { item: FaqItem; score: number; directKeywordHit: boolean } | null = null;
 
-  for (const item of faqs) {
+  for (const item of items) {
     const result = scoreFaqItem(item, normalized);
 
     if (!bestMatch || result.score > bestMatch.score) {
@@ -243,6 +244,10 @@ export function matchFaq(question: string) {
   return null;
 }
 
+export function matchFaq(question: string) {
+  return matchFaqFromItems(question, faqs);
+}
+
 export function getGreetingReply(question: string) {
   const normalized = normalizeQuestion(question);
   return greetingKeywords.includes(normalized) ? greetingReply : null;
@@ -263,10 +268,25 @@ export function getGuardrailReply(question: string) {
     return medicalBoundaryReply;
   }
 
+  if (medicalBoundaryContextKeywords.some((keyword) => normalized.includes(keyword))) {
+    return medicalBoundaryReply;
+  }
+
   return null;
 }
 
-export function getLocalAskReply(question: string): AskReply | null {
+export function buildFaqReply(item: FaqItem): AskReply {
+  return {
+    answer: item.answer,
+    nextStep: item.nextStep,
+    suggestDoctor: item.suggestDoctor,
+    riskLevel: item.riskLevel,
+    category: item.category,
+    source: "faq",
+  };
+}
+
+export function getLocalAskReply(question: string, faqItems: FaqItem[] = faqs): AskReply | null {
   const guardrailReply = getGuardrailReply(question);
 
   if (guardrailReply) {
@@ -278,22 +298,13 @@ export function getLocalAskReply(question: string): AskReply | null {
     return greeting;
   }
 
-  const matchedFaq = matchFaq(question);
+  const matchedFaq = matchFaqFromItems(question, faqItems);
 
   if (!matchedFaq) {
     return null;
   }
 
-  const { item } = matchedFaq;
-
-  return {
-    answer: item.answer,
-    nextStep: item.nextStep,
-    suggestDoctor: item.suggestDoctor,
-    riskLevel: item.riskLevel,
-    category: item.category,
-    source: "faq",
-  };
+  return buildFaqReply(matchedFaq.item);
 }
 
 export function getFallbackAskReply(reason: AskFallbackReason = "unknown") {
@@ -303,7 +314,7 @@ export function getFallbackAskReply(reason: AskFallbackReason = "unknown") {
   };
 }
 
-export function getBusyAskReply(reason: "rate_limit" | "timeout") {
+export function getBusyAskReply(reason: "rate_limit" | "timeout" | "auth_error") {
   return {
     ...busyReply,
     reason,
@@ -320,6 +331,6 @@ export function shouldUseKimi(question: string) {
   return kimiScopeKeywords.some((keyword) => normalized.includes(keyword));
 }
 
-export function getClawReply(question: string): AskReply {
+export function getClawReply(question: string) {
   return getLocalAskReply(question) ?? getFallbackAskReply();
 }

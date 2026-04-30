@@ -12,6 +12,19 @@ import { useToast } from "@/components/ToastProvider";
 import { AskReply } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 
+const DEFAULT_ASK_TIMEOUT_MS = 30000;
+
+function getAskTimeoutMs() {
+  const rawValue = process.env.NEXT_PUBLIC_ASK_TIMEOUT_MS;
+  const parsed = Number(rawValue);
+
+  if (!Number.isFinite(parsed) || parsed < 1000) {
+    return DEFAULT_ASK_TIMEOUT_MS;
+  }
+
+  return parsed;
+}
+
 const suggestionChips = [
   "药吃完了怎么办",
   "体检报告怎么看",
@@ -52,9 +65,10 @@ function AskPageContent() {
 
   async function fetchAskReply(question: string) {
     const controller = new AbortController();
+    const askTimeoutMs = getAskTimeoutMs();
     const abortTimer = window.setTimeout(() => {
       controller.abort();
-    }, 10000);
+    }, askTimeoutMs);
     timeoutRef.current.push(abortTimer);
 
     try {

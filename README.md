@@ -1,120 +1,378 @@
 # 家医 Claw
 
-家医 Claw 是一个面向老年慢病居民的手机端智能入口前端原型，用来演示“前端分流 + 老年友好交互 + 自我管理激励 + 健康小组互助”的产品方向。它不是医院 App，不是挂号缴费 App，也不替代医生判断。
+家医 Claw 是一个面向老年慢病居民的手机端家庭医生服务导航与自我管理 MVP。  
+它不是医院 App，也不是线上问诊平台。它的重点是把居民反复在群里问的公开服务信息先整理清楚，再把真正需要医生判断的问题分流出去，减少家庭医生被重复流程咨询持续打断。
 
-## 项目定位
-
-- 帮助居民更容易理解家庭医生服务
-- 帮助居民更快进入正确服务路径
-- 帮助家庭医生减少重复性、流程性、低复杂度咨询打断
-- 用语音问答、拍照问、头像找人、健康任务、积分激励和健康小组，提升居民持续参与度
-
-## 当前阶段说明
-
-- 当前为纯前端原型
-- 不依赖 OpenClaw
-- 不接真实医疗系统
-- 不接真实企业微信、微信小程序、数据库、支付、医保、语音识别、OCR、地图、电话系统
-- 默认优先使用本地 FAQ 和 `localStorage` 模拟
-- 可选接入 Kimi API 作为 `/ask` 页面 FAQ 未命中时的服务端兜底回答
-
-## 技术栈
+当前项目基于：
 
 - Next.js App Router
-- React
 - TypeScript
 - Tailwind CSS
-- 本地 TypeScript 数据文件
-- `localStorage` 本地状态持久化
+- Supabase Auth
+- Supabase Postgres
+- Supabase RLS
+- 本地 FAQ / 知识库 fallback
+- Kimi 服务端兜底
 
-## 功能模块
+## 当前范围
 
-- 首页：问家医 Claw、一键找人、今日健康小事、健康小组预览、小课堂推荐
-- 任务页：居民任务、连续打卡、积分兑换
-- 群聊页：健康小组、提醒卡、群消息、常见问题、打卡
-- 问 Claw：紧急风险拦截、医疗边界拦截、本地 FAQ 优先、Kimi 服务端兜底、聊天记录
-- 一键找人：团队、家人、社区支持联系人大头像宫格
-- 联系人详情：打电话、发消息、请他联系我、Claw 整理摘要
-- 家医小课堂：课程分类、模拟播放、听讲解、积分领取
-- 我的：个人信息、积分、团队、家人、小组、打卡记录、兑换记录
-- 家医团队工作台：隐藏演示页
+保留并可继续使用的页面：
 
-## 路由说明
+- `/`
+- `/ask`
+- `/tasks`
+- `/group`
+- `/contacts`
+- `/contacts/[id]`
+- `/courses`
+- `/me`
+- `/doctor`
+- `/login`
 
-- `/` 首页
-- `/tasks` 任务页
-- `/group` 群聊 / 健康小组页
-- `/ask` 问 Claw 页面
-- `/contacts` 一键找人页面
-- `/contacts/[id]` 联系人详情页
-- `/courses` 家医小课堂页面
-- `/me` 我的页面
-- `/doctor` 家医团队工作台隐藏演示页
+这次升级的重点不是重做 UI，而是把原来的 `localStorage demo` 推进到“数据库层 MVP”：
 
-## 运行方式
+- 建立 Supabase / PostgreSQL 表结构
+- 引入 RLS 基础权限边界
+- 把 FAQ、任务、积分、联系人、群聊、医生待办逐步接到数据库
+- 同时保留本地 fallback，避免环境未配置时页面白屏
+
+## 为什么需要数据库
+
+`localStorage` 只能支持单机演示：
+
+- 数据只在当前浏览器里
+- 换设备就丢
+- 不能多人试用
+- 无法做角色、权限和真实任务协同
+
+真实试用至少需要数据库层来承接：
+
+- 用户资料
+- 联系人
+- FAQ
+- 小课堂
+- 任务模板
+- 任务完成记录
+- 积分流水
+- 群聊消息
+- 医生待办
+
+## 环境变量
+
+复制一份环境变量示例文件：
+
+```bash
+cp .env.local.example .env.local
+```
+
+至少需要：
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_optional_server_only
+KIMI_API_KEY=your_kimi_api_key
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_MODEL=kimi-k2.6
+NEXT_PUBLIC_ASK_TIMEOUT_MS=30000
+```
+
+说明：
+
+- `NEXT_PUBLIC_SUPABASE_URL` 和 `NEXT_PUBLIC_SUPABASE_ANON_KEY` 可用于前端与 SSR
+- `SUPABASE_SERVICE_ROLE_KEY` 只能用于服务端
+- 不要提交 `.env.local`
+- 不要在前端打印任何真实 Key
+- `NEXT_PUBLIC_ASK_TIMEOUT_MS` 用于控制 `/ask` 前端等待 `/api/ask` 的超时时间，默认 30000ms
+
+## 使用 Supabase
+
+1. 在 [Supabase](https://supabase.com/) 创建项目
+2. 在 `Project Settings -> API` 获取：
+   - Project URL
+   - anon key
+   - service_role key
+3. 在本地 `.env.local` 中配置这些变量
+
+## 数据库 Migration
+
+当前项目提供了数据库初始化 SQL：
+
+- [supabase/migrations/001_initial_schema.sql](C:/Users/LHT/Desktop/小程序/supabase/migrations/001_initial_schema.sql)
+
+核心表包括：
+
+1. `profiles`
+2. `contacts`
+3. `faqs`
+4. `courses`
+5. `tasks`
+6. `task_records`
+7. `points_ledger`
+8. `exchanges`
+9. `group_messages`
+10. `doctor_todos`
+11. `audit_logs`
+
+执行方式：
+
+1. 打开 Supabase Dashboard
+2. 进入 `SQL Editor`
+3. 执行 `001_initial_schema.sql`
+
+这份 migration 已包含：
+
+- `pgcrypto`
+- `updated_at` trigger
+- 基础索引
+- `task_records` 按日去重唯一索引
+- RLS 开启
+- MVP 版本的基础策略
+
+## 种子数据
+
+种子文件：
+
+- [supabase/seed.sql](C:/Users/LHT/Desktop/小程序/supabase/seed.sql)
+
+因为 Supabase Auth 用户不能安全地用普通 SQL 直接创建，建议先在 Dashboard 手动创建这些账号：
+
+- `zhangayi@example.com`
+- `daughter@example.com`
+- `li-doctor@example.com`
+- `wang-nurse@example.com`
+- `chen-pharmacist@example.com`
+- `community-zhang@example.com`
+- `admin@example.com`
+
+对应角色：
+
+- 张阿姨 resident
+- 张阿姨女儿 family
+- 李医生 doctor
+- 王护士 nurse
+- 陈药师 pharmacist
+- 居委张老师 community
+- 管理员 admin
+
+然后执行 `seed.sql`。它会补充：
+
+- profiles
+- resident profile
+- contacts
+- faqs
+- courses
+- tasks
+- task_records
+- points_ledger
+- exchanges
+- group_messages
+- doctor_todos
+
+## Supabase 客户端与数据库封装
+
+当前项目已经新增：
+
+- [lib/supabase/client.ts](C:/Users/LHT/Desktop/小程序/lib/supabase/client.ts)
+- [lib/supabase/server.ts](C:/Users/LHT/Desktop/小程序/lib/supabase/server.ts)
+- [lib/supabase/types.ts](C:/Users/LHT/Desktop/小程序/lib/supabase/types.ts)
+
+以及数据库访问封装：
+
+- [lib/db/faqs.ts](C:/Users/LHT/Desktop/小程序/lib/db/faqs.ts)
+- [lib/db/tasks.ts](C:/Users/LHT/Desktop/小程序/lib/db/tasks.ts)
+- [lib/db/points.ts](C:/Users/LHT/Desktop/小程序/lib/db/points.ts)
+- [lib/db/contacts.ts](C:/Users/LHT/Desktop/小程序/lib/db/contacts.ts)
+- [lib/db/groupMessages.ts](C:/Users/LHT/Desktop/小程序/lib/db/groupMessages.ts)
+- [lib/db/doctorTodos.ts](C:/Users/LHT/Desktop/小程序/lib/db/doctorTodos.ts)
+- [lib/db/audit.ts](C:/Users/LHT/Desktop/小程序/lib/db/audit.ts)
+
+这些封装的原则是：
+
+- 数据库优先
+- try/catch 兜底
+- 出错时回退本地数据或 localStorage
+- 不让页面因为 Supabase 未配置而崩溃
+
+## 积分流水说明
+
+积分不直接存一个总分字段。  
+页面显示的“我的积分”应通过 `points_ledger` 汇总计算：
+
+```sql
+sum(change)
+```
+
+完成任务时：
+
+1. 写 `task_records`
+2. 写 `points_ledger`
+3. `change = task.points`
+4. `reason = 完成任务：任务名称`
+5. `source_type = 'task'`
+
+兑换积分时：
+
+1. 检查当前积分是否足够
+2. 写 `exchanges`
+3. 写 `points_ledger`
+4. `change = -pointsCost`
+5. `source_type = 'exchange'`
+
+这能保证后续：
+
+- 可追溯
+- 可审计
+- 可回滚
+- 不容易因为并发直接写总分而出错
+
+## 问 Claw 四层问答架构
+
+`/ask` 当前采用四层问答流程：
+
+1. 安全拦截
+2. FAQ
+3. 知识库检索
+4. Kimi 兜底生成
+
+顺序是：
+
+1. 紧急风险拦截
+2. 医疗安全边界拦截
+3. 优先读取 FAQ
+   - 数据库 `faqs` 优先
+   - 不可用时回退 `data/faqs.ts`
+4. 检索本地知识库 `data/knowledge.ts`
+5. 命中知识片段后交给 Kimi 做整理表达
+6. 若仍未命中，但属于家医服务范围，则调用 Kimi 做一般服务导航
+7. 不属于范围则 fallback
+8. Kimi 限流、超时、认证失败、模型异常时 fallback
+
+当前知识库仍是本地关键词检索版本。未来可升级为：
+
+- Supabase 表
+- pgvector
+- 更完整的 RAG 检索
+
+## 当前哪些页面已接数据库
+
+已经接数据库优先模式的部分：
+
+- `/login`
+- `/ask` 的 FAQ 读取
+- `/tasks`
+- `/contacts`
+- `/group`
+- `/me`
+- `/doctor`
+
+## 哪些地方仍保留 fallback
+
+为了保证 demo 稳定，当前仍保留这些 fallback：
+
+- 首页局部状态
+- 聊天记录 localStorage
+- 课程观看状态
+- 部分兑换展示
+- 群助手自动回复的本地演示逻辑
+- 联系人详情页仍主要沿用演示模板
+
+也就是说：
+
+- Supabase 配好了，可以多人试用
+- Supabase 没配好，也不会白屏，仍然可以本地演示
+
+## RLS 策略说明
+
+当前是 MVP 级别策略，重点保证“先有边界，再逐步细化”。
+
+已覆盖的基础规则：
+
+- 用户只能读取自己的 `profiles`
+- 用户可更新自己的基础资料
+- `faqs / courses / tasks` 对登录用户开放读取，admin 可管理
+- resident 只能读取自己的 `task_records`、`points_ledger`
+- family / contact 关系用户可读取绑定居民的部分记录
+- `contacts` 仅 resident、contact_user 或 admin 可读
+- `group_messages` 当前允许已登录用户读取演示群消息
+- `doctor_todos` 允许 assigned_to、resident 本人和 admin 读取
+- `audit_logs` 仅 admin 可读
+
+后续可以继续加强：
+
+- 群成员级别的 group 访问控制
+- 更细的 family 可见字段边界
+- admin 配置后台
+- 更严格的 doctor / nurse / pharmacist / community 协同权限
+
+## 服务端 API
+
+当前已经新增这些 route handler：
+
+- [app/api/tasks/complete/route.ts](C:/Users/LHT/Desktop/小程序/app/api/tasks/complete/route.ts)
+- [app/api/points/exchange/route.ts](C:/Users/LHT/Desktop/小程序/app/api/points/exchange/route.ts)
+- [app/api/group/messages/route.ts](C:/Users/LHT/Desktop/小程序/app/api/group/messages/route.ts)
+- [app/api/doctor/todos/route.ts](C:/Users/LHT/Desktop/小程序/app/api/doctor/todos/route.ts)
+
+它们会：
+
+- 在服务端读取当前用户
+- 做最基础权限判断
+- 写数据库敏感表
+- 写 `audit_logs`
+- 返回友好错误
+
+## 本地运行
 
 ```bash
 npm install
 npm run dev
 ```
 
-默认开发地址：
+构建：
 
 ```bash
-http://localhost:3000
+npm run build
 ```
 
-## Kimi API 接入
+## 部署到 Vercel
 
-`/ask` 页面不会在前端直接调用 Kimi，也不会把 API Key 暴露到浏览器。当前实现方式是：
+在 Vercel 项目里配置以下环境变量：
 
-- 前端 `app/ask/page.tsx` 调用服务端接口 `/api/ask`
-- 服务端 `app/api/ask/route.ts` 先做紧急风险和医疗边界拦截
-- 本地 `data/faqs.ts` + `lib/faq.ts` 优先匹配 FAQ
-- 只有 FAQ 未命中时，才会读取 `.env.local` 中的 `KIMI_API_KEY` 调用 Kimi
-- Kimi 调用失败或未配置时，会返回统一兜底提示
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `KIMI_API_KEY`
+- `KIMI_BASE_URL`
+- `KIMI_MODEL`
 
-请先复制一份环境变量文件：
+位置：
 
-```bash
-cp .env.local.example .env.local
-```
+- `Project Settings -> Environment Variables`
 
-Windows PowerShell 也可以直接新建 `.env.local`，内容如下：
+## 当前 MVP 边界
 
-```bash
-KIMI_API_KEY=your_kimi_api_key
-KIMI_BASE_URL=https://api.moonshot.cn/v1
-KIMI_MODEL=kimi-k2.6
-```
+仍未接入：
 
-## 本地状态模拟
+- 真实医疗系统
+- 医保
+- 真实处方
+- 微信小程序正式能力
+- 真实 OCR / 语音识别
 
-以下内容通过 `localStorage` 持久化：
+医疗边界仍然保留：
 
-- 当前积分
-- 已完成任务
-- 聊天记录
-- 已观看课程
-- 兑换记录
-- 小组打卡状态
+- 不做诊断
+- 不开处方
+- 不建议停药换药
+- 不做剂量调整
+- 不做个体化治疗判断
 
-## 医疗安全边界
+Kimi 当前只做：
 
-- 家医 Claw 不提供诊断、处方、停药、换药、剂量调整或个体化治疗建议
-- `/api/ask` 会优先拦截胸痛、呼吸困难、意识异常、严重低血糖、肢体无力、言语不清等紧急风险词
-- `/api/ask` 会优先拦截停药、换药、剂量、处方、报告严不严重、要不要住院等医疗判断类问题
-- 对高风险症状和紧急情况进行统一拦截提示
-- FAQ 与群聊回答仅用于流程说明、健康教育和服务分流
-- 积分不能提现、不能充值、不能购买处方药、不能医保支付，不承诺治疗效果
+- 服务导航
+- 知识整理
+- 公开信息解释
+- 居民能听懂的话术总结
 
-## 后续扩展方向
-
-1. 接入真实 FAQ 知识库
-2. 接入企业微信自建应用
-3. 接入微信小程序
-4. 接入真实语音识别
-5. 接入 OCR 识别体检单和药盒
-6. 接入基层社区卫生服务中心内容管理后台
-7. 接入家医团队任务工单与贡献核算模块
-8. 接入可信积分账本
+不是问诊替代。

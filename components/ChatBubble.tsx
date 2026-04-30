@@ -10,6 +10,16 @@ const roleStyleMap = {
   family: "mr-auto max-w-[88%] bg-[#FDEEE7] text-navy border border-[#E4C7B8]",
 } as const;
 
+const sourceLabelMap = {
+  safety: "安全提示",
+  faq: "FAQ 回答",
+  knowledge_kimi: "知识库生成",
+  kimi: "Kimi 生成",
+  fallback: "兜底提示",
+  greeting: "FAQ 回答",
+  knowledge: "知识库生成",
+} as const;
+
 type ChatBubbleProps = {
   message: ChatMessage;
 };
@@ -17,6 +27,7 @@ type ChatBubbleProps = {
 export function ChatBubble({ message }: ChatBubbleProps) {
   const isUser = message.role === "user";
   const time = formatMessageTime(message.createdAt);
+  const sourceLabel = message.source ? sourceLabelMap[message.source] : null;
 
   return (
     <div className={isUser ? "ml-auto max-w-[82%]" : "mr-auto max-w-[88%]"}>
@@ -26,6 +37,18 @@ export function ChatBubble({ message }: ChatBubbleProps) {
       <div className={`rounded-[22px] px-4 py-3 shadow-soft ${roleStyleMap[message.role]}`}>
         <p className="text-sm leading-6">{message.content}</p>
       </div>
+      {!isUser && sourceLabel ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-[11px] font-semibold text-navy/68">
+            {sourceLabel}
+          </span>
+          {message.reason ? (
+            <span className="rounded-full bg-[#F5ECDD] px-3 py-1 text-[11px] text-navy/52">
+              reason: {message.reason}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <p className={`mt-1 text-[11px] text-navy/40 ${isUser ? "text-right" : "text-left"}`}>
         {time}
       </p>

@@ -1,23 +1,17 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
-import { AskReply, KnowledgeSnippet } from "@/lib/types";
-import {
-  getFallbackAskReply,
-  getGreetingReply,
-  getGuardrailReply,
-  normalizeQuestion,
-} from "@/lib/faq";
-import {
-  buildClarifyReply,
-  buildKnowledgeFallbackReply,
-  buildKnowledgePrompt,
-  retrieveKnowledge,
-} from "@/lib/knowledge";
+import { getFaqs } from "@/lib/db/faqs";
+import { getFallbackAskReply, getGreetingReply, getGuardrailReply, getLocalAskReply, normalizeQuestion } from "@/lib/faq";
+import { isInScope, buildKnowledgePrompt, searchKnowledge } from "@/lib/knowledge";
+import { AskFallbackReason, AskReply, KnowledgeItem } from "@/lib/types";
 
 export const runtime = "nodejs";
 
-const kimiSystemPrompt =
-  "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。你的主要工作不是自己创造事实，而是把已经检索到的公开信息、本地知识和流程材料，用老人更容易理解的话整理出来。回答要简明、温和、清楚，优先帮助居民知道下一步该做什么。";
+const knowledgeSystemPrompt =
+  "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。你必须优先依据提供的“项目知识库片段”回答。如果知识库片段不足以回答，请明确说明不能确定，并建议联系家庭医生或社区卫生服务中心。你只能回答家庭医生签约、体检流程、报告领取、配药规则、长处方、延伸处方、随访安排、转诊流程、慢病基础科普、平台任务积分、健康小组使用等问题。回答要简明、温和、适合老年居民理解。每次回答最后给出“下一步建议”。";
+
+const generalSystemPrompt =
+  "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。当前问题属于家庭医生服务导航范围，但没有命中本地 FAQ 或知识库。请只提供一般性的服务导航、流程解释和下一步建议，不要扩展到个体化医疗判断。回答要简明、温和、适合老年居民理解。";
 
 const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
 const KIMI_TIMEOUT_MS = 40_000;
@@ -48,10 +42,6 @@ function setCachedKimiReply(cacheKey: string, reply: AskReply) {
     reply,
     expiresAt: Date.now() + KIMI_CACHE_TTL_MS,
   });
-}
-
-function buildCacheKey(question: string, snippets: KnowledgeSnippet[]) {
-  return `${question}::${snippets.map((snippet) => snippet.id).join(",")}`;
 }
 
 function extractTextContent(content: unknown) {
@@ -96,7 +86,15 @@ function parseRiskLevel(text: string): AskReply["riskLevel"] {
   return "low";
 }
 
-function parseKimiReply(text: string, snippets: KnowledgeSnippet[]): AskReply {
+function parseStructuredReply(
+  text: string,
+  fallback: {
+    category: string;
+    nextStep: string;
+    source: AskReply["source"];
+    knowledgeIds?: string[];
+  },
+): AskReply {
   const trimmed = text.trim();
   const answerMatch = trimmed.match(/回答[:：]\s*([\s\S]*?)(?:\n\s*下一步建议[:：]|$)/);
   const nextStepMatch = trimmed.match(/下一步建议[:：]\s*([\s\S]*?)(?:\n\s*是否建议联系家庭医生[:：]|$)/);
@@ -105,14 +103,12 @@ function parseKimiReply(text: string, snippets: KnowledgeSnippet[]): AskReply {
 
   return {
     answer: answerMatch?.[1]?.trim() || trimmed,
-    nextStep:
-      nextStepMatch?.[1]?.trim() ||
-      snippets[0]?.nextStep ||
-      "如果您仍然拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
+    nextStep: nextStepMatch?.[1]?.trim() || fallback.nextStep,
     suggestDoctor: parseBoolean(suggestDoctorMatch?.[1] ?? ""),
     riskLevel: parseRiskLevel((riskLevelMatch?.[1] ?? "").toLowerCase()),
-    category: snippets[0]?.category ?? "知识整理",
-    source: "kimi",
+    category: fallback.category,
+    source: fallback.source,
+    knowledgeIds: fallback.knowledgeIds,
   };
 }
 
@@ -144,9 +140,9 @@ function isTimeoutError(error: unknown) {
   return (
     code === "ETIMEDOUT" ||
     name === "AbortError" ||
-    message.includes("kimi_timeout") ||
     message.includes("timeout") ||
     message.includes("timed out") ||
+    message.includes("kimitimeout") ||
     message.includes("aborted")
   );
 }
@@ -168,9 +164,24 @@ function isAuthError(error: unknown) {
   );
 }
 
-async function requestKimiReply(
-  question: string,
-  snippets: KnowledgeSnippet[],
+function buildGeneralPrompt(question: string) {
+  return `用户问题：
+${question}
+
+这个问题属于家医 Claw 的服务范围，但没有命中本地 FAQ 或知识库。
+
+请提供一般性的服务导航回答，不要扩展到诊断、处方、停药、换药、剂量调整或个体化治疗建议。
+
+请严格按下面格式输出：
+回答：...
+下一步建议：...
+是否建议联系家庭医生：是/否
+风险等级：low|medium|high|emergency`;
+}
+
+async function requestKimi(
+  prompt: string,
+  systemPrompt: string,
   client: OpenAI,
   model: string,
 ) {
@@ -179,8 +190,8 @@ async function requestKimiReply(
       model,
       temperature: 1,
       messages: [
-        { role: "system", content: kimiSystemPrompt },
-        { role: "user", content: buildKnowledgePrompt(question, snippets) },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt },
       ],
     }),
     new Promise<never>((_, reject) => {
@@ -194,83 +205,176 @@ async function requestKimiReply(
     throw new Error("KIMI_EMPTY_REPLY");
   }
 
-  return parseKimiReply(text, snippets);
+  return text;
 }
 
-async function getKnowledgeReply(question: string, snippets: KnowledgeSnippet[]) {
+async function runKimiWithCache(
+  cacheKey: string,
+  prompt: string,
+  systemPrompt: string,
+  fallbackMeta: {
+    category: string;
+    nextStep: string;
+    source: AskReply["source"];
+    knowledgeIds?: string[];
+  },
+) {
   const apiKey = readEnvValue("KIMI_API_KEY").replace(/^Bearer\s+/i, "");
-  const fallbackReply = buildKnowledgeFallbackReply(question, snippets);
 
   if (!apiKey) {
-    return fallbackReply;
+    return {
+      reply: getFallbackAskReply("no_env_key"),
+      errorReason: "no_env_key" as AskFallbackReason,
+    };
   }
 
-  const baseURL = readEnvValue("KIMI_BASE_URL") || "https://api.moonshot.cn/v1";
-  const model = readEnvValue("KIMI_MODEL") || "kimi-k2.6";
-  const cacheKey = buildCacheKey(question, snippets);
   const cachedReply = getCachedKimiReply(cacheKey);
-
   if (cachedReply) {
-    return cachedReply;
+    return { reply: cachedReply, errorReason: null };
   }
 
   const client = new OpenAI({
     apiKey,
-    baseURL,
+    baseURL: readEnvValue("KIMI_BASE_URL") || "https://api.moonshot.cn/v1",
   });
+  const model = readEnvValue("KIMI_MODEL") || "kimi-k2.6";
 
-  const pendingReply =
+  const pending =
     kimiInFlight.get(cacheKey) ??
     (async () => {
-      const kimiReply = await requestKimiReply(question, snippets, client, model);
-      setCachedKimiReply(cacheKey, kimiReply);
-      return kimiReply;
+      const text = await requestKimi(prompt, systemPrompt, client, model);
+      const reply = parseStructuredReply(text, fallbackMeta);
+      setCachedKimiReply(cacheKey, reply);
+      return reply;
     })();
 
-  kimiInFlight.set(cacheKey, pendingReply);
+  kimiInFlight.set(cacheKey, pending);
 
   try {
-    return await pendingReply;
+    return {
+      reply: await pending,
+      errorReason: null,
+    };
   } catch (error) {
-    if (isAuthError(error) || isRateLimitError(error) || isTimeoutError(error)) {
-      return fallbackReply;
+    let reason: AskFallbackReason = "kimi_error";
+
+    if (isAuthError(error)) {
+      reason = "auth_error";
+    } else if (isRateLimitError(error)) {
+      reason = "rate_limit";
+    } else if (isTimeoutError(error)) {
+      reason = "timeout";
+    } else if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      String(error.message).includes("KIMI_EMPTY_REPLY")
+    ) {
+      reason = "model_error";
     }
 
-    return fallbackReply;
+    return {
+      reply: getFallbackAskReply(reason),
+      errorReason: reason,
+    };
   } finally {
     kimiInFlight.delete(cacheKey);
   }
 }
 
+function buildKnowledgeCacheKey(question: string, items: KnowledgeItem[]) {
+  return `knowledge::${normalizeQuestion(question)}::${items.map((item) => item.id).join(",")}`;
+}
+
+function buildGeneralCacheKey(question: string) {
+  return `general::${normalizeQuestion(question)}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { question?: string };
-    const question = typeof body.question === "string" ? body.question : "";
-    const trimmedQuestion = question.trim();
+    const question = typeof body.question === "string" ? body.question.trim() : "";
     const normalizedQuestion = normalizeQuestion(question);
 
     if (!normalizedQuestion) {
       return NextResponse.json(getFallbackAskReply("unknown"));
     }
 
-    const guardrailReply = getGuardrailReply(normalizedQuestion);
+    const guardrailReply = getGuardrailReply(question);
     if (guardrailReply) {
       return NextResponse.json(guardrailReply);
     }
 
-    const greetingReply = getGreetingReply(normalizedQuestion);
+    const greetingReply = getGreetingReply(question);
     if (greetingReply) {
       return NextResponse.json(greetingReply);
     }
 
-    const snippets = retrieveKnowledge(trimmedQuestion);
-
-    if (!snippets.length) {
-      return NextResponse.json(buildClarifyReply(trimmedQuestion));
+    const faqItems = await getFaqs();
+    const faqReply = getLocalAskReply(question, faqItems);
+    if (faqReply?.source === "faq") {
+      return NextResponse.json(faqReply);
     }
 
-    const reply = await getKnowledgeReply(trimmedQuestion, snippets);
-    return NextResponse.json(reply);
+    const knowledgeHits = searchKnowledge(question);
+    if (knowledgeHits.length > 0) {
+      const knowledgeIds = knowledgeHits.map((item) => item.id);
+      const fallbackMeta = {
+        category: knowledgeHits[0].category,
+        nextStep: "如果您还拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
+        source: "knowledge_kimi" as const,
+        knowledgeIds,
+      };
+
+      const { reply, errorReason } = await runKimiWithCache(
+        buildKnowledgeCacheKey(question, knowledgeHits),
+        buildKnowledgePrompt(question, knowledgeHits),
+        knowledgeSystemPrompt,
+        fallbackMeta,
+      );
+
+      if (reply.source === "fallback") {
+        return NextResponse.json({
+          ...reply,
+          reason: errorReason ?? reply.reason ?? "kimi_error",
+        });
+      }
+
+      return NextResponse.json({
+        ...reply,
+        source: "knowledge_kimi",
+        category: knowledgeHits[0].category,
+        knowledgeIds,
+      });
+    }
+
+    if (!isInScope(question)) {
+      return NextResponse.json(getFallbackAskReply("out_of_scope"));
+    }
+
+    const { reply, errorReason } = await runKimiWithCache(
+      buildGeneralCacheKey(question),
+      buildGeneralPrompt(question),
+      generalSystemPrompt,
+      {
+        category: "服务导航",
+        nextStep: "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
+        source: "kimi",
+      },
+    );
+
+    if (reply.source === "fallback") {
+      return NextResponse.json({
+        ...reply,
+        reason: errorReason ?? reply.reason ?? "kimi_error",
+      });
+    }
+
+    return NextResponse.json({
+      ...reply,
+      source: "kimi",
+      category: reply.category || "服务导航",
+    });
   } catch {
     return NextResponse.json(getFallbackAskReply("unknown"));
   }
