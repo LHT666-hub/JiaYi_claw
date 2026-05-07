@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createMessage, defaultState, getTodayKey, readState, writeState } from "@/lib/storage";
+import { useEffect, useRef, useState } from "react";
+import {
+  adjustPoints,
+  appendTaskRecord,
+  createMessage,
+  defaultState,
+  getTodayKey,
+  readState,
+  writeState,
+} from "@/lib/storage";
 import { AskFallbackReason, AskSource, ClawState, RiskLevel } from "@/lib/types";
 
 function appendUnique(list: string[], value: string) {
@@ -10,21 +18,24 @@ function appendUnique(list: string[], value: string) {
 
 export function useClawState() {
   const [state, setState] = useState<ClawState>(defaultState);
+  const stateRef = useRef<ClawState>(defaultState);
 
   useEffect(() => {
-    setState(readState());
+    const nextState = readState();
+    stateRef.current = nextState;
+    setState(nextState);
   }, []);
 
   function commit(updater: (current: ClawState) => ClawState) {
-    setState((current) => {
-      const next = updater(current);
-      writeState(next);
-      return next;
-    });
+    const next = updater(stateRef.current);
+    stateRef.current = next;
+    writeState(next);
+    setState(next);
   }
 
-  function completeTask(taskId: string, points: number) {
+  function completeTask(taskId: string, points: number, title = taskId) {
     let changed = false;
+    const completedOn = getTodayKey();
 
     commit((current) => {
       if (current.completedTaskIds.includes(taskId)) {
@@ -39,6 +50,18 @@ export function useClawState() {
         completedTaskIds: [...current.completedTaskIds, taskId],
       };
     });
+
+    if (changed) {
+      adjustPoints(points, "award");
+      appendTaskRecord({
+        id: `task-record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        taskId,
+        title,
+        points,
+        completedOn,
+        completedAt: new Date().toISOString(),
+      });
+    }
 
     return changed;
   }
@@ -59,6 +82,10 @@ export function useClawState() {
         viewedCourseIds: [...current.viewedCourseIds, courseId],
       };
     });
+
+    if (changed) {
+      adjustPoints(points, "award");
+    }
 
     return changed;
   }
@@ -87,6 +114,10 @@ export function useClawState() {
         ],
       };
     });
+
+    if (success) {
+      adjustPoints(-points, "redeem");
+    }
 
     return success;
   }
@@ -247,6 +278,18 @@ export function useClawState() {
       };
     });
 
+    if (changed) {
+      adjustPoints(points, "award");
+      appendTaskRecord({
+        id: `group-checkin-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        taskId: "task-group-reply",
+        title: "进群回复一句",
+        points,
+        completedOn: today,
+        completedAt: new Date().toISOString(),
+      });
+    }
+
     return changed;
   }
 
@@ -324,6 +367,18 @@ export function useClawState() {
         completedTaskIds: appendUnique(current.completedTaskIds, "task-followup-confirm"),
       };
     });
+
+    if (changed) {
+      adjustPoints(points, "award");
+      appendTaskRecord({
+        id: `followup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        taskId: "task-followup-confirm",
+        title: "完成随访确认",
+        points,
+        completedOn: getTodayKey(),
+        completedAt: new Date().toISOString(),
+      });
+    }
 
     return changed;
   }

@@ -1,17 +1,26 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { createAskLog } from "@/lib/db/askLogs";
 import { getFaqs } from "@/lib/db/faqs";
-import { getFallbackAskReply, getGreetingReply, getGuardrailReply, getLocalAskReply, normalizeQuestion } from "@/lib/faq";
-import { isInScope, buildKnowledgePrompt, searchKnowledge } from "@/lib/knowledge";
-import { AskFallbackReason, AskReply, KnowledgeItem } from "@/lib/types";
+import { createDoctorTodo } from "@/lib/db/doctorTodos";
+import {
+  getFallbackAskReply,
+  getGreetingReply,
+  getGuardrailReply,
+  getLocalAskReply,
+  normalizeQuestion,
+} from "@/lib/faq";
+import { buildKnowledgePrompt, isInScope, searchKnowledge } from "@/lib/knowledge";
+import { getServerAuthContext } from "@/lib/supabase/server-auth";
+import { AskFallbackReason, AskReply, KnowledgeItem, ProfileRow } from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const knowledgeSystemPrompt =
-  "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。你必须优先依据提供的“项目知识库片段”回答。如果知识库片段不足以回答，请明确说明不能确定，并建议联系家庭医生或社区卫生服务中心。你只能回答家庭医生签约、体检流程、报告领取、配药规则、长处方、延伸处方、随访安排、转诊流程、慢病基础科普、平台任务积分、健康小组使用等问题。回答要简明、温和、适合老年居民理解。每次回答最后给出“下一步建议”。";
+  "你是“家医 Claw”，用于家庭医生服务导航与慢病科普。你不能提供诊断、处方、停药、换药、剂量调整、报告严重程度判断或个体化治疗建议。请优先依据给定知识片段回答，并在最后给出下一步建议。";
 
 const generalSystemPrompt =
-  "你是“家医 Claw”，一个面向老年慢病居民的家庭医生服务导航与慢病科普助手。你不是医生，不能提供诊断、处方、停药、换药、剂量调整、检查报告严重程度判断或个体化治疗建议。当前问题属于家庭医生服务导航范围，但没有命中本地 FAQ 或知识库。请只提供一般性的服务导航、流程解释和下一步建议，不要扩展到个体化医疗判断。回答要简明、温和、适合老年居民理解。";
+  "你是“家医 Claw”，只提供家庭医生服务导航、流程解释和一般性慢病科普信息。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。";
 
 const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
 const KIMI_TIMEOUT_MS = 40_000;
@@ -142,7 +151,7 @@ function isTimeoutError(error: unknown) {
     name === "AbortError" ||
     message.includes("timeout") ||
     message.includes("timed out") ||
-    message.includes("kimitimeout") ||
+    message.includes("kimi_timeout") ||
     message.includes("aborted")
   );
 }
@@ -165,13 +174,10 @@ function isAuthError(error: unknown) {
 }
 
 function buildGeneralPrompt(question: string) {
-  return `用户问题：
-${question}
+  return `用户问题：${question}
 
-这个问题属于家医 Claw 的服务范围，但没有命中本地 FAQ 或知识库。
-
-请提供一般性的服务导航回答，不要扩展到诊断、处方、停药、换药、剂量调整或个体化治疗建议。
-
+这个问题属于家医 Claw 的服务范围，但没有命中 FAQ 或知识库。
+请只提供一般性的服务导航回答，不要扩展到诊断、处方、停药、换药、剂量调整或个体化治疗建议。
 请严格按下面格式输出：
 回答：...
 下一步建议：...
@@ -290,6 +296,75 @@ function buildGeneralCacheKey(question: string) {
   return `general::${normalizeQuestion(question)}`;
 }
 
+async function persistAskArtifacts(params: {
+  question: string;
+  reply: AskReply;
+  profile: ProfileRow | null;
+  supabase: Awaited<ReturnType<typeof getServerAuthContext>>["supabase"];
+}) {
+  const { question, reply, profile, supabase } = params;
+  let askLogToLocal = true;
+  let doctorTodoToLocal = reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
+
+  if (!supabase || !profile) {
+    return {
+      askLogToLocal,
+      doctorTodoToLocal,
+      residentName: profile?.display_name ?? "当前居民",
+    };
+  }
+
+  try {
+    await createAskLog({
+      userId: profile.id,
+      question,
+      answer: `${reply.answer} ${reply.nextStep}`.trim(),
+      source: reply.source,
+      category: reply.category,
+      riskLevel: reply.riskLevel,
+      suggestDoctor: reply.suggestDoctor,
+      reason: reply.reason ?? null,
+      supabase,
+    });
+    askLogToLocal = false;
+  } catch {
+    askLogToLocal = true;
+  }
+
+  if (!doctorTodoToLocal) {
+    return {
+      askLogToLocal,
+      doctorTodoToLocal: false,
+      residentName: profile.display_name,
+    };
+  }
+
+  try {
+    const result = await createDoctorTodo({
+      residentId: profile.role === "resident" ? profile.id : null,
+      assignedTo: null,
+      type: "ask",
+      title: question.slice(0, 36),
+      description: `${reply.category} / ${reply.source}`,
+      originalQuestion: question,
+      clawAnswer: `${reply.answer} ${reply.nextStep}`.trim(),
+      riskLevel: reply.riskLevel,
+      source: "ask",
+      supabase,
+    });
+
+    doctorTodoToLocal = !result.ok;
+  } catch {
+    doctorTodoToLocal = true;
+  }
+
+  return {
+    askLogToLocal,
+    doctorTodoToLocal,
+    residentName: profile.display_name,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as { question?: string };
@@ -297,23 +372,46 @@ export async function POST(request: NextRequest) {
     const normalizedQuestion = normalizeQuestion(question);
 
     if (!normalizedQuestion) {
-      return NextResponse.json(getFallbackAskReply("unknown"));
+      return NextResponse.json({
+        ...getFallbackAskReply("unknown"),
+        clientFallbacks: {
+          askLogToLocal: true,
+          doctorTodoToLocal: false,
+        },
+      });
     }
+
+    const authContext = await getServerAuthContext();
+    const { supabase, profile } = authContext;
+
+    const finalize = async (reply: AskReply) => {
+      const persistence = await persistAskArtifacts({
+        question,
+        reply,
+        profile,
+        supabase,
+      });
+
+      return NextResponse.json({
+        ...reply,
+        clientFallbacks: persistence,
+      });
+    };
 
     const guardrailReply = getGuardrailReply(question);
     if (guardrailReply) {
-      return NextResponse.json(guardrailReply);
+      return finalize(guardrailReply);
     }
 
     const greetingReply = getGreetingReply(question);
     if (greetingReply) {
-      return NextResponse.json(greetingReply);
+      return finalize(greetingReply);
     }
 
-    const faqItems = await getFaqs();
+    const faqItems = await getFaqs(supabase);
     const faqReply = getLocalAskReply(question, faqItems);
     if (faqReply?.source === "faq") {
-      return NextResponse.json(faqReply);
+      return finalize(faqReply);
     }
 
     const knowledgeHits = searchKnowledge(question);
@@ -321,7 +419,7 @@ export async function POST(request: NextRequest) {
       const knowledgeIds = knowledgeHits.map((item) => item.id);
       const fallbackMeta = {
         category: knowledgeHits[0].category,
-        nextStep: "如果您还拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
+        nextStep: "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
         source: "knowledge_kimi" as const,
         knowledgeIds,
       };
@@ -334,13 +432,13 @@ export async function POST(request: NextRequest) {
       );
 
       if (reply.source === "fallback") {
-        return NextResponse.json({
+        return finalize({
           ...reply,
           reason: errorReason ?? reply.reason ?? "kimi_error",
         });
       }
 
-      return NextResponse.json({
+      return finalize({
         ...reply,
         source: "knowledge_kimi",
         category: knowledgeHits[0].category,
@@ -349,7 +447,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!isInScope(question)) {
-      return NextResponse.json(getFallbackAskReply("out_of_scope"));
+      return finalize(getFallbackAskReply("out_of_scope"));
     }
 
     const { reply, errorReason } = await runKimiWithCache(
@@ -364,18 +462,24 @@ export async function POST(request: NextRequest) {
     );
 
     if (reply.source === "fallback") {
-      return NextResponse.json({
+      return finalize({
         ...reply,
         reason: errorReason ?? reply.reason ?? "kimi_error",
       });
     }
 
-    return NextResponse.json({
+    return finalize({
       ...reply,
       source: "kimi",
       category: reply.category || "服务导航",
     });
   } catch {
-    return NextResponse.json(getFallbackAskReply("unknown"));
+    return NextResponse.json({
+      ...getFallbackAskReply("unknown"),
+      clientFallbacks: {
+        askLogToLocal: true,
+        doctorTodoToLocal: false,
+      },
+    });
   }
 }

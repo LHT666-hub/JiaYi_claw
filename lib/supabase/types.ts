@@ -122,6 +122,33 @@ export type Database = {
           updated_at: string;
         }>;
       };
+      ask_logs: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          question: string;
+          answer: string | null;
+          source: string;
+          category: string | null;
+          risk_level: DatabaseRiskLevel | null;
+          suggest_doctor: boolean;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          question: string;
+          answer?: string | null;
+          source: string;
+          category?: string | null;
+          risk_level?: DatabaseRiskLevel | null;
+          suggest_doctor?: boolean;
+          reason?: string | null;
+          created_at?: string;
+        };
+        Update: never;
+      };
       courses: {
         Row: {
           id: string;
@@ -195,6 +222,7 @@ export type Database = {
           id: string;
           resident_id: string;
           task_id: string;
+          completed_on: string;
           completed_at: string;
           points_awarded: number;
           note: string | null;
@@ -203,11 +231,13 @@ export type Database = {
           id?: string;
           resident_id: string;
           task_id: string;
+          completed_on?: string;
           completed_at?: string;
           points_awarded?: number;
           note?: string | null;
         };
         Update: Partial<{
+          completed_on: string;
           completed_at: string;
           points_awarded: number;
           note: string | null;
@@ -307,6 +337,8 @@ export type Database = {
           type: string;
           title: string;
           description: string | null;
+          original_question: string | null;
+          claw_answer: string | null;
           risk_level: DatabaseRiskLevel;
           status: "pending" | "processing" | "done" | "ignored";
           source: string | null;
@@ -317,9 +349,11 @@ export type Database = {
           id?: string;
           resident_id?: string | null;
           assigned_to?: string | null;
-          type: string;
+          type?: string;
           title: string;
           description?: string | null;
+          original_question?: string | null;
+          claw_answer?: string | null;
           risk_level: DatabaseRiskLevel;
           status?: "pending" | "processing" | "done" | "ignored";
           source?: string | null;
@@ -329,6 +363,8 @@ export type Database = {
           type: string;
           title: string;
           description: string | null;
+          original_question: string | null;
+          claw_answer: string | null;
           risk_level: DatabaseRiskLevel;
           status: "pending" | "processing" | "done" | "ignored";
           source: string | null;

@@ -40,11 +40,7 @@ export function isWorkbenchRole(role?: AppRole | null) {
 }
 
 export function getPostLoginPath(role?: AppRole | null) {
-  if (isWorkbenchRole(role)) {
-    return "/doctor";
-  }
-
-  return "/";
+  return isWorkbenchRole(role) ? "/doctor" : "/";
 }
 
 export async function fetchCurrentProfile(supabase: SupabaseClient) {
@@ -59,7 +55,7 @@ export async function fetchCurrentProfile(supabase: SupabaseClient) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, role, avatar_url, phone, created_at")
+    .select("id, display_name, role, avatar_url, phone, created_at, updated_at")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -99,10 +95,7 @@ export async function resolveResidentScope(supabase: SupabaseClient, profile: Pr
   };
 }
 
-export async function fetchResidentProfile(
-  supabase: SupabaseClient,
-  residentId: string,
-) {
+export async function fetchResidentProfile(supabase: SupabaseClient, residentId: string) {
   const { data, error } = await supabase
     .from("resident_profiles")
     .select("id, user_id, age, chronic_tags, family_doctor_id, community_contact_id, created_at")
@@ -120,10 +113,10 @@ export async function fetchResidentContacts(supabase: SupabaseClient, residentId
   const { data, error } = await supabase
     .from("contacts")
     .select(
-      "id, resident_id, contact_user_id, name, role_label, group_type, description, available_time, avatar_url, created_at",
+      "id, resident_id, contact_user_id, name, role_label, group_type, description, available_time, avatar_url, created_at, updated_at",
     )
     .eq("resident_id", residentId)
-    .order("created_at", { ascending: true });
+    .order("sort_order", { ascending: true });
 
   if (error || !data) {
     return [];
@@ -135,9 +128,9 @@ export async function fetchResidentContacts(supabase: SupabaseClient, residentId
 export async function fetchSupabaseTasks(supabase: SupabaseClient) {
   const { data, error } = await supabase
     .from("tasks")
-    .select("id, title, description, category, points, is_active, created_at")
+    .select("id, title, description, category, points, is_active, sort_order, created_at, updated_at")
     .eq("is_active", true)
-    .order("created_at", { ascending: true });
+    .order("sort_order", { ascending: true });
 
   if (error || !data) {
     return [];
@@ -146,13 +139,10 @@ export async function fetchSupabaseTasks(supabase: SupabaseClient) {
   return data as SupabaseTaskRow[];
 }
 
-export async function fetchTaskRecords(
-  supabase: SupabaseClient,
-  residentId: string,
-) {
+export async function fetchTaskRecords(supabase: SupabaseClient, residentId: string) {
   const { data, error } = await supabase
     .from("task_records")
-    .select("id, resident_id, task_id, completed_at, points_awarded")
+    .select("id, resident_id, task_id, completed_on, completed_at, points_awarded, note")
     .eq("resident_id", residentId)
     .order("completed_at", { ascending: false });
 
@@ -163,13 +153,10 @@ export async function fetchTaskRecords(
   return data as TaskRecordRow[];
 }
 
-export async function fetchPointsLedger(
-  supabase: SupabaseClient,
-  residentId: string,
-) {
+export async function fetchPointsLedger(supabase: SupabaseClient, residentId: string) {
   const { data, error } = await supabase
     .from("points_ledger")
-    .select("id, resident_id, change, reason, source_type, source_id, created_at")
+    .select("id, resident_id, change, reason, source_type, source_id, balance_after, created_at, created_by")
     .eq("resident_id", residentId)
     .order("created_at", { ascending: false });
 
@@ -184,13 +171,12 @@ export function sumPoints(ledger: PointsLedgerRow[]) {
   return ledger.reduce((total, item) => total + item.change, 0);
 }
 
-export async function fetchDoctorTodos(
-  supabase: SupabaseClient,
-  profile: ProfileRow,
-) {
+export async function fetchDoctorTodos(supabase: SupabaseClient, profile: ProfileRow) {
   let query = supabase
     .from("doctor_todos")
-    .select("id, resident_id, assigned_to, type, title, description, risk_level, status, created_at")
+    .select(
+      "id, resident_id, assigned_to, type, title, description, risk_level, status, created_at, updated_at, source",
+    )
     .order("created_at", { ascending: false });
 
   if (profile.role !== "admin") {

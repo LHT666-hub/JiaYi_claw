@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AudioPlayerCard } from "@/components/AudioPlayerCard";
 import { BackHeader } from "@/components/BackHeader";
@@ -8,28 +8,37 @@ import { CourseCard } from "@/components/CourseCard";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
-import { courses } from "@/data/courses";
+import { STORAGE_CHANGE_EVENT, readMergedCourses } from "@/lib/storage";
+import { ManagedCourseItem } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 
-const categories = [
-  "全部",
-  "高血压",
-  "糖尿病",
-  "体检报告",
-  "配药用药",
-  "防保健品诈骗",
-  "中医调养",
-  "家庭医生服务",
-];
+const allCategoryLabel = "全部";
 
 function CoursesPageContent() {
   const searchParams = useSearchParams();
   const handledInitial = useRef(false);
-  const [activeCategory, setActiveCategory] = useState("全部");
+  const [activeCategory, setActiveCategory] = useState(allCategoryLabel);
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
   const [playMode, setPlayMode] = useState<"play" | "listen" | null>(null);
+  const [courseItems, setCourseItems] = useState<ManagedCourseItem[]>([]);
   const { state, completeCourse } = useClawState();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    setCourseItems(readMergedCourses());
+
+    function syncCourses() {
+      setCourseItems(readMergedCourses());
+    }
+
+    window.addEventListener(STORAGE_CHANGE_EVENT, syncCourses);
+    window.addEventListener("storage", syncCourses);
+
+    return () => {
+      window.removeEventListener(STORAGE_CHANGE_EVENT, syncCourses);
+      window.removeEventListener("storage", syncCourses);
+    };
+  }, []);
 
   useEffect(() => {
     if (handledInitial.current) {
@@ -44,19 +53,27 @@ function CoursesPageContent() {
     if (autoplay) {
       setActiveCourseId(autoplay);
       setPlayMode(mode === "listen" ? "listen" : "play");
-      showToast(mode === "listen" ? "已切到听讲解演示状态" : "已切到播放演示状态", "info");
+      showToast(mode === "listen" ? "已切换到听讲解演示状态。" : "已切换到播放演示状态。", "info");
     }
   }, [searchParams, showToast]);
 
+  const categories = useMemo(() => {
+    const categorySet = new Set<string>([allCategoryLabel]);
+    courseItems.forEach((item) => categorySet.add(item.category));
+    return [...categorySet];
+  }, [courseItems]);
+
   const visibleCourses =
-    activeCategory === "全部"
-      ? courses
-      : courses.filter((course) => course.category === activeCategory);
+    activeCategory === allCategoryLabel
+      ? courseItems
+      : courseItems.filter((course) => course.category === activeCategory);
+
+  const activeCourse = courseItems.find((course) => course.id === activeCourseId) ?? courseItems[0];
 
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="家医小课堂" />
+        <BackHeader title="家医小课堂" subtitle="优先展示管理员在本地维护的小课堂内容。" />
 
         <SectionCard>
           <div className="flex flex-wrap gap-2">
@@ -77,21 +94,15 @@ function CoursesPageContent() {
           </div>
         </SectionCard>
 
-        {activeCourseId && playMode ? (
+        {activeCourseId && playMode && activeCourse ? (
           <AudioPlayerCard
-            course={courses.find((course) => course.id === activeCourseId) ?? courses[0]}
+            course={activeCourse}
             mode={playMode}
             watched={state.viewedCourseIds.includes(activeCourseId)}
             onClaim={() => {
-              const course = courses.find((item) => item.id === activeCourseId);
-
-              if (!course) {
-                return;
-              }
-
-              const changed = completeCourse(course.id, course.points);
+              const changed = completeCourse(activeCourse.id, activeCourse.points);
               showToast(
-                changed ? "看课完成，积分已增加" : "这门课的积分已经领过了",
+                changed ? "看课完成，积分已增加。" : "这门课的积分已经领过了。",
                 changed ? "success" : "warning",
               );
             }}
@@ -108,17 +119,17 @@ function CoursesPageContent() {
               onPlay={() => {
                 setActiveCourseId(course.id);
                 setPlayMode("play");
-                showToast("已进入模拟播放状态", "info");
+                showToast("已进入模拟播放状态。", "info");
               }}
               onListen={() => {
                 setActiveCourseId(course.id);
                 setPlayMode("listen");
-                showToast("已进入模拟听讲解状态", "info");
+                showToast("已进入模拟听讲解状态。", "info");
               }}
               onClaim={() => {
                 const changed = completeCourse(course.id, course.points);
                 showToast(
-                  changed ? "看课完成，积分已增加" : "这门课的积分已经领过了",
+                  changed ? "看课完成，积分已增加。" : "这门课的积分已经领过了。",
                   changed ? "success" : "warning",
                 );
               }}

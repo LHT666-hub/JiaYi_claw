@@ -66,13 +66,13 @@ export function TaskCard({
           type="button"
           onClick={onComplete}
           disabled={completed}
-          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+          className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
             completed
               ? `text-white ${didAnimate ? "animate-task-complete bg-[#2F6C56]" : "bg-[#3B7A61]"}`
-              : "bg-navy text-white shadow-soft hover:-translate-y-0.5"
+              : "bg-navy text-white shadow-soft active:scale-95"
           }`}
         >
-          {completed ? "已完成" : "完成"}
+          {completed ? "✓ 已完成" : "完成"}
         </button>
       </div>
     </div>

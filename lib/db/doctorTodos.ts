@@ -4,14 +4,19 @@ import { AppRole, DoctorTodoRow } from "@/lib/types";
 type CreateDoctorTodoInput = {
   residentId?: string | null;
   assignedTo?: string | null;
-  type: string;
+  type?: string;
   title: string;
   description?: string | null;
+  originalQuestion?: string | null;
+  clawAnswer?: string | null;
   riskLevel: DoctorTodoRow["risk_level"];
   status?: DoctorTodoRow["status"];
   source?: string | null;
   supabase: TypedSupabaseClient;
 };
+
+const todoSelect =
+  "id, resident_id, assigned_to, type, title, description, original_question, claw_answer, risk_level, status, source, created_at, updated_at";
 
 export async function getDoctorTodosForUser(
   userId: string,
@@ -19,16 +24,19 @@ export async function getDoctorTodosForUser(
   supabase: TypedSupabaseClient,
 ) {
   try {
-    let query = supabase
-      .from("doctor_todos")
-      .select("id, resident_id, assigned_to, type, title, description, risk_level, status, source, created_at, updated_at")
-      .order("created_at", { ascending: false });
+    let query = supabase.from("doctor_todos").select(todoSelect).order("created_at", {
+      ascending: false,
+    });
 
-    if (role !== "admin") {
-      query = query.eq("assigned_to", userId);
+    if (role === "admin") {
+      const { data, error } = await query;
+      if (error || !data) {
+        return [] as DoctorTodoRow[];
+      }
+      return data as DoctorTodoRow[];
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query.or(`assigned_to.eq.${userId},assigned_to.is.null`);
 
     if (error || !data) {
       return [] as DoctorTodoRow[];
@@ -43,12 +51,14 @@ export async function getDoctorTodosForUser(
 export async function createDoctorTodo({
   residentId = null,
   assignedTo = null,
-  type,
+  type = "ask",
   title,
   description = null,
+  originalQuestion = null,
+  clawAnswer = null,
   riskLevel,
   status = "pending",
-  source = null,
+  source = "ask",
   supabase,
 }: CreateDoctorTodoInput) {
   try {
@@ -60,17 +70,19 @@ export async function createDoctorTodo({
         type,
         title,
         description,
+        original_question: originalQuestion,
+        claw_answer: clawAnswer,
         risk_level: riskLevel,
         status,
         source,
       })
-      .select("id, resident_id, assigned_to, type, title, description, risk_level, status, source, created_at, updated_at")
+      .select(todoSelect)
       .maybeSingle();
 
     if (error || !data) {
       return {
         ok: false,
-        message: error?.message ?? "医生待办创建失败",
+        message: error?.message ?? "Failed to create doctor todo",
       };
     }
 
@@ -81,7 +93,7 @@ export async function createDoctorTodo({
   } catch {
     return {
       ok: false,
-      message: "医生待办创建失败",
+      message: "Failed to create doctor todo",
     };
   }
 }
@@ -90,19 +102,28 @@ export async function updateDoctorTodoStatus(
   todoId: string,
   status: DoctorTodoRow["status"],
   supabase: TypedSupabaseClient,
+  assignedTo?: string | null,
 ) {
   try {
+    const updatePayload: { status: DoctorTodoRow["status"]; assigned_to?: string | null } = {
+      status,
+    };
+
+    if (assignedTo !== undefined) {
+      updatePayload.assigned_to = assignedTo;
+    }
+
     const { data, error } = await supabase
       .from("doctor_todos")
-      .update({ status })
+      .update(updatePayload)
       .eq("id", todoId)
-      .select("id, resident_id, assigned_to, type, title, description, risk_level, status, source, created_at, updated_at")
+      .select(todoSelect)
       .maybeSingle();
 
     if (error || !data) {
       return {
         ok: false,
-        message: error?.message ?? "待办状态更新失败",
+        message: error?.message ?? "Failed to update doctor todo status",
       };
     }
 
@@ -113,7 +134,7 @@ export async function updateDoctorTodoStatus(
   } catch {
     return {
       ok: false,
-      message: "待办状态更新失败",
+      message: "Failed to update doctor todo status",
     };
   }
 }

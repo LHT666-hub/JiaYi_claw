@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { HeartPulse, Stethoscope, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { ContactAvatar } from "@/components/ContactAvatar";
 import { PhoneShell } from "@/components/PhoneShell";
@@ -11,16 +12,30 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile, resolveResidentScope } from "@/lib/supabase/mvp";
 import { ContactItem } from "@/lib/types";
 
-const groupedContacts = [
-  { key: "doctorTeam", title: "我的家医团队" },
-  { key: "family", title: "我的家人" },
-  { key: "community", title: "我的社区支持" },
-] as const;
+const groupConfig = [
+  {
+    key: "doctorTeam" as const,
+    title: "我的家医团队",
+    icon: Stethoscope,
+    description: "适合处理报告解释、随访安排、转诊判断、配药规则、用药说明",
+  },
+  {
+    key: "family" as const,
+    title: "我的家人",
+    icon: HeartPulse,
+    description: "适合协助操作手机、联系医生、紧急联系",
+  },
+  {
+    key: "community" as const,
+    title: "社区支持",
+    icon: Users,
+    description: "适合体检通知、登记协助、活动提醒、群内互助、打卡提醒",
+  },
+];
 
 export default function ContactsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<ContactItem[]>(localContacts);
-  const [isSupabaseMode, setIsSupabaseMode] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,7 +64,6 @@ export default function ContactsPage() {
       }
 
       setItems(remoteContacts.map(mapContactRowToContactItem));
-      setIsSupabaseMode(true);
     }
 
     void loadContacts();
@@ -62,26 +76,78 @@ export default function ContactsPage() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="一键找人" subtitle="不用翻通讯录，点头像就能联系" />
+        <BackHeader
+          title="我的支持网络"
+          subtitle="不知道找谁？从这里找到合适的人"
+        />
 
-        {groupedContacts.map((group) => (
-          <SectionCard key={group.key} title={group.title}>
-            <div className="grid grid-cols-3 gap-y-5">
-              {items
-                .filter((contact) => contact.group === group.key)
-                .map((contact) => (
-                  <ContactAvatar key={contact.id} contact={contact} />
+        <div className="rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+          <p className="text-sm leading-6 text-navy/70">
+            下面是围绕您建立的支持网络。遇到问题时，可以根据说明选择合适的联系人。
+          </p>
+        </div>
+
+        {groupConfig.map((group) => {
+          const Icon = group.icon;
+          const groupContacts = items.filter((contact) => contact.group === group.key);
+          if (!groupContacts.length) return null;
+
+          return (
+            <SectionCard
+              key={group.key}
+              title={group.title}
+              action={<Icon className="h-4 w-4 text-sage" />}
+            >
+              <p className="mb-3 text-xs leading-5 text-navy/55">{group.description}</p>
+              <div className="space-y-3">
+                {groupContacts.map((contact) => (
+                  <ContactNetworkCard key={contact.id} contact={contact} />
                 ))}
-            </div>
-          </SectionCard>
-        ))}
-
-        <p className="px-1 text-xs text-navy/52">
-          {isSupabaseMode
-            ? "当前联系人优先从 Supabase 读取。"
-            : "当前为本地演示联系人，Supabase 未配置时会自动回退。"}
-        </p>
+              </div>
+            </SectionCard>
+          );
+        })}
       </div>
     </PhoneShell>
+  );
+}
+
+function ContactNetworkCard({ contact }: { contact: ContactItem }) {
+  return (
+    <a
+      href={`/contacts/${contact.id}`}
+      className="flex items-center gap-3 rounded-[22px] border border-line/60 bg-white/40 p-3 transition hover:-translate-y-0.5 hover:shadow-soft"
+    >
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/60 bg-[#F6E9D7] shadow-soft">
+        {contact.avatarPath ? (
+          <img
+            src={contact.avatarPath}
+            alt={contact.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div
+            className="flex h-full w-full items-center justify-center text-lg font-semibold text-white"
+            style={{ backgroundColor: contact.avatarColor }}
+          >
+            {contact.name.slice(0, 1)}
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="text-[15px] font-semibold text-navy">{contact.name}</p>
+          <span className="rounded-full bg-[#F3E4CD] px-2 py-0.5 text-[11px] font-medium text-navy/65">
+            {contact.role}
+          </span>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-navy/58 line-clamp-2">
+          {contact.description}
+        </p>
+        {contact.availableTime ? (
+          <p className="mt-1 text-[11px] text-sage">{contact.availableTime}</p>
+        ) : null}
+      </div>
+    </a>
   );
 }

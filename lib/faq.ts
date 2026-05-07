@@ -40,7 +40,6 @@ const greetingKeywords = [
   "hello",
   "hi",
   "在吗",
-  "在嘛",
   "早上好",
   "中午好",
   "下午好",
@@ -53,47 +52,38 @@ const kimiScopeKeywords = [
   "签约",
   "体检",
   "报告",
+  "健康云",
+  "平台",
   "配药",
   "开药",
+  "拿药",
   "长处方",
   "延伸处方",
   "随访",
-  "转诊",
-  "高血压",
-  "糖尿病",
   "血压",
   "血糖",
-  "慢病",
-  "用药",
-  "小课堂",
-  "积分",
-  "打卡",
-  "小组",
-  "群聊",
-  "社区卫生",
-  "卫生服务",
-  "社区",
-  "保健品",
+  "高血压",
+  "糖尿病",
+  "转诊",
+  "专家号",
+  "一键找人",
+  "联系医生",
   "居委",
+  "楼组长",
   "护士",
   "药师",
-  "医生",
-  "家属",
-  "医保",
-  "政策",
-  "公众号",
-  "海湾",
-  "奉贤",
-  "通知",
-  "门诊时间",
-  "排班",
-  "互联网医院",
-  "送药",
+  "群聊",
+  "健康小组",
+  "打卡",
+  "积分",
+  "小课堂",
+  "保健品",
+  "慢病",
 ];
 
 const emergencyReply: AskReply = {
   answer:
-    "如出现胸痛、呼吸困难、意识异常、严重低血糖、肢体无力、言语不清等情况，请立即就医或拨打急救电话。家医 Claw 不能替代急诊判断。",
+    "如果出现胸痛、呼吸困难、意识异常、严重低血糖、肢体无力、言语不清等情况，请立即就医或拨打急救电话。家医 Claw 不能替代急诊判断。",
   nextStep: "不要在线上等待回复，请尽快寻求线下急救帮助。",
   suggestDoctor: true,
   riskLevel: "emergency",
@@ -103,9 +93,8 @@ const emergencyReply: AskReply = {
 
 const medicalBoundaryReply: AskReply = {
   answer:
-    "这个问题需要家庭医生或线下医生结合个人情况判断。家医 Claw 不能提供诊断、处方、停药、换药或个体化治疗建议。建议联系家庭医生或前往社区卫生服务中心/医院咨询。",
-  nextStep:
-    "如果您想问的是配药流程、随访安排、报告领取、签约服务或转诊路径，我可以继续帮您整理。",
+    "这个问题需要家庭医生或线下医生结合个人情况判断。家医 Claw 不能提供诊断、处方、停药、换药或个体化治疗建议。",
+  nextStep: "建议联系家庭医生或前往社区卫生服务中心、医院咨询。",
   suggestDoctor: true,
   riskLevel: "high",
   category: "安全提示",
@@ -113,10 +102,8 @@ const medicalBoundaryReply: AskReply = {
 };
 
 const fallbackReply: AskReply = {
-  answer:
-    "这个问题我暂时还不能确定。建议联系家庭医生或社区卫生服务中心进一步咨询。",
-  nextStep:
-    "您也可以换一种更具体的说法，例如“药吃完了怎么办”“上海社区配药和医院配药有什么区别”或“奉贤老年体检怎么安排”。",
+  answer: "这个问题我暂时还不能确定，建议联系家庭医生或社区卫生服务中心进一步咨询。",
+  nextStep: "您也可以换一种更具体的说法，我先帮您按流程整理。",
   suggestDoctor: true,
   riskLevel: "medium",
   category: "兜底提示",
@@ -124,9 +111,8 @@ const fallbackReply: AskReply = {
 };
 
 const busyReply: AskReply = {
-  answer:
-    "当前智能问答访问人数较多，请稍后再试。您也可以先查看常见问题，或联系家庭医生。",
-  nextStep: "可以稍后再问，或先尝试常见问题入口。",
+  answer: "当前智能问答访问人数较多，请稍后再试。",
+  nextStep: "您也可以先查看常见问题，或联系家庭医生。",
   suggestDoctor: false,
   riskLevel: "low",
   category: "访问繁忙",
@@ -134,7 +120,7 @@ const busyReply: AskReply = {
 };
 
 const emptyReply: AskReply = {
-  answer: "您可以直接说出问题，例如：药吃完了怎么办？",
+  answer: "您可以直接说出问题，比如：药吃完了怎么办？",
   nextStep: "也可以试试首页里的快捷问题。",
   suggestDoctor: false,
   riskLevel: "low",
@@ -144,9 +130,9 @@ const emptyReply: AskReply = {
 
 const greetingReply: AskReply = {
   answer:
-    "您好，我是家医 Claw。可以帮您问家庭医生服务、体检报告、配药规则、随访安排和慢病日常管理这些问题。",
+    "您好，我是家医 Claw。可以先帮您处理家庭医生服务、体检报告、配药规则、随访安排和慢病日常管理这些问题。",
   nextStep:
-    "您可以直接说问题，比如“药吃完了怎么办”“体检报告怎么看”或“上海社区配药和医院配药有什么区别”。",
+    "您可以直接说问题，比如“药吃完了怎么办”“体检报告怎么看”或“怎么找家庭医生”。",
   suggestDoctor: false,
   riskLevel: "low",
   category: "问候",
@@ -155,17 +141,21 @@ const greetingReply: AskReply = {
 
 const normalizationMap: Array<[string, string]> = [
   ["如何", "怎么"],
+  ["咋", "怎么"],
   ["怎样", "怎么"],
-  ["不会操作", "不会用"],
+  ["登陆", "登录"],
+  ["登入", "登录"],
   ["拿药", "配药"],
-  ["开方", "配药"],
+  ["开药", "配药"],
   ["药没了", "药吃完了"],
+  ["小程序", "平台"],
+  ["健康云平台", "健康云"],
+  ["不会操作", "不会用"],
   ["检查结果", "体检报告"],
   ["社区医院", "社区卫生服务中心"],
-  ["医院药房", "医院配药"],
 ];
 
-const weakKeywords = new Set(["社区", "医生", "药", "报告", "体检", "怎么", "随访"]);
+const weakKeywords = new Set(["社区", "医生", "药", "报告", "体检", "怎么"]);
 
 export function normalizeQuestion(question: string) {
   let normalized = question.trim().toLowerCase().replace(/\s+/g, "");
@@ -328,7 +318,7 @@ export function shouldUseKimi(question: string) {
     return false;
   }
 
-  return kimiScopeKeywords.some((keyword) => normalized.includes(keyword));
+  return kimiScopeKeywords.some((keyword) => normalized.includes(normalizeQuestion(keyword)));
 }
 
 export function getClawReply(question: string) {

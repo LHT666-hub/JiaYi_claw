@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { AlertTriangle, Check, Bell } from "lucide-react";
 
 type ToastTone = "info" | "success" | "warning" | "danger";
 
@@ -23,11 +24,23 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const toneClassMap: Record<ToastTone, string> = {
-  info: "border-line bg-cream text-navy",
-  success: "border-sage/30 bg-[#F6F3E8] text-navy",
-  warning: "border-amber/30 bg-[#FFF1DD] text-navy",
-  danger: "border-danger/30 bg-[#FCEBE6] text-danger",
+const toneConfig: Record<ToastTone, { className: string; Icon: typeof Bell }> = {
+  info: {
+    className: "border-line bg-cream text-navy",
+    Icon: Bell,
+  },
+  success: {
+    className: "border-sage/30 bg-[#EEF5F3] text-navy",
+    Icon: Check,
+  },
+  warning: {
+    className: "border-amber/30 bg-[#FFF1DD] text-navy",
+    Icon: AlertTriangle,
+  },
+  danger: {
+    className: "border-danger/30 bg-[#FBF0ED] text-danger",
+    Icon: AlertTriangle,
+  },
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -41,7 +54,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
     timeouts.current[id] = window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
-    }, 2200);
+    }, 2500);
   }, []);
 
   const value = useMemo(
@@ -54,15 +67,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 mx-auto flex w-full max-w-[430px] flex-col gap-2 px-5">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`rounded-3xl border px-4 py-3 text-sm shadow-soft backdrop-blur-sm ${toneClassMap[toast.tone]}`}
-          >
-            {toast.message}
-          </div>
-        ))}
+      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 mx-auto flex w-full max-w-[430px] flex-col gap-2 px-5">
+        {toasts.map((toast) => {
+          const config = toneConfig[toast.tone];
+          const Icon = config.Icon;
+          return (
+            <div
+              key={toast.id}
+              className={`flex items-center gap-2.5 rounded-[20px] border px-4 py-3.5 text-sm font-medium shadow-float backdrop-blur-sm animate-in slide-in-from-bottom-2 ${config.className}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+              <span className="leading-5">{toast.message}</span>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

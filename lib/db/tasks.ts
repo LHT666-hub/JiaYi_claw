@@ -1,6 +1,6 @@
+import { addPointsLedger, getResidentPoints } from "@/lib/db/points";
 import { TypedSupabaseClient } from "@/lib/supabase/types";
 import { SupabaseTaskRow, TaskRecordRow } from "@/lib/types";
-import { addPointsLedger, getResidentPoints } from "@/lib/db/points";
 
 type CompleteTaskInput = {
   taskId: string;
@@ -10,56 +10,57 @@ type CompleteTaskInput = {
   supabase: TypedSupabaseClient;
 };
 
-function getTodayRange() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(now);
-  end.setHours(23, 59, 59, 999);
-  return {
-    start: start.toISOString(),
-    end: end.toISOString(),
-  };
+function getShanghaiToday() {
+  const formatter = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 export async function getActiveTasks(supabase: TypedSupabaseClient) {
-  try {
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("id, title, description, category, points, is_active, sort_order, created_at, updated_at")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true });
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, title, description, category, points, is_active, sort_order, created_at, updated_at")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
 
-    if (error || !data) {
-      return [] as SupabaseTaskRow[];
-    }
-
-    return data as SupabaseTaskRow[];
-  } catch {
-    return [] as SupabaseTaskRow[];
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to load tasks");
   }
+
+  return data as SupabaseTaskRow[];
 }
 
 export async function getTaskRecords(
   residentId: string,
   supabase: TypedSupabaseClient,
+  completedOn?: string,
 ) {
-  try {
-    const { data, error } = await supabase
-      .from("task_records")
-      .select("id, resident_id, task_id, completed_at, points_awarded, note")
-      .eq("resident_id", residentId)
-      .order("completed_at", { ascending: false });
+  let query = supabase
+    .from("task_records")
+    .select("id, resident_id, task_id, completed_on, completed_at, points_awarded, note")
+    .eq("resident_id", residentId)
+    .order("completed_at", { ascending: false });
 
-    if (error || !data) {
-      return [] as TaskRecordRow[];
-    }
-
-    return data as TaskRecordRow[];
-  } catch {
-    return [] as TaskRecordRow[];
+  if (completedOn) {
+    query = query.eq("completed_on", completedOn);
   }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to load task records");
+  }
+
+  return data as TaskRecordRow[];
 }
 
 export async function completeTask({
@@ -70,7 +71,7 @@ export async function completeTask({
   supabase,
 }: CompleteTaskInput) {
   try {
-    const { start, end } = getTodayRange();
+    const completedOn = getShanghaiToday();
     const { data: task, error: taskError } = await supabase
       .from("tasks")
       .select("id, title, points")
@@ -83,7 +84,7 @@ export async function completeTask({
         ok: false,
         alreadyCompleted: false,
         balanceAfter: 0,
-        message: "任务不存在",
+        message: "任务不存在或未启用",
       };
     }
 
@@ -92,8 +93,7 @@ export async function completeTask({
       .select("id")
       .eq("resident_id", residentId)
       .eq("task_id", taskId)
-      .gte("completed_at", start)
-      .lte("completed_at", end)
+      .eq("completed_on", completedOn)
       .limit(1)
       .maybeSingle();
 
@@ -103,6 +103,7 @@ export async function completeTask({
         ok: true,
         alreadyCompleted: true,
         balanceAfter: points.points,
+        message: "今天已经完成过这个任务了",
       };
     }
 
@@ -111,13 +112,24 @@ export async function completeTask({
       .insert({
         resident_id: residentId,
         task_id: taskId,
+        completed_on: completedOn,
         points_awarded: Number(task.points || 0),
         note,
       })
-      .select("id, resident_id, task_id, completed_at, points_awarded, note")
+      .select("id, resident_id, task_id, completed_on, completed_at, points_awarded, note")
       .maybeSingle();
 
     if (recordError || !insertedRecord) {
+      if (recordError?.code === "23505") {
+        const points = await getResidentPoints(residentId, supabase);
+        return {
+          ok: true,
+          alreadyCompleted: true,
+          balanceAfter: points.points,
+          message: "今天已经完成过这个任务了",
+        };
+      }
+
       return {
         ok: false,
         alreadyCompleted: false,
@@ -129,7 +141,7 @@ export async function completeTask({
     const ledgerResult = await addPointsLedger({
       residentId,
       change: Number(task.points || 0),
-      reason: `完成任务：${String(task.title)}`,
+      reason: String(task.title),
       sourceType: "task",
       sourceId: String(task.id),
       createdBy: actorId,
@@ -141,7 +153,7 @@ export async function completeTask({
         ok: false,
         alreadyCompleted: false,
         balanceAfter: 0,
-        message: ledgerResult.message ?? "积分同步失败",
+        message: ledgerResult.message ?? "积分流水写入失败",
       };
     }
 

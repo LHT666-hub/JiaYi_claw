@@ -23,30 +23,34 @@ export async function getResidentPoints(
   residentId: string,
   supabase: TypedSupabaseClient,
 ) {
-  try {
-    const { data, error } = await supabase
-      .from("points_ledger")
-      .select("id, resident_id, change, reason, source_type, source_id, balance_after, created_at, created_by")
-      .eq("resident_id", residentId)
-      .order("created_at", { ascending: true });
+  const { data, error } = await supabase
+    .from("points_ledger")
+    .select(
+      "id, resident_id, change, reason, source_type, source_id, balance_after, created_at, created_by",
+    )
+    .eq("resident_id", residentId)
+    .order("created_at", { ascending: true });
 
-    if (error || !data) {
-      return {
-        points: 0,
-        ledger: [] as PointsLedgerRow[],
-      };
-    }
-
-    const ledger = data as PointsLedgerRow[];
-    const points = ledger.reduce((total, item) => total + Number(item.change || 0), 0);
-
-    return { points, ledger };
-  } catch {
-    return {
-      points: 0,
-      ledger: [] as PointsLedgerRow[],
-    };
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to read points ledger");
   }
+
+  const ledger = data as PointsLedgerRow[];
+  const points = ledger.reduce((total, item) => total + Number(item.change || 0), 0);
+
+  return { points, ledger };
+}
+
+export async function getResidentPointsSummary(
+  residentId: string,
+  supabase: TypedSupabaseClient,
+) {
+  const { points, ledger } = await getResidentPoints(residentId, supabase);
+
+  return {
+    totalPoints: points,
+    recentLedger: [...ledger].slice(-10).reverse(),
+  };
 }
 
 export async function addPointsLedger({
@@ -73,7 +77,9 @@ export async function addPointsLedger({
         balance_after: balanceAfter,
         created_by: createdBy,
       })
-      .select("id, resident_id, change, reason, source_type, source_id, balance_after, created_at, created_by")
+      .select(
+        "id, resident_id, change, reason, source_type, source_id, balance_after, created_at, created_by",
+      )
       .maybeSingle();
 
     if (error || !data) {
@@ -113,7 +119,7 @@ export async function exchangePoints({
         ok: false,
         insufficient: true,
         balanceAfter: current.points,
-        message: "积分不足",
+        message: "当前积分不足，暂时无法兑换这个项目",
       };
     }
 
@@ -141,7 +147,7 @@ export async function exchangePoints({
     const ledgerResult = await addPointsLedger({
       residentId,
       change: -pointsCost,
-      reason: `兑换 ${itemName}`,
+      reason: `兑换${itemName}`,
       sourceType: "exchange",
       sourceId: String(exchangeRow.id),
       createdBy,

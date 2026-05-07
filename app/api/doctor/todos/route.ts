@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/db/audit";
-import { createDoctorTodo, updateDoctorTodoStatus } from "@/lib/db/doctorTodos";
+import {
+  createDoctorTodo,
+  getDoctorTodosForUser,
+  updateDoctorTodoStatus,
+} from "@/lib/db/doctorTodos";
 import { canAccessWorkbench, getServerAuthContext } from "@/lib/supabase/server-auth";
 import { DoctorTodoRow } from "@/lib/types";
 
@@ -11,15 +15,30 @@ const allowedStatuses = new Set<DoctorTodoRow["status"]>([
   "ignored",
 ]);
 
+export async function GET() {
+  const { supabase, user, profile } = await getServerAuthContext();
+
+  if (!supabase || !user || !profile) {
+    return NextResponse.json({ message: "当前未登录或 Supabase 未配置" }, { status: 401 });
+  }
+
+  if (!canAccessWorkbench(profile.role)) {
+    return NextResponse.json({ message: "当前角色没有工作台权限" }, { status: 403 });
+  }
+
+  const todos = await getDoctorTodosForUser(profile.id, profile.role, supabase);
+  return NextResponse.json({ ok: true, todos });
+}
+
 export async function POST(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录或 Supabase 未配置。" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录或 Supabase 未配置" }, { status: 401 });
   }
 
   if (!canAccessWorkbench(profile.role)) {
-    return NextResponse.json({ message: "当前角色没有工作台权限。" }, { status: 403 });
+    return NextResponse.json({ message: "当前角色没有工作台权限" }, { status: 403 });
   }
 
   const body = (await request.json()) as {
@@ -28,28 +47,32 @@ export async function POST(request: NextRequest) {
     type?: string;
     title?: string;
     description?: string | null;
+    originalQuestion?: string | null;
+    clawAnswer?: string | null;
     riskLevel?: DoctorTodoRow["risk_level"];
     source?: string | null;
   };
 
-  if (!body.type || !body.title || !body.riskLevel) {
-    return NextResponse.json({ message: "待办参数不完整。" }, { status: 400 });
+  if (!body.title || !body.riskLevel) {
+    return NextResponse.json({ message: "待办参数不完整" }, { status: 400 });
   }
 
   const assignedTo = profile.role === "admin" ? body.assignedTo ?? null : profile.id;
   const result = await createDoctorTodo({
     residentId: body.residentId ?? null,
     assignedTo,
-    type: body.type,
+    type: body.type ?? "ask",
     title: body.title,
     description: body.description ?? null,
+    originalQuestion: body.originalQuestion ?? null,
+    clawAnswer: body.clawAnswer ?? null,
     riskLevel: body.riskLevel,
     source: body.source ?? "manual",
     supabase,
   });
 
   if (!result.ok || !result.todo) {
-    return NextResponse.json({ message: result.message ?? "待办创建失败。" }, { status: 500 });
+    return NextResponse.json({ message: result.message ?? "待办创建失败" }, { status: 500 });
   }
 
   await writeAuditLog({
@@ -60,7 +83,6 @@ export async function POST(request: NextRequest) {
     detail: {
       residentId: result.todo.resident_id,
       assignedTo: result.todo.assigned_to,
-      type: result.todo.type,
       riskLevel: result.todo.risk_level,
     },
     supabase,
@@ -76,11 +98,11 @@ export async function PATCH(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录或 Supabase 未配置。" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录或 Supabase 未配置" }, { status: 401 });
   }
 
   if (!canAccessWorkbench(profile.role)) {
-    return NextResponse.json({ message: "当前角色没有工作台权限。" }, { status: 403 });
+    return NextResponse.json({ message: "当前角色没有工作台权限" }, { status: 403 });
   }
 
   const body = (await request.json()) as {
@@ -92,30 +114,35 @@ export async function PATCH(request: NextRequest) {
   const status = body.status;
 
   if (!todoId || !status || !allowedStatuses.has(status)) {
-    return NextResponse.json({ message: "待办状态参数不合法。" }, { status: 400 });
+    return NextResponse.json({ message: "待办状态参数不合法" }, { status: 400 });
   }
 
-  const targetQuery = (await supabase
+  const todoQuery = (await supabase
     .from("doctor_todos")
     .select("id, assigned_to")
     .eq("id", todoId)
     .maybeSingle()) as {
     data: { id: string; assigned_to: string | null } | null;
   };
-  const targetTodo = targetQuery.data;
+  const todo = todoQuery.data;
 
-  if (!targetTodo) {
-    return NextResponse.json({ message: "未找到待办。" }, { status: 404 });
+  if (!todo) {
+    return NextResponse.json({ message: "未找到待办" }, { status: 404 });
   }
 
-  if (profile.role !== "admin" && targetTodo.assigned_to !== profile.id) {
-    return NextResponse.json({ message: "您不能修改这条待办。" }, { status: 403 });
+  if (profile.role !== "admin" && todo.assigned_to && todo.assigned_to !== profile.id) {
+    return NextResponse.json({ message: "您不能修改这条待办" }, { status: 403 });
   }
 
-  const result = await updateDoctorTodoStatus(todoId, status, supabase);
+  const result = await updateDoctorTodoStatus(
+    todoId,
+    status,
+    supabase,
+    profile.role === "admin" ? undefined : (todo.assigned_to ?? profile.id),
+  );
 
   if (!result.ok || !result.todo) {
-    return NextResponse.json({ message: result.message ?? "待办状态更新失败。" }, { status: 500 });
+    return NextResponse.json({ message: result.message ?? "待办状态更新失败" }, { status: 500 });
   }
 
   await writeAuditLog({
@@ -125,6 +152,7 @@ export async function PATCH(request: NextRequest) {
     targetId: result.todo.id,
     detail: {
       status,
+      assignedTo: result.todo.assigned_to,
     },
     supabase,
   });

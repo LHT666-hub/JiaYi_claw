@@ -8,6 +8,18 @@ export type AppRole =
   | "community"
   | "admin";
 
+export type DemoUser = {
+  id: string;
+  name: string;
+  role: AppRole;
+  roleLabel: string;
+  description: string;
+  avatarUrl?: string;
+  avatarColor?: string;
+  tags: string[];
+  residentName?: string;
+};
+
 export type AskSource =
   | "safety"
   | "faq"
@@ -38,6 +50,12 @@ export type FaqItem = {
   riskLevel: RiskLevel;
 };
 
+export type ManagedFaqItem = FaqItem & {
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CourseItem = {
   id: string;
   title: string;
@@ -46,6 +64,12 @@ export type CourseItem = {
   summary: string;
   duration: string;
   points: number;
+};
+
+export type ManagedCourseItem = CourseItem & {
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ContactGroup = "doctorTeam" | "family" | "community";
@@ -112,6 +136,12 @@ export type TaskItem = {
   points: number;
 };
 
+export type ManagedTaskItem = TaskItem & {
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SupabaseTaskRow = {
   id: string;
   title: string;
@@ -128,6 +158,7 @@ export type TaskRecordRow = {
   id: string;
   resident_id: string;
   task_id: string;
+  completed_on: string;
   completed_at: string;
   points_awarded: number;
   note?: string | null;
@@ -247,11 +278,62 @@ export type DoctorTodoRow = {
   type: string;
   title: string;
   description: string | null;
+  original_question?: string | null;
+  claw_answer?: string | null;
   risk_level: RiskLevel;
   status: "pending" | "processing" | "done" | "ignored";
   created_at: string;
   source?: string | null;
   updated_at?: string;
+};
+
+export type DemoDoctorTodo = {
+  id: string;
+  residentName: string;
+  question: string;
+  riskLevel: RiskLevel;
+  status: "pending" | "processing" | "done" | "ignored";
+  createdAt: string;
+  source: string;
+};
+
+export type AskLogItem = {
+  id: string;
+  question: string;
+  answer: string;
+  source: AskSource;
+  category: string;
+  riskLevel: RiskLevel;
+  suggestDoctor: boolean;
+  reason?: string;
+  createdAt: string;
+};
+
+export type FeedbackItem = {
+  id: string;
+  identity: string;
+  mostUseful: string;
+  unclearPart: string;
+  elderFriendly: string;
+  wantedFeatures: string;
+  recommend: string;
+  otherSuggestion: string;
+  createdAt: string;
+};
+
+export type LocalTaskRecord = {
+  id: string;
+  taskId: string;
+  title: string;
+  points: number;
+  completedOn: string;
+  completedAt: string;
+};
+
+export type LocalPointsSummary = {
+  current: number;
+  totalAwarded: number;
+  updatedAt: string;
 };
 
 export type ClawState = {
