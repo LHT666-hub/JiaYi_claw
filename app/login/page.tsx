@@ -126,26 +126,26 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-navy">邮箱</span>
-                <div className="rounded-[22px] border border-line bg-cream px-4">
+                <div className="rounded-[18px] border border-line bg-cream px-4 transition focus-within:border-sage focus-within:ring-1 focus-within:ring-sage/30">
                   <input
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     placeholder="请输入测试账号邮箱"
-                    className="h-12 w-full bg-transparent text-sm text-navy outline-none"
+                    className="h-12 w-full bg-transparent text-sm text-navy outline-none placeholder:text-navy/40"
                   />
                 </div>
               </label>
 
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-navy">密码</span>
-                <div className="rounded-[22px] border border-line bg-cream px-4">
+                <div className="rounded-[18px] border border-line bg-cream px-4 transition focus-within:border-sage focus-within:ring-1 focus-within:ring-sage/30">
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="请输入密码"
-                    className="h-12 w-full bg-transparent text-sm text-navy outline-none"
+                    className="h-12 w-full bg-transparent text-sm text-navy outline-none placeholder:text-navy/40"
                   />
                 </div>
               </label>
@@ -153,7 +153,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={!configured || isLoading}
-                className={`w-full rounded-full px-4 py-3 text-sm font-semibold text-white ${
+                className={`w-full rounded-full px-4 py-3.5 text-sm font-semibold text-white shadow-soft active:scale-[0.98] ${
                   !configured || isLoading ? "bg-navy/55" : "bg-navy"
                 }`}
               >
@@ -170,7 +170,7 @@ export default function LoginPage() {
                   key={user.id}
                   type="button"
                   onClick={() => handleDemoLogin(user)}
-                  className="flex w-full items-center justify-between rounded-[24px] border border-line bg-[#FFF8ED] px-4 py-4 text-left transition hover:-translate-y-0.5"
+                  className="flex w-full items-center justify-between rounded-[24px] border border-line bg-[#FFF8ED] px-4 py-4 text-left transition active:scale-[0.98] active:bg-[#F7ECDA]"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div

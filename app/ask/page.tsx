@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Camera, Mic, Send } from "lucide-react";
+import { Camera, ClipboardList, Mic, Send, Sparkles } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { ChatBubble } from "@/components/ChatBubble";
 import { PhoneShell } from "@/components/PhoneShell";
@@ -12,6 +12,7 @@ import { useToast } from "@/components/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import { getLocalAskReply } from "@/lib/faq";
+import { ClawSummary, generateClawSummary, getRecommendedRole } from "@/lib/clawSummary";
 import {
   STORAGE_CHANGE_EVENT,
   appendAskLog,
@@ -66,6 +67,8 @@ function AskPageContent() {
   const [faqItems, setFaqItems] = useState<ManagedFaqItem[]>([]);
   const [askMode, setAskMode] = useState<AskMode>("local");
   const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [summary, setSummary] = useState<ClawSummary | null>(null);
+  const lastExchangeRef = useRef<{ question: string; reply: AskReply } | null>(null);
   const { state, addAskAssistantMessage, pushAskMessage } = useClawState();
   const { showToast } = useToast();
   const { currentUser } = useDemoUser();
@@ -182,6 +185,8 @@ function AskPageContent() {
         ? currentUser.residentName ?? "张阿姨"
         : currentUser?.name ?? profile?.display_name ?? residentName ?? "当前居民";
 
+    const roleRec = getRecommendedRole(question);
+
     appendDoctorTodo({
       id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       residentName: fallbackResidentName,
@@ -190,6 +195,8 @@ function AskPageContent() {
       status: "pending",
       createdAt: new Date().toISOString(),
       source: reply.source,
+      recommendedRole: roleRec.roleLabel,
+      recommendedReason: roleRec.reason,
     });
   }
 
@@ -251,6 +258,9 @@ function AskPageContent() {
         return;
       }
 
+      const shouldCreateTodo =
+        reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
+
       if (reply.clientFallbacks?.doctorTodoToLocal) {
         appendLocalDoctorTodo(trimmed, reply, reply.clientFallbacks.residentName);
       }
@@ -267,6 +277,17 @@ function AskPageContent() {
         reply.source,
         reply.reason,
       );
+
+      if (shouldCreateTodo) {
+        lastExchangeRef.current = { question: trimmed, reply };
+        addAskAssistantMessage(
+          "已为家医团队生成待处理提醒。医生或护士会在工作台看到这条记录。",
+          "low",
+          "faq",
+        );
+      } else {
+        lastExchangeRef.current = null;
+      }
     } catch {
       if (!mountedRef.current) {
         return;
@@ -323,7 +344,51 @@ function AskPageContent() {
     }
   }, [addAskAssistantMessage, mode, quickQuestion]);
 
+  const handleSummaryRequest = useCallback(() => {
+    if (!lastExchangeRef.current) {
+      showToast("暂无可整理的问题记录", "warning");
+      return;
+    }
+
+    const { question, reply } = lastExchangeRef.current;
+    const result = generateClawSummary(question, reply);
+    setSummary(result);
+    showToast("已为您整理好问题摘要", "success");
+  }, [showToast]);
+
+  function handleCopySummary() {
+    if (!summary) return;
+    void navigator.clipboard.writeText(summary.fullText).then(() => {
+      showToast("摘要已复制到剪贴板", "success");
+    });
+  }
+
+  function handleSendToDoctor() {
+    if (!summary || !lastExchangeRef.current) return;
+
+    const { question, reply } = lastExchangeRef.current;
+    const roleRec = getRecommendedRole(question);
+    const fallbackResidentName =
+      currentUser?.name ?? profile?.display_name ?? "当前居民";
+
+    appendDoctorTodo({
+      id: `todo-summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      residentName: fallbackResidentName,
+      question: `[整理摘要] ${question}`,
+      riskLevel: reply.riskLevel,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+      source: "claw_summary",
+      recommendedRole: roleRec.roleLabel,
+      recommendedReason: roleRec.reason,
+    });
+
+    showToast("摘要已写入医生待办", "success");
+    setSummary(null);
+  }
+
   function submitQuestion(question: string) {
+    setSummary(null);
     void scheduleClawReply(question);
   }
 
@@ -355,9 +420,18 @@ function AskPageContent() {
         </div>
 
         <section className="space-y-4">
-          {state.askMessages.map((message) => (
-            <ChatBubble key={message.id} message={message} />
-          ))}
+          {state.askMessages.map((message) => {
+            const isHighRisk =
+              message.role !== "user" &&
+              (message.riskLevel === "high" || message.riskLevel === "emergency" || message.source === "safety");
+            return (
+              <ChatBubble
+                key={message.id}
+                message={message}
+                onSummaryRequest={isHighRisk ? handleSummaryRequest : undefined}
+              />
+            );
+          })}
           {isLoading ? (
             <div className="mr-auto max-w-[88%]">
               <p className="mb-1.5 text-xs font-semibold text-navy/55">家医 Claw</p>
@@ -368,6 +442,60 @@ function AskPageContent() {
                   <span className="typing-dot typing-dot-delay-1 bg-sage/60" />
                   <span className="typing-dot typing-dot-delay-2 bg-sage/60" />
                 </div>
+              </div>
+            </div>
+          ) : null}
+          {summary ? (
+            <div className="rounded-[24px] border border-sage/30 bg-[#EEF5F3] p-4 shadow-soft animate-in">
+              <div className="mb-3 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-sage" />
+                <p className="text-sm font-semibold text-navy">Claw 整理的问题摘要</p>
+              </div>
+              <div className="space-y-3 text-sm leading-6 text-navy/80">
+                <div>
+                  <p className="text-xs font-semibold text-navy/50">居民原始问题</p>
+                  <p className="mt-1">{summary.residentQuestion}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-navy/50">Claw 已给出的回答</p>
+                  <p className="mt-1">{summary.clawResponse}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-navy/50">建议联系家医的原因</p>
+                  <p className="mt-1">{summary.whySuggestDoctor}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-navy/50">建议准备的信息</p>
+                  <ul className="mt-1 space-y-1">
+                    {summary.prepareItems.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopySummary}
+                  className="flex items-center gap-1.5 rounded-full border border-line bg-cream px-3 py-2 text-xs font-semibold text-navy active:scale-95"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  复制摘要
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendToDoctor}
+                  className="flex items-center gap-1.5 rounded-full bg-navy px-3 py-2 text-xs font-semibold text-white active:scale-95"
+                >
+                  写入医生待办
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSummary(null)}
+                  className="rounded-full border border-line/70 bg-cream/60 px-3 py-2 text-xs font-semibold text-navy/60 active:scale-95"
+                >
+                  关闭
+                </button>
               </div>
             </div>
           ) : null}

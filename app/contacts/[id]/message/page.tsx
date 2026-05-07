@@ -160,8 +160,8 @@ export default function ContactMessagePage() {
         </section>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 border-t border-line bg-[#F7E8D4]/96 px-4 pb-6 pt-4 backdrop-blur-sm">
-        <div className="flex items-center gap-2 rounded-[24px] border border-line bg-cream px-3 py-2">
+      <div className="absolute inset-x-0 bottom-0 z-10 border-t border-line/70 bg-[#F7E8D4]/96 px-4 pb-6 pt-4 backdrop-blur-sm">
+        <div className="flex items-center gap-2 rounded-[22px] border border-line bg-cream px-3 py-1.5">
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -171,14 +171,14 @@ export default function ContactMessagePage() {
               }
             }}
             placeholder={`给${contact.name}发一句消息`}
-            className="h-11 flex-1 border-0 bg-transparent text-sm text-navy outline-none"
+            className="h-12 flex-1 border-0 bg-transparent text-[15px] text-navy outline-none placeholder:text-navy/40"
           />
           <button
             type="button"
             onClick={sendMessage}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-navy text-white"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-navy text-white active:scale-95"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-4.5 w-4.5" />
           </button>
         </div>
       </div>

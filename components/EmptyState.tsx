@@ -5,7 +5,7 @@ type EmptyStateProps = {
 
 export function EmptyState({ title, description }: EmptyStateProps) {
   return (
-    <div className="rounded-[24px] border border-dashed border-line/80 bg-[#FFF8ED] px-4 py-6 text-center">
+    <div className="rounded-[24px] border border-dashed border-line/80 bg-[#FFF8ED] px-5 py-8 text-center">
       <svg
         viewBox="0 0 160 100"
         className="mx-auto h-28 w-40 text-[#D8C2A3]"
@@ -59,8 +59,8 @@ export function EmptyState({ title, description }: EmptyStateProps) {
           strokeLinejoin="round"
         />
       </svg>
-      <p className="mt-4 text-sm font-semibold text-navy">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-navy/62">{description}</p>
+      <p className="mt-5 text-base font-semibold text-navy">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-navy/60">{description}</p>
     </div>
   );
 }

@@ -66,43 +66,69 @@ export default function ContactDetailPage() {
             <button
               type="button"
               onClick={() => showToast("原型演示：这里将跳转到电话拨打", "info")}
-              className="flex items-center gap-3 rounded-[24px] bg-navy px-4 py-4 text-left text-white"
+              className="flex h-14 items-center gap-3 rounded-[22px] bg-navy px-5 text-left text-white active:scale-[0.98]"
             >
-              <Phone className="h-5 w-5" />
-              打电话
+              <Phone className="h-5 w-5 shrink-0" />
+              <span className="text-[15px] font-semibold">打电话</span>
             </button>
             <button
               type="button"
               onClick={() => router.push(`/contacts/${contact.id}/message`)}
-              className="flex items-center gap-3 rounded-[24px] border border-line bg-cream px-4 py-4 text-left text-navy"
+              className="flex h-14 items-center gap-3 rounded-[22px] border border-line bg-cream px-5 text-left text-navy active:scale-[0.98]"
             >
-              <MessageCircle className="h-5 w-5" />
-              发消息
+              <MessageCircle className="h-5 w-5 shrink-0" />
+              <span className="text-[15px] font-semibold">发消息</span>
             </button>
             <button
               type="button"
               onClick={() => {
                 requestContact(contact.id);
-                showToast("已模拟发送提醒", "success");
+                showToast("已发送提醒，对方会尽快联系您", "success");
               }}
-              className="flex items-center gap-3 rounded-[24px] border border-line bg-cream px-4 py-4 text-left text-navy"
+              className="flex h-14 items-center gap-3 rounded-[22px] border border-line bg-cream px-5 text-left text-navy active:scale-[0.98]"
             >
-              <UserRoundPlus className="h-5 w-5" />
-              请他联系我
+              <UserRoundPlus className="h-5 w-5 shrink-0" />
+              <span className="text-[15px] font-semibold">请他联系我</span>
             </button>
+          </div>
+        </SectionCard>
+
+        {/* Claw Explain Card */}
+        <SectionCard title="让 Claw 帮忙">
+          <div className="rounded-[22px] border border-sage/20 bg-[#EEF5F3] p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sage/20 text-sage">
+                <WandSparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-navy">让 Claw 帮我说明情况</p>
+                <p className="mt-1.5 text-xs leading-5 text-navy/60">
+                  Claw 会整理您最近的问题和需求，生成一段简要说明发给{contact.name}，
+                  方便对方了解情况后主动联系您。
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() =>
                 showToast(
-                  `Claw 已整理：张阿姨想咨询配药和体检报告问题，建议${contact.role}后续联系。`,
+                  `已整理说明发给${contact.name}：张阿姨想咨询配药和体检报告问题`,
                   "success",
                 )
               }
-              className="flex items-center gap-3 rounded-[24px] border border-line bg-cream px-4 py-4 text-left text-navy"
+              className="mt-4 w-full rounded-full bg-navy py-3 text-sm font-semibold text-white active:scale-[0.98]"
             >
-              <WandSparkles className="h-5 w-5" />
-              让 Claw 帮我说明情况
+              生成并发送说明
             </button>
+          </div>
+
+          <div className="mt-3 rounded-[22px] border border-line/50 bg-[#FFF8ED] p-4">
+            <p className="text-xs leading-5 text-navy/55">
+              说明内容由 Claw 根据您近期的提问自动整理，不会包含敏感医疗信息。
+              {contact.role === "家庭医生" || contact.role === "团队护士" || contact.role === "临床药师"
+                ? "家医团队成员可在工作台查看完整记录。"
+                : "对方只会收到简要说明。"}
+            </p>
           </div>
         </SectionCard>
       </div>

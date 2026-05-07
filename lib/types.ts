@@ -295,6 +295,8 @@ export type DemoDoctorTodo = {
   status: "pending" | "processing" | "done" | "ignored";
   createdAt: string;
   source: string;
+  recommendedRole?: string;
+  recommendedReason?: string;
 };
 
 export type AskLogItem = {

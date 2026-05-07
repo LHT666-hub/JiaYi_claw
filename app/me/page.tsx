@@ -58,7 +58,7 @@ function ActionRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left"
+      className="flex w-full items-center justify-between rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left transition active:scale-[0.98] active:bg-[#F7ECDA]"
     >
       <div className="flex items-center gap-3">
         {icon}

@@ -124,6 +124,8 @@ type TodoCardView = {
   status: DoctorTodoRow["status"];
   source: string;
   createdAt: string;
+  recommendedRole?: string;
+  recommendedReason?: string;
 };
 
 function mapRemoteTodo(todo: DoctorTodoRow): TodoCardView {
@@ -147,6 +149,8 @@ function mapLocalTodo(todo: DemoDoctorTodo): TodoCardView {
     status: todo.status,
     source: todo.source,
     createdAt: todo.createdAt,
+    recommendedRole: todo.recommendedRole,
+    recommendedReason: todo.recommendedReason,
   };
 }
 
@@ -502,6 +506,16 @@ function TodoCard({
           {statusLabelMap[todo.status]}
         </span>
       </div>
+      {todo.recommendedRole ? (
+        <div className="mt-3 rounded-[14px] border border-sage/20 bg-[#EEF5F3]/60 px-3 py-2">
+          <p className="text-xs font-semibold text-sage">
+            建议处理：{todo.recommendedRole}
+          </p>
+          {todo.recommendedReason ? (
+            <p className="mt-0.5 text-xs text-navy/55">{todo.recommendedReason}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {(Object.keys(statusLabelMap) as DoctorTodoRow["status"][]).map((status) => (
           <button

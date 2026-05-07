@@ -18,10 +18,29 @@ export default function NotificationsPage() {
   const router = useRouter();
   const { state, markNotificationsRead } = useClawState();
 
+  const unreadCount = notifications.filter(
+    (item) => !state.readNotificationIds.includes(item.id),
+  ).length;
+
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
         <BackHeader title="通知中心" subtitle="随访、群提醒和小课堂更新都在这里" />
+
+        {unreadCount > 0 ? (
+          <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+            <p className="text-sm font-semibold text-navy">
+              {unreadCount} 条未读通知
+            </p>
+            <button
+              type="button"
+              onClick={() => markNotificationsRead(notifications.map((n) => n.id))}
+              className="rounded-full bg-navy/8 px-3 py-1.5 text-xs font-semibold text-navy/70 active:scale-95"
+            >
+              全部标为已读
+            </button>
+          </div>
+        ) : null}
 
         <SectionCard title="我的通知">
           <div className="space-y-3">
@@ -36,7 +55,11 @@ export default function NotificationsPage() {
                     markNotificationsRead([item.id]);
                     router.push(item.href);
                   }}
-                  className="flex w-full items-start justify-between rounded-[24px] border border-line/70 bg-[#FFF8ED] px-4 py-4 text-left"
+                  className={`flex w-full items-start justify-between rounded-[24px] border px-4 py-4 text-left transition active:scale-[0.98] ${
+                    isRead
+                      ? "border-line/50 bg-[#FFF8ED]/70"
+                      : "border-line/70 bg-[#FFF8ED] shadow-soft"
+                  }`}
                 >
                   <div className="flex gap-3">
                     <div
@@ -55,8 +78,10 @@ export default function NotificationsPage() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-2 text-sm font-semibold text-navy">{item.title}</p>
-                      <p className="mt-2 text-sm leading-6 text-navy/62">
+                      <p className={`mt-2 text-sm font-semibold ${isRead ? "text-navy/70" : "text-navy"}`}>
+                        {item.title}
+                      </p>
+                      <p className={`mt-2 text-sm leading-6 ${isRead ? "text-navy/48" : "text-navy/62"}`}>
                         {item.description}
                       </p>
                     </div>

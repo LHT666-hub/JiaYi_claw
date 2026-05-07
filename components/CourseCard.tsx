@@ -44,7 +44,7 @@ export function CourseCard({
         <button
           type="button"
           onClick={onPlay}
-          className="flex items-center justify-center gap-2 rounded-full bg-navy px-3 py-2 text-sm font-semibold text-white"
+          className="flex items-center justify-center gap-2 rounded-full bg-navy px-3 py-2.5 text-sm font-semibold text-white active:scale-95"
         >
           <PlayCircle className="h-4 w-4" />
           播放
@@ -52,7 +52,7 @@ export function CourseCard({
         <button
           type="button"
           onClick={onListen}
-          className="flex items-center justify-center gap-2 rounded-full border border-line bg-[#FFF8EF] px-3 py-2 text-sm font-semibold text-navy"
+          className="flex items-center justify-center gap-2 rounded-full border border-line bg-[#FFF8EF] px-3 py-2.5 text-sm font-semibold text-navy active:scale-95"
         >
           <Headphones className="h-4 w-4" />
           听讲解
@@ -61,7 +61,7 @@ export function CourseCard({
           type="button"
           onClick={onClaim}
           disabled={watched || !canClaim}
-          className={`rounded-full px-3 py-2 text-sm font-semibold ${
+          className={`rounded-full px-3 py-2.5 text-sm font-semibold transition active:scale-95 ${
             watched
               ? "bg-[#DDE7E0] text-[#5C746F]"
               : canClaim
@@ -69,7 +69,7 @@ export function CourseCard({
                 : "bg-[#F2E2C7]/60 text-navy/45"
           }`}
         >
-          {watched ? "已领取" : canClaim ? "看完领积分" : "先去播放"}
+          {watched ? "✓ 已领取" : canClaim ? "看完领积分" : "先去播放"}
         </button>
       </div>
     </div>

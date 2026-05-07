@@ -18,6 +18,7 @@ import {
   createManagedFaqDraft,
   createManagedTaskDraft,
   getDashboardMetrics,
+  readAskLogs,
   readCustomFaqs,
   readCustomCourses,
   readCustomTasks,
@@ -29,6 +30,7 @@ import {
   upsertCustomFaq,
   upsertCustomTask,
 } from "@/lib/storage";
+import { analyzeBreakpoints, BreakpointItem } from "@/lib/breakpoints";
 import { useDemoUser } from "@/lib/useDemoUser";
 import {
   FeedbackItem,
@@ -167,6 +169,7 @@ export default function AdminPage() {
   const [taskItems, setTaskItems] = useState<ManagedTaskItem[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics>(() => getDashboardMetrics());
+  const [breakpoints, setBreakpoints] = useState<BreakpointItem[]>(() => analyzeBreakpoints(readAskLogs()));
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [adminMode, setAdminMode] = useState<AdminMode>("local");
 
@@ -188,6 +191,7 @@ export default function AdminPage() {
       if (adminMode === "local") {
         setFaqItems(readMergedFaqs());
         setMetrics(getDashboardMetrics());
+        setBreakpoints(analyzeBreakpoints(readAskLogs()));
       }
     }
 
@@ -291,12 +295,14 @@ export default function AdminPage() {
           setAdminMode("local");
           setFaqItems(readMergedFaqs());
           setMetrics(getDashboardMetrics());
+          setBreakpoints(analyzeBreakpoints(readAskLogs()));
           return;
         }
       }
 
       setFaqItems(readMergedFaqs());
       setMetrics(getDashboardMetrics());
+      setBreakpoints(analyzeBreakpoints(readAskLogs()));
     }
 
     void syncAdminData();
@@ -542,13 +548,95 @@ export default function AdminPage() {
     ];
 
     return (
-      <SectionCard title="运行看板">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {cards.map((card) => (
-            <MetricCard key={card.title} {...card} />
-          ))}
-        </div>
-      </SectionCard>
+      <div className="space-y-5">
+        <SectionCard title="运行看板">
+          <div className="grid grid-cols-2 gap-3">
+            {cards.map((card) => (
+              <MetricCard key={card.title} {...card} />
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="数据管理">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const data = {
+                  faqs: readMergedFaqs(),
+                  courses: readMergedCourses(),
+                  tasks: readMergedTasks(),
+                  feedbacks: readFeedbacks(),
+                  exportedAt: new Date().toISOString(),
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `claw-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showToast("数据已导出为 JSON 文件", "success");
+              }}
+              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-[#FFF8ED] text-navy active:scale-95"
+            >
+              <span className="text-sm font-semibold">导出备份</span>
+              <span className="text-[11px] text-navy/50">JSON 格式</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                showToast("当前为本地模式，数据已存储在浏览器中", "info");
+              }}
+              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-[#FFF8ED] text-navy active:scale-95"
+            >
+              <span className="text-sm font-semibold">存储状态</span>
+              <span className="text-[11px] text-navy/50">{adminMode === "supabase" ? "Supabase" : "localStorage"}</span>
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="服务断点 Top 5">
+          {breakpoints.length > 0 ? (
+            <div className="space-y-3">
+              {breakpoints.map((bp, index) => (
+                <div
+                  key={bp.category}
+                  className="rounded-[20px] border border-line/60 bg-[#FFF8ED] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-navy/10 text-[10px] font-bold text-navy">
+                          {index + 1}
+                        </span>
+                        <p className="text-sm font-semibold text-navy">{bp.category}</p>
+                      </div>
+                      {bp.exampleQuestion ? (
+                        <p className="mt-2 text-xs leading-5 text-navy/60">
+                          代表问题："{bp.exampleQuestion}"
+                        </p>
+                      ) : null}
+                      <p className="mt-1.5 text-xs leading-5 text-sage">
+                        建议：{bp.suggestion}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-amber/15 px-2.5 py-1 text-xs font-bold text-amber">
+                      {bp.count}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[20px] bg-[#FFF8ED] px-4 py-6 text-center">
+              <p className="text-sm text-navy/55">
+                暂无断点数据。在"问 Claw"中多提问几次后，这里会自动统计高频问题分类。
+              </p>
+            </div>
+          )}
+        </SectionCard>
+      </div>
     );
   }
 

@@ -106,20 +106,24 @@ export default function FollowupPage() {
                 key={option}
                 type="button"
                 onClick={() => setSelected(option)}
-                className={`flex w-full items-center justify-between rounded-[24px] border px-4 py-4 text-left transition ${
+                className={`flex w-full items-center justify-between rounded-[24px] border px-4 py-4 text-left transition active:scale-[0.98] ${
                   selected === option
-                    ? "border-navy bg-[#EEF3F8] text-navy"
+                    ? "border-navy bg-[#EEF3F8] text-navy shadow-soft"
                     : "border-line bg-[#FFF8ED] text-navy/75"
                 }`}
               >
                 <span className="text-sm font-semibold">{option}</span>
                 <span
-                  className={`h-5 w-5 rounded-full border ${
+                  className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition ${
                     selected === option
                       ? "border-navy bg-navy"
-                      : "border-line bg-transparent"
+                      : "border-line/80 bg-transparent"
                   }`}
-                />
+                >
+                  {selected === option ? (
+                    <span className="h-2 w-2 rounded-full bg-white" />
+                  ) : null}
+                </span>
               </button>
             ))}
           </div>
@@ -127,7 +131,7 @@ export default function FollowupPage() {
           <button
             type="button"
             onClick={submitFollowup}
-            className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
+            className="mt-4 w-full rounded-full bg-navy px-4 py-3.5 text-sm font-semibold text-white shadow-soft active:scale-[0.98]"
           >
             确认回复
           </button>

@@ -73,8 +73,35 @@ function CoursesPageContent() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="家医小课堂" subtitle="优先展示管理员在本地维护的小课堂内容。" />
+        <BackHeader title="家医小课堂" subtitle="每天看一个小课，积少成多" />
 
+        {/* Learning Progress */}
+        <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+          <div className="flex items-center gap-4">
+            <div>
+              <p className="text-xs text-navy/55">已学习</p>
+              <p className="mt-0.5 text-lg font-semibold text-navy">
+                {state.viewedCourseIds.length}/{courseItems.length}
+              </p>
+            </div>
+            <div className="h-8 w-px bg-line/60" />
+            <div>
+              <p className="text-xs text-navy/55">获得积分</p>
+              <p className="mt-0.5 text-lg font-semibold text-amber">
+                +{courseItems.filter((c) => state.viewedCourseIds.includes(c.id)).reduce((s, c) => s + c.points, 0)}
+              </p>
+            </div>
+          </div>
+          <div className="h-9 w-9 rounded-full border-[3px] border-sage/30 flex items-center justify-center">
+            <span className="text-[10px] font-bold text-sage">
+              {courseItems.length > 0
+                ? Math.round((state.viewedCourseIds.length / courseItems.length) * 100)
+                : 0}%
+            </span>
+          </div>
+        </div>
+
+        {/* Category Filter */}
         <SectionCard>
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
@@ -82,10 +109,10 @@ function CoursesPageContent() {
                 key={category}
                 type="button"
                 onClick={() => setActiveCategory(category)}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                className={`rounded-full px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
                   activeCategory === category
-                    ? "bg-navy text-white"
-                    : "border border-line bg-cream text-navy"
+                    ? "bg-navy text-white shadow-soft"
+                    : "border border-line/70 bg-[#FFF8ED] text-navy"
                 }`}
               >
                 {category}

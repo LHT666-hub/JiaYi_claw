@@ -194,18 +194,20 @@ export default function GroupPage() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-[18rem]">
-        <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-8 text-center backdrop-blur-sm">
+        <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-6 text-center backdrop-blur-sm">
           <Link
             href="/"
-            className="absolute left-5 top-8 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft"
+            className="absolute left-5 top-6 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft active:scale-95"
             aria-label="回到首页"
           >
             <House className="h-5 w-5" strokeWidth={2.1} />
           </Link>
-          <h1 className="px-14 text-[1.45rem] font-semibold text-navy">高血压互助小组</h1>
-          <p className="mt-2 text-sm leading-6 text-navy/62">
-            家医团队在群｜组长：王阿姨｜今日 12 人已打卡
-          </p>
+          <h1 className="px-14 text-xl font-semibold text-navy">高血压互助小组</h1>
+          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-navy/60">
+            <span className="rounded-full bg-sage/15 px-2 py-0.5 font-medium text-sage">家医在群</span>
+            <span>组长：王阿姨</span>
+            <span className="font-semibold text-navy/75">今日 12 人打卡</span>
+          </div>
         </header>
 
         <SectionCard>
@@ -300,7 +302,7 @@ export default function GroupPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 rounded-[22px] border border-line bg-cream px-3 py-2">
+          <div className="flex items-center gap-2 rounded-[22px] border border-line bg-cream px-3 py-1.5">
             <input
               value={input}
               onChange={(event) => setInput(event.target.value)}
@@ -309,15 +311,15 @@ export default function GroupPage() {
                   void submitMessage(input);
                 }
               }}
-              placeholder="和小组说一句，或者问一个常见问题"
-              className="h-11 flex-1 border-0 bg-transparent text-sm text-navy outline-none"
+              placeholder="和小组说一句…"
+              className="h-12 flex-1 border-0 bg-transparent text-[15px] text-navy outline-none placeholder:text-navy/40"
             />
             <button
               type="button"
               onClick={() => void submitMessage(input)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-navy text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-navy text-white active:scale-95"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4.5 w-4.5" />
             </button>
           </div>
           <div className="mt-2 flex items-center gap-2 text-xs text-navy/52">

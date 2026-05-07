@@ -34,10 +34,10 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-[24px] px-3 py-3 transition ${
+                className={`flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-[24px] px-3 py-3 transition active:scale-95 ${
                   isActive
                     ? "-translate-y-1 bg-navy text-white shadow-soft"
-                    : "bg-[#F2E2CA]/78 text-[#5E7690]"
+                    : "bg-[#F2E2CA]/78 text-[#5E7690] hover:bg-[#EDD9C0]/90"
                 }`}
               >
                 <Icon

@@ -25,9 +25,10 @@ const sourceLabelMap: Record<string, { label: string; style: string }> = {
 
 type ChatBubbleProps = {
   message: ChatMessage;
+  onSummaryRequest?: () => void;
 };
 
-export function ChatBubble({ message }: ChatBubbleProps) {
+export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
   const router = useRouter();
   const isUser = message.role === "user";
   const time = formatMessageTime(message.createdAt);
@@ -72,14 +73,23 @@ export function ChatBubble({ message }: ChatBubbleProps) {
           <button
             type="button"
             onClick={() => router.push("/contacts/li-doctor")}
-            className="rounded-full border border-danger/20 bg-[#FBF0ED] px-3 py-1.5 text-xs font-semibold text-danger"
+            className="rounded-full border border-danger/20 bg-[#FBF0ED] px-3 py-1.5 text-xs font-semibold text-danger active:scale-95"
           >
             联系李医生
           </button>
+          {onSummaryRequest ? (
+            <button
+              type="button"
+              onClick={onSummaryRequest}
+              className="rounded-full border border-sage/30 bg-[#EEF5F3] px-3 py-1.5 text-xs font-semibold text-sage active:scale-95"
+            >
+              让 Claw 帮我整理问题
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => router.push("/contacts")}
-            className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
+            className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy active:scale-95"
           >
             查看一键找人
           </button>
