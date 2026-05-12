@@ -18,6 +18,11 @@ export type DemoUser = {
   avatarColor?: string;
   tags: string[];
   residentName?: string;
+  phone?: string;
+  area?: string;
+  profile?: Record<string, string | string[] | boolean | null | undefined>;
+  createdAt?: string;
+  isOnboarded?: boolean;
 };
 
 export type AskSource =
@@ -118,6 +123,47 @@ export type ContactItem = {
   availableTime?: string;
   avatarColor: string;
   avatarPath?: string;
+};
+
+export type FamilyBindingStatus = "pending" | "active" | "disabled";
+
+export type FamilyBindingRow = {
+  id: string;
+  resident_id: string;
+  family_id: string;
+  relationship: string;
+  note: string | null;
+  is_primary: boolean;
+  status: FamilyBindingStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FamilyBindingView = {
+  id: string;
+  residentId: string;
+  familyId: string;
+  residentName: string;
+  familyName: string;
+  relationship: string;
+  note?: string;
+  isPrimary: boolean;
+  status: FamilyBindingStatus;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type LocalFamilyBinding = FamilyBindingView;
+
+export type TodoStatusEvent = {
+  id: string;
+  todoId: string;
+  actorId?: string | null;
+  actorName?: string;
+  oldStatus?: DoctorTodoStatus | null;
+  newStatus: DoctorTodoStatus;
+  note?: string;
+  createdAt: string;
 };
 
 export type TaskCategory =
@@ -264,6 +310,31 @@ export type NotificationItem = {
   accent: "navy" | "sage" | "amber";
 };
 
+export type NotificationType =
+  | "ask_todo_created"
+  | "todo_status_changed"
+  | "task_completed"
+  | "points_changed"
+  | "exchange"
+  | "family_binding_created"
+  | "course_recommended"
+  | "leader_matched"
+  | "group_notice"
+  | "system";
+
+export type LocalNotification = {
+  id: string;
+  userId: string;
+  actorId?: string | null;
+  type: NotificationType;
+  title: string;
+  content: string;
+  linkUrl: string;
+  isRead: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type RedemptionRecord = {
   id: string;
   itemName: string;
@@ -287,8 +358,11 @@ export type DoctorTodoRow = {
   updated_at?: string;
 };
 
+export type DoctorTodoStatus = DoctorTodoRow["status"];
+
 export type DemoDoctorTodo = {
   id: string;
+  residentId?: string;
   residentName: string;
   question: string;
   riskLevel: RiskLevel;
@@ -296,7 +370,31 @@ export type DemoDoctorTodo = {
   createdAt: string;
   source: string;
   recommendedRole?: string;
+  recommendedRoleLabel?: string;
   recommendedReason?: string;
+  originalQuestion?: string;
+  clawAnswer?: string;
+  summary?: string;
+  preparedMaterials?: string[];
+};
+
+export type ResidentTodoProgressItem = {
+  id: string;
+  residentId?: string | null;
+  residentName: string;
+  title: string;
+  originalQuestion: string;
+  clawAnswer: string;
+  summary: string;
+  recommendedRole?: string;
+  recommendedRoleLabel?: string;
+  recommendedReason?: string;
+  preparedMaterials: string[];
+  riskLevel: RiskLevel;
+  status: DoctorTodoStatus;
+  createdAt: string;
+  updatedAt: string;
+  statusEvents: TodoStatusEvent[];
 };
 
 export type AskLogItem = {
@@ -336,6 +434,23 @@ export type LocalPointsSummary = {
   current: number;
   totalAwarded: number;
   updatedAt: string;
+};
+
+export type MatchedLeaderRecord = {
+  leaderId: string;
+  leaderName: string;
+  matchPercent: number;
+  matchReasons: string[];
+  matchedAt: string;
+};
+
+export type MatchLogItem = {
+  id: string;
+  residentName: string;
+  leaderId: string;
+  leaderName: string;
+  matchPercent: number;
+  createdAt: string;
 };
 
 export type ClawState = {

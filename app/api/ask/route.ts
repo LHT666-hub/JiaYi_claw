@@ -1,8 +1,12 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { generateClawSummary } from "@/lib/clawSummary";
 import { createAskLog } from "@/lib/db/askLogs";
-import { getFaqs } from "@/lib/db/faqs";
 import { createDoctorTodo } from "@/lib/db/doctorTodos";
+import { getActiveFamilyBindingsForResident } from "@/lib/db/familyBindings";
+import { getFaqs } from "@/lib/db/faqs";
+import { createNotification } from "@/lib/db/notifications";
+import { createTodoStatusEvent } from "@/lib/db/todoStatusEvents";
 import {
   getFallbackAskReply,
   getGreetingReply,
@@ -12,12 +16,19 @@ import {
 } from "@/lib/faq";
 import { buildKnowledgePrompt, isInScope, searchKnowledge } from "@/lib/knowledge";
 import { getServerAuthContext } from "@/lib/supabase/server-auth";
-import { AskFallbackReason, AskReply, KnowledgeItem, ProfileRow } from "@/lib/types";
+import type {
+  AppRole,
+  AskFallbackReason,
+  AskReply,
+  DemoDoctorTodo,
+  KnowledgeItem,
+  ProfileRow,
+} from "@/lib/types";
 
 export const runtime = "nodejs";
 
 const knowledgeSystemPrompt =
-  "你是“家医 Claw”，用于家庭医生服务导航与慢病科普。你不能提供诊断、处方、停药、换药、剂量调整、报告严重程度判断或个体化治疗建议。请优先依据给定知识片段回答，并在最后给出下一步建议。";
+  "你是“家医 Claw”，用于家庭医生服务导航与慢病科普信息。你不能提供诊断、处方、停药、换药、剂量调整、严重程度判断或个体化治疗建议。请优先依据给定知识片段回答，并在最后给出下一步建议。";
 
 const generalSystemPrompt =
   "你是“家医 Claw”，只提供家庭医生服务导航、流程解释和一般性慢病科普信息。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。";
@@ -83,15 +94,9 @@ function parseBoolean(text: string) {
 }
 
 function parseRiskLevel(text: string): AskReply["riskLevel"] {
-  if (text.includes("emergency")) {
-    return "emergency";
-  }
-  if (text.includes("high")) {
-    return "high";
-  }
-  if (text.includes("medium")) {
-    return "medium";
-  }
+  if (text.includes("emergency")) return "emergency";
+  if (text.includes("high")) return "high";
+  if (text.includes("medium")) return "medium";
   return "low";
 }
 
@@ -106,7 +111,9 @@ function parseStructuredReply(
 ): AskReply {
   const trimmed = text.trim();
   const answerMatch = trimmed.match(/回答[:：]\s*([\s\S]*?)(?:\n\s*下一步建议[:：]|$)/);
-  const nextStepMatch = trimmed.match(/下一步建议[:：]\s*([\s\S]*?)(?:\n\s*是否建议联系家庭医生[:：]|$)/);
+  const nextStepMatch = trimmed.match(
+    /下一步建议[:：]\s*([\s\S]*?)(?:\n\s*是否建议联系家庭医生[:：]|$)/,
+  );
   const suggestDoctorMatch = trimmed.match(/是否建议联系家庭医生[:：]\s*(.+?)(?:\n|$)/);
   const riskLevelMatch = trimmed.match(/风险等级[:：]\s*(.+?)(?:\n|$)/);
 
@@ -176,9 +183,7 @@ function isAuthError(error: unknown) {
 function buildGeneralPrompt(question: string) {
   return `用户问题：${question}
 
-这个问题属于家医 Claw 的服务范围，但没有命中 FAQ 或知识库。
-请只提供一般性的服务导航回答，不要扩展到诊断、处方、停药、换药、剂量调整或个体化治疗建议。
-请严格按下面格式输出：
+这个问题属于家医 Claw 的服务范围，但没有命中 FAQ 或知识库。请只提供一般性的服务导航回答，不要扩展到诊断、处方、停药、换药、剂量调整或个体化治疗建议。请严格按下面格式输出：
 回答：...
 下一步建议：...
 是否建议联系家庭医生：是/否
@@ -206,7 +211,6 @@ async function requestKimi(
   ])) as OpenAI.Chat.Completions.ChatCompletion;
 
   const text = extractTextContent(completion.choices[0]?.message?.content);
-
   if (!text) {
     throw new Error("KIMI_EMPTY_REPLY");
   }
@@ -296,6 +300,20 @@ function buildGeneralCacheKey(question: string) {
   return `general::${normalizeQuestion(question)}`;
 }
 
+async function findAssignableUserId(
+  role: Exclude<AppRole, "resident" | "family" | "admin"> | "doctor",
+  supabase: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>["supabase"]>,
+) {
+  const { data } = (await supabase
+    .from("profiles")
+    .select("id")
+    .eq("role", role)
+    .limit(1)
+    .maybeSingle()) as { data: { id: string } | null };
+
+  return data?.id ?? null;
+}
+
 async function persistAskArtifacts(params: {
   question: string;
   reply: AskReply;
@@ -304,15 +322,33 @@ async function persistAskArtifacts(params: {
 }) {
   const { question, reply, profile, supabase } = params;
   let askLogToLocal = true;
-  let doctorTodoToLocal = reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
+  let doctorTodoToLocal =
+    reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
+  let serviceTodo: DemoDoctorTodo | null = null;
+  const summary = generateClawSummary(question, {
+    answer: reply.answer,
+    nextStep: reply.nextStep,
+    riskLevel: reply.riskLevel,
+    suggestDoctor: reply.suggestDoctor,
+  });
 
   if (!supabase || !profile) {
     return {
       askLogToLocal,
       doctorTodoToLocal,
       residentName: profile?.display_name ?? "当前居民",
+      serviceTodo,
     };
   }
+
+  const assigneeRole =
+    summary.recommendedRole.role === "family"
+      ? "doctor"
+      : (summary.recommendedRole
+          .role as Exclude<AppRole, "resident" | "family" | "admin"> | "doctor");
+  const assignedTo = doctorTodoToLocal
+    ? await findAssignableUserId(assigneeRole, supabase)
+    : null;
 
   try {
     await createAskLog({
@@ -336,16 +372,17 @@ async function persistAskArtifacts(params: {
       askLogToLocal,
       doctorTodoToLocal: false,
       residentName: profile.display_name,
+      serviceTodo,
     };
   }
 
   try {
     const result = await createDoctorTodo({
       residentId: profile.role === "resident" ? profile.id : null,
-      assignedTo: null,
+      assignedTo,
       type: "ask",
       title: question.slice(0, 36),
-      description: `${reply.category} / ${reply.source}`,
+      description: summary.doctorSummary,
       originalQuestion: question,
       clawAnswer: `${reply.answer} ${reply.nextStep}`.trim(),
       riskLevel: reply.riskLevel,
@@ -354,6 +391,110 @@ async function persistAskArtifacts(params: {
     });
 
     doctorTodoToLocal = !result.ok;
+
+    if (result.ok && result.todo) {
+      serviceTodo = {
+        id: result.todo.id,
+        residentId: result.todo.resident_id ?? profile.id,
+        residentName: profile.display_name,
+        question,
+        riskLevel: reply.riskLevel,
+        status: result.todo.status,
+        createdAt: result.todo.created_at,
+        source: reply.source,
+        recommendedRole: summary.recommendedRole.role,
+        recommendedRoleLabel: summary.recommendedRole.displayLabel,
+        recommendedReason: summary.recommendedRole.reason,
+        originalQuestion: question,
+        clawAnswer: summary.clawResponse,
+        summary: summary.doctorSummary,
+        preparedMaterials: summary.prepareItems,
+      };
+
+      await createTodoStatusEvent({
+        todoId: result.todo.id,
+        actorId: profile.id,
+        oldStatus: null,
+        newStatus: "pending",
+        note: "Claw 已为您生成家医团队提醒。",
+        supabase,
+      });
+
+      if (profile.role === "resident") {
+        try {
+          await createNotification(
+            {
+              userId: profile.id,
+              actorId: profile.id,
+              type: "ask_todo_created",
+              title: "已为您生成家医团队提醒",
+              content: "您的问题已整理为待处理提醒，家医团队可在工作台查看。",
+              linkUrl: "/service-progress",
+              metadata: {
+                todoId: result.todo.id,
+                residentId: profile.id,
+              },
+            },
+            supabase,
+          );
+        } catch {
+          // best effort
+        }
+      }
+
+      if (assignedTo) {
+        try {
+          await createNotification(
+            {
+              userId: assignedTo,
+              actorId: profile.id,
+              type: "ask_todo_created",
+              title: "收到新的待处理问题",
+              content: "有一条居民问题需要您查看。",
+              linkUrl: "/doctor",
+              metadata: {
+                todoId: result.todo.id,
+                residentId: result.todo.resident_id,
+                recommendedRole: summary.recommendedRole.role,
+              },
+            },
+            supabase,
+          );
+        } catch {
+          // best effort
+        }
+      }
+
+      if (
+        profile.role === "resident" &&
+        (reply.riskLevel === "high" || reply.riskLevel === "emergency")
+      ) {
+        const bindings = await getActiveFamilyBindingsForResident(profile.id, supabase);
+
+        for (const binding of bindings.filter((item) => item.isPrimary)) {
+          try {
+            await createNotification(
+              {
+                userId: binding.familyId,
+                actorId: profile.id,
+                type: "ask_todo_created",
+                title: "绑定老人有一条家医团队提醒",
+                content: "老人有一条问题已转给家医团队，您可以在家属端查看服务进度。",
+                linkUrl: "/family",
+                metadata: {
+                  todoId: result.todo.id,
+                  residentId: profile.id,
+                  residentName: profile.display_name,
+                },
+              },
+              supabase,
+            );
+          } catch {
+            // best effort
+          }
+        }
+      }
+    }
   } catch {
     doctorTodoToLocal = true;
   }
@@ -362,6 +503,7 @@ async function persistAskArtifacts(params: {
     askLogToLocal,
     doctorTodoToLocal,
     residentName: profile.display_name,
+    serviceTodo,
   };
 }
 
@@ -395,6 +537,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ...reply,
         clientFallbacks: persistence,
+        serviceTodo: persistence.serviceTodo ?? null,
       });
     };
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Camera, ClipboardList, Mic, Send, Sparkles } from "lucide-react";
@@ -9,17 +10,20 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { SafetyNotice } from "@/components/SafetyNotice";
 import { TypingBubble } from "@/components/TypingBubble";
 import { useToast } from "@/components/ToastProvider";
+import { VoiceInputPanel } from "@/components/VoiceInputPanel";
+import { PhotoQuestionPanel } from "@/components/PhotoQuestionPanel";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import { getLocalAskReply } from "@/lib/faq";
-import { ClawSummary, generateClawSummary, getRecommendedRole } from "@/lib/clawSummary";
+import { ClawSummary, generateClawSummary } from "@/lib/clawSummary";
 import {
   STORAGE_CHANGE_EVENT,
   appendAskLog,
   appendDoctorTodo,
+  readDoctorTodos,
   readMergedFaqs,
 } from "@/lib/storage";
-import { AskReply, ManagedFaqItem, ProfileRow } from "@/lib/types";
+import { AskReply, DemoDoctorTodo, ManagedFaqItem, ProfileRow } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 import { useDemoUser } from "@/lib/useDemoUser";
 
@@ -39,6 +43,7 @@ type AskApiResponse = AskReply & {
     doctorTodoToLocal?: boolean;
     residentName?: string;
   };
+  serviceTodo?: DemoDoctorTodo | null;
 };
 
 type AskMode = "local" | "supabase";
@@ -68,7 +73,11 @@ function AskPageContent() {
   const [askMode, setAskMode] = useState<AskMode>("local");
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [summary, setSummary] = useState<ClawSummary | null>(null);
+  const [voicePanelOpen, setVoicePanelOpen] = useState(false);
+  const [photoPanelOpen, setPhotoPanelOpen] = useState(false);
   const lastExchangeRef = useRef<{ question: string; reply: AskReply } | null>(null);
+  const sessionTodoIdsRef = useRef<Set<string>>(new Set());
+  const [todoNotices, setTodoNotices] = useState<DemoDoctorTodo[]>([]);
   const { state, addAskAssistantMessage, pushAskMessage } = useClawState();
   const { showToast } = useToast();
   const { currentUser } = useDemoUser();
@@ -82,12 +91,23 @@ function AskPageContent() {
       setFaqItems(readMergedFaqs());
     }
 
+    function syncTodoNotices() {
+      if (sessionTodoIdsRef.current.size === 0) return;
+      const all = readDoctorTodos();
+      const updated = all.filter((t) => sessionTodoIdsRef.current.has(t.id));
+      if (updated.length > 0) setTodoNotices(updated);
+    }
+
     window.addEventListener(STORAGE_CHANGE_EVENT, syncFaqs);
+    window.addEventListener(STORAGE_CHANGE_EVENT, syncTodoNotices);
     window.addEventListener("storage", syncFaqs);
+    window.addEventListener("storage", syncTodoNotices);
 
     return () => {
       window.removeEventListener(STORAGE_CHANGE_EVENT, syncFaqs);
+      window.removeEventListener(STORAGE_CHANGE_EVENT, syncTodoNotices);
       window.removeEventListener("storage", syncFaqs);
+      window.removeEventListener("storage", syncTodoNotices);
     };
   }, []);
 
@@ -132,7 +152,7 @@ function AskPageContent() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [state.askMessages.length, isLoading]);
+  }, [state.askMessages.length, isLoading, todoNotices.length]);
 
   useEffect(
     () => () => {
@@ -182,22 +202,35 @@ function AskPageContent() {
 
     const fallbackResidentName =
       currentUser?.role === "family"
-        ? currentUser.residentName ?? "张阿姨"
+        ? currentUser.residentName ?? currentUser.name ?? "当前居民"
         : currentUser?.name ?? profile?.display_name ?? residentName ?? "当前居民";
 
-    const roleRec = getRecommendedRole(question);
+    const summaryData = generateClawSummary(question, reply);
 
-    appendDoctorTodo({
+    const todo: DemoDoctorTodo = {
       id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      residentId:
+        currentUser?.role === "resident"
+          ? currentUser.id
+          : typeof currentUser?.profile?.residentId === "string"
+            ? currentUser.profile.residentId
+            : undefined,
       residentName: fallbackResidentName,
       question,
       riskLevel: reply.riskLevel,
       status: "pending",
       createdAt: new Date().toISOString(),
       source: reply.source,
-      recommendedRole: roleRec.roleLabel,
-      recommendedReason: roleRec.reason,
-    });
+      recommendedRole: summaryData.recommendedRole.role,
+      recommendedRoleLabel: summaryData.recommendedRole.displayLabel,
+      recommendedReason: summaryData.recommendedRole.reason,
+      originalQuestion: question,
+      clawAnswer: summaryData.clawResponse,
+    };
+
+    appendDoctorTodo(todo);
+    sessionTodoIdsRef.current.add(todo.id);
+    setTodoNotices((prev) => [...prev, todo]);
   }
 
   function appendLocalAskHistory(question: string, reply: AskReply) {
@@ -240,7 +273,7 @@ function AskPageContent() {
     }
 
     requestInFlightRef.current = true;
-    pushAskMessage(currentUser?.name ?? profile?.display_name ?? "张阿姨", "user", trimmed);
+    pushAskMessage(currentUser?.name ?? profile?.display_name ?? "当前用户", "user", trimmed);
     setIsLoading(true);
     setInput("");
 
@@ -263,6 +296,9 @@ function AskPageContent() {
 
       if (reply.clientFallbacks?.doctorTodoToLocal) {
         appendLocalDoctorTodo(trimmed, reply, reply.clientFallbacks.residentName);
+      } else if (reply.serviceTodo) {
+        sessionTodoIdsRef.current.add(reply.serviceTodo.id);
+        setTodoNotices((prev) => [reply.serviceTodo as DemoDoctorTodo, ...prev]);
       }
 
       if (reply.clientFallbacks?.askLogToLocal) {
@@ -328,15 +364,11 @@ function AskPageContent() {
     handledInitial.current = signature;
 
     if (mode === "voice") {
-      addAskAssistantMessage("我正在听，您可以说：药吃完了怎么办？", "low", "fallback");
+      setVoicePanelOpen(true);
     }
 
     if (mode === "photo") {
-      addAskAssistantMessage(
-        "可以拍体检单、药盒、通知单。当前为原型演示，不做真实识别。",
-        "low",
-        "fallback",
-      );
+      setPhotoPanelOpen(true);
     }
 
     if (quickQuestion) {
@@ -366,24 +398,32 @@ function AskPageContent() {
   function handleSendToDoctor() {
     if (!summary || !lastExchangeRef.current) return;
 
-    const { question, reply } = lastExchangeRef.current;
-    const roleRec = getRecommendedRole(question);
+    const { reply } = lastExchangeRef.current;
     const fallbackResidentName =
       currentUser?.name ?? profile?.display_name ?? "当前居民";
 
-    appendDoctorTodo({
+    const todo: DemoDoctorTodo = {
       id: `todo-summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       residentName: fallbackResidentName,
-      question: `[整理摘要] ${question}`,
+      question: `[Claw 整理] ${summary.residentQuestion}`,
       riskLevel: reply.riskLevel,
       status: "pending",
       createdAt: new Date().toISOString(),
       source: "claw_summary",
-      recommendedRole: roleRec.roleLabel,
-      recommendedReason: roleRec.reason,
-    });
+      recommendedRole: summary.recommendedRole.role,
+      recommendedRoleLabel: summary.recommendedRole.displayLabel,
+      recommendedReason: summary.recommendedRole.reason,
+      originalQuestion: summary.residentQuestion,
+      clawAnswer: summary.clawResponse,
+      summary: summary.doctorSummary,
+      preparedMaterials: summary.prepareItems,
+    };
 
-    showToast("摘要已写入医生待办", "success");
+    appendDoctorTodo(todo);
+    sessionTodoIdsRef.current.add(todo.id);
+    setTodoNotices((prev) => [...prev, todo]);
+
+    showToast("已生成家医团队待办", "success");
     setSummary(null);
   }
 
@@ -461,41 +501,72 @@ function AskPageContent() {
                   <p className="mt-1">{summary.clawResponse}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-navy/50">建议联系家医的原因</p>
+                  <p className="text-xs font-semibold text-navy/50">为什么建议联系家医团队</p>
                   <p className="mt-1">{summary.whySuggestDoctor}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-navy/50">建议准备的信息</p>
+                  <p className="text-xs font-semibold text-navy/50">建议准备的材料</p>
                   <ul className="mt-1 space-y-1">
                     {summary.prepareItems.map((item) => (
                       <li key={item}>• {item}</li>
                     ))}
                   </ul>
                 </div>
+                <div className="rounded-[14px] border border-sage/20 bg-[#E2EDE8] px-3 py-2.5">
+                  <p className="text-xs font-semibold text-sage">
+                    建议处理：{summary.recommendedRole.displayLabel}（{summary.recommendedRole.roleLabel}）
+                  </p>
+                  <p className="mt-0.5 text-xs text-navy/60">
+                    {summary.recommendedRole.reason}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-navy/50">给医生看的简短说明</p>
+                  <p className="mt-1 text-[13px] leading-6 text-navy/70">{summary.doctorSummary}</p>
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
+                  onClick={handleSendToDoctor}
+                  className="flex items-center gap-1.5 rounded-full bg-navy px-4 py-2.5 text-xs font-semibold text-white active:scale-95"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  生成家医团队待办
+                </button>
+                <button
+                  type="button"
                   onClick={handleCopySummary}
-                  className="flex items-center gap-1.5 rounded-full border border-line bg-cream px-3 py-2 text-xs font-semibold text-navy active:scale-95"
+                  className="flex items-center gap-1.5 rounded-full border border-line bg-cream px-3 py-2.5 text-xs font-semibold text-navy active:scale-95"
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
                   复制摘要
                 </button>
                 <button
                   type="button"
-                  onClick={handleSendToDoctor}
-                  className="flex items-center gap-1.5 rounded-full bg-navy px-3 py-2 text-xs font-semibold text-white active:scale-95"
-                >
-                  写入医生待办
-                </button>
-                <button
-                  type="button"
                   onClick={() => setSummary(null)}
-                  className="rounded-full border border-line/70 bg-cream/60 px-3 py-2 text-xs font-semibold text-navy/60 active:scale-95"
+                  className="rounded-full border border-line/70 bg-cream/60 px-3 py-2.5 text-xs font-semibold text-navy/60 active:scale-95"
                 >
                   关闭
                 </button>
+              </div>
+              <p className="mt-3 text-[11px] leading-5 text-navy/40">
+                摘要由 Claw 自动整理，不含诊断或处方建议。医生收到后会根据实际情况判断。
+              </p>
+            </div>
+          ) : null}
+          {todoNotices.length > 0 ? (
+            <div className="space-y-3">
+              {todoNotices.map((todo) => (
+                <TodoNoticeCard key={todo.id} todo={todo} />
+              ))}
+              <div className="text-center">
+                <Link
+                  href="/me"
+                  className="text-xs font-semibold text-sage underline underline-offset-4"
+                >
+                  在「我的」中查看全部提醒
+                </Link>
               </div>
             </div>
           ) : null}
@@ -503,40 +574,46 @@ function AskPageContent() {
         </section>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 border-t border-line bg-[#F7E8D4]/96 px-4 pb-6 pt-3 backdrop-blur-sm">
+      {voicePanelOpen ? (
+        <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
+          <VoiceInputPanel
+            open={voicePanelOpen}
+            onClose={() => setVoicePanelOpen(false)}
+            onConfirm={(text) => submitQuestion(text)}
+          />
+        </div>
+      ) : null}
+
+      {photoPanelOpen ? (
+        <div className="absolute inset-0 z-20 overflow-y-auto bg-[#F3DDC2]/95 px-4 pb-4 pt-4 backdrop-blur-sm">
+          <PhotoQuestionPanel
+            open={photoPanelOpen}
+            onClose={() => setPhotoPanelOpen(false)}
+            onConfirm={(question) => submitQuestion(question)}
+          />
+        </div>
+      ) : null}
+
+      <div className={`absolute inset-x-0 bottom-0 border-t border-line bg-[#F7E8D4]/96 px-4 pb-6 pt-3 backdrop-blur-sm transition ${voicePanelOpen || photoPanelOpen ? "pointer-events-none opacity-0" : ""}`}>
         <div className="mb-3 flex gap-2">
           <button
             type="button"
             onClick={() => {
-              if (isLoading) {
-                return;
-              }
-              addAskAssistantMessage(
-                "我正在听，您可以说：药吃完了怎么办？（原型演示，不接真实语音识别）",
-                "low",
-                "fallback",
-              );
-              showToast("原型演示：按住说话仅作界面展示。", "info");
+              if (isLoading) return;
+              setVoicePanelOpen(true);
             }}
-            className="flex h-11 items-center gap-2 rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy"
+            className="flex h-11 items-center gap-2 rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy active:scale-95"
           >
             <Mic className="h-4 w-4" />
-            按住说话
+            语音输入
           </button>
           <button
             type="button"
             onClick={() => {
-              if (isLoading) {
-                return;
-              }
-              addAskAssistantMessage(
-                "可以拍体检单、药盒、通知单。当前为原型演示，不做真实识别。",
-                "low",
-                "fallback",
-              );
-              showToast("原型演示：拍照问问仅作界面展示。", "info");
+              if (isLoading) return;
+              setPhotoPanelOpen(true);
             }}
-            className="flex h-11 items-center gap-2 rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy"
+            className="flex h-11 items-center gap-2 rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy active:scale-95"
           >
             <Camera className="h-4 w-4" />
             拍照问问
@@ -568,6 +645,68 @@ function AskPageContent() {
         </div>
       </div>
     </PhoneShell>
+  );
+}
+
+const todoStatusConfig: Record<string, { label: string; style: string }> = {
+  pending: { label: "待处理", style: "bg-amber/15 text-amber border-amber/20" },
+  processing: { label: "处理中", style: "bg-[#E8F0EE] text-sage border-sage/20" },
+  done: { label: "已处理", style: "bg-[#DDEFE4] text-[#2F6C56] border-[#2F6C56]/20" },
+  ignored: { label: "已忽略", style: "bg-navy/8 text-navy/50 border-navy/10" },
+};
+
+function TodoNoticeCard({ todo }: { todo: DemoDoctorTodo }) {
+  const statusInfo = todoStatusConfig[todo.status] ?? todoStatusConfig.pending;
+  const displayRole = todo.recommendedRoleLabel ?? todo.recommendedRole ?? "家庭医生";
+  const time = new Date(todo.createdAt).toLocaleString("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <div className="rounded-[22px] border border-sage/25 bg-[#EEF5F3] p-4 shadow-soft animate-in">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-navy">已为您生成家医团队提醒</p>
+        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.style}`}>
+          {statusInfo.label}
+        </span>
+      </div>
+      <div className="mt-3 space-y-2 text-sm leading-6 text-navy/72">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-navy/50">建议处理人</span>
+          <span className="text-xs font-semibold text-sage">{displayRole}</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-navy/50">提醒时间</span>
+          <span className="text-xs text-navy/60">{time}</span>
+        </div>
+      </div>
+      <p className="mt-3 text-[11px] leading-5 text-navy/40">
+        家医 Claw 不替代医生判断，家医团队处理后会更新状态。
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link
+          href="/service-progress"
+          className="rounded-full bg-navy px-3 py-2 text-xs font-semibold text-white"
+        >
+          查看处理进度
+        </Link>
+        <Link
+          href="/contacts"
+          className="rounded-full border border-line bg-cream px-3 py-2 text-xs font-semibold text-navy"
+        >
+          一键找人
+        </Link>
+        <Link
+          href="/ask"
+          className="rounded-full border border-line bg-cream px-3 py-2 text-xs font-semibold text-navy"
+        >
+          让 Claw 帮我整理问题
+        </Link>
+      </div>
+    </div>
   );
 }
 

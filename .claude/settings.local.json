@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm run *)",
       "Bash(npx tsc *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(git ls-files *)",
+      "Bash(git diff *)",
+      "Bash(npx eslint *)",
+      "PowerShell(Set-Location \"C:\\\\Users\\\\LHT\\\\Desktop\\\\即赛\"; npx next lint -- --no-cache 2>&1)"
     ]
   }
 }

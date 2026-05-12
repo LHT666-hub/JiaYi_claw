@@ -40,6 +40,14 @@ export function isWorkbenchRole(role?: AppRole | null) {
 }
 
 export function getPostLoginPath(role?: AppRole | null) {
+  if (role === "family") {
+    return "/family";
+  }
+
+  if (role === "admin") {
+    return "/admin";
+  }
+
   return isWorkbenchRole(role) ? "/doctor" : "/";
 }
 

@@ -16,18 +16,18 @@ export const tasks: TaskItem[] = [
     points: 5,
   },
   {
+    id: "task-followup-confirm",
+    title: "完成随访确认",
+    description: "收到随访通知后，确认时间或回复需要协助。",
+    category: "followup",
+    points: 10,
+  },
+  {
     id: "task-course-preview",
-    title: "看 3 分钟小课",
+    title: "看 3 分钟小课堂",
     description: "学习一条家医小课堂，了解慢病日常管理重点。",
     category: "course",
     points: 8,
-  },
-  {
-    id: "task-sugar-record",
-    title: "记录一次血糖",
-    description: "如果家中有监测条件，可完成一次血糖记录。",
-    category: "record",
-    points: 6,
   },
   {
     id: "task-group-reply",
@@ -37,11 +37,18 @@ export const tasks: TaskItem[] = [
     points: 4,
   },
   {
-    id: "task-followup-confirm",
-    title: "完成随访确认",
-    description: "收到随访通知后，确认时间或回复需要协助。",
+    id: "task-family-share",
+    title: "和家人说一次本周安排",
+    description: "把体检、随访或配药安排告诉家属联系人。",
     category: "followup",
-    points: 10,
+    points: 5,
+  },
+  {
+    id: "task-sugar-record",
+    title: "记录一次血糖",
+    description: "如果家中有监测条件，可完成一次血糖记录。",
+    category: "record",
+    points: 6,
   },
   {
     id: "task-water",
@@ -63,12 +70,5 @@ export const tasks: TaskItem[] = [
     description: "看一看常用慢病药还剩多少，避免临时断药。",
     category: "medicine",
     points: 4,
-  },
-  {
-    id: "task-family-share",
-    title: "和家人说一次本周安排",
-    description: "把体检、随访或配药安排告诉家属联系人。",
-    category: "followup",
-    points: 5,
   },
 ];

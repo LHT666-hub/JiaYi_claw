@@ -9,13 +9,16 @@ import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
 import { contacts } from "@/data/contacts";
 import { useClawState } from "@/lib/useClawState";
+import { useDemoUser } from "@/lib/useDemoUser";
 
 export default function ContactDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { showToast } = useToast();
   const { requestContact } = useClawState();
+  const { currentUser } = useDemoUser();
   const contact = contacts.find((item) => item.id === params.id);
+  const displayName = currentUser?.name ?? "当前用户";
 
   if (!contact) {
     return (
@@ -112,7 +115,7 @@ export default function ContactDetailPage() {
               type="button"
               onClick={() =>
                 showToast(
-                  `已整理说明发给${contact.name}：张阿姨想咨询配药和体检报告问题`,
+                  `已整理说明发给${contact.name}：${displayName}想咨询配药和体检报告问题`,
                   "success",
                 )
               }

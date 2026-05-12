@@ -7,6 +7,7 @@ import {
   createMessage,
   defaultState,
   getTodayKey,
+  readDemoUser,
   readState,
   writeState,
 } from "@/lib/storage";
@@ -133,7 +134,7 @@ export function useClawState() {
       askMessages: [
         ...current.askMessages,
         createMessage({
-          author: "张阿姨",
+          author: readDemoUser()?.name ?? "当前用户",
           role: "user",
           content: question,
           context: "ask",

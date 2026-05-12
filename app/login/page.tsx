@@ -13,6 +13,14 @@ import { DemoUser } from "@/lib/types";
 import { isStaffRole, loginAs, useDemoUser } from "@/lib/useDemoUser";
 
 function getDemoPath(user: DemoUser) {
+  if (user.role === "family") {
+    return "/family";
+  }
+
+  if (user.role === "admin") {
+    return "/admin";
+  }
+
   return isStaffRole(user.role) ? "/doctor" : "/";
 }
 
@@ -56,7 +64,7 @@ export default function LoginPage() {
     event.preventDefault();
 
     if (!supabase) {
-      showToast("当前还没有配置 Supabase，请先补充环境变量。", "warning");
+      showToast("真实账号暂时不可用，请先使用演示身份。", "warning");
       return;
     }
 
@@ -77,12 +85,12 @@ export default function LoginPage() {
     setIsLoading(false);
 
     if (!profile) {
-      showToast("已登录，但 profiles 表里还没有这位用户资料。", "warning");
+      showToast("已登录，但还没有找到这位用户资料。", "warning");
       router.replace("/me");
       return;
     }
 
-    showToast(`已进入 ${profile.display_name}（${getRoleLabel(profile.role)}）真实账号。`, "success");
+    showToast(`已进入 ${profile.display_name}（${getRoleLabel(profile.role)}）。`, "success");
     router.replace(getPostLoginPath(profile.role));
   }
 
@@ -99,16 +107,16 @@ export default function LoginPage() {
           <div className="text-center">
             <p className="font-brand text-[2rem] font-semibold text-navy">家医 Claw</p>
             <p className="mt-3 text-sm leading-6 text-navy/66">
-              请选择真实账号登录，或使用演示身份体验不同角色的服务入口。
+              请选择演示身份，或使用测试账号体验不同角色的服务入口。
             </p>
           </div>
 
           <div className="mt-6 rounded-[24px] bg-[#FAE9D4] px-4 py-4 text-sm leading-6 text-navy/72">
             {currentProfileName ? (
               <>
-                当前真实账号会话：{currentProfileName}
+                当前账号：{currentProfileName}
                 <br />
-                重新登录可切换为其他真实账号。
+                重新登录可切换为其他账号。
               </>
             ) : currentUser ? (
               <>
@@ -117,12 +125,12 @@ export default function LoginPage() {
                 点击下方任意身份，即可直接切换。
               </>
             ) : (
-              <>当前未登录，可用真实账号或演示身份进入系统。</>
+              <>当前未登录，可用测试账号或演示身份进入系统。</>
             )}
           </div>
 
           <div className="mt-6 rounded-[28px] border border-line bg-[#FFF8ED] p-4">
-            <p className="text-sm font-semibold text-navy">真实账号登录</p>
+            <p className="text-sm font-semibold text-navy">测试账号登录</p>
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-navy">邮箱</span>
@@ -157,7 +165,7 @@ export default function LoginPage() {
                   !configured || isLoading ? "bg-navy/55" : "bg-navy"
                 }`}
               >
-                {!configured ? "请先配置 Supabase" : isLoading ? "登录中..." : "邮箱密码登录"}
+                {!configured ? "请先使用演示身份" : isLoading ? "登录中..." : "邮箱密码登录"}
               </button>
             </form>
           </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/db/audit";
+import { createNotification } from "@/lib/db/notifications";
 import { completeTask } from "@/lib/db/tasks";
 import { getServerAuthContext } from "@/lib/supabase/server-auth";
 
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录或 Supabase 未配置" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录" }, { status: 401 });
   }
 
   if (profile.role !== "resident") {
@@ -20,7 +21,6 @@ export async function POST(request: NextRequest) {
   };
 
   const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
-
   if (!taskId) {
     return NextResponse.json({ message: "缺少 taskId" }, { status: 400 });
   }
@@ -51,6 +51,35 @@ export async function POST(request: NextRequest) {
     },
     supabase,
   });
+
+  if (!result.alreadyCompleted) {
+    try {
+      const { data: taskRow } = (await supabase
+        .from("tasks")
+        .select("title, points")
+        .eq("id", taskId)
+        .maybeSingle()) as {
+        data: { title: string; points: number } | null;
+      };
+
+      await createNotification(
+        {
+          userId: profile.id,
+          actorId: profile.id,
+          type: "task_completed",
+          title: "今日健康小事已完成",
+          content: `您完成了「${taskRow?.title ?? "健康小事"}」，获得 ${taskRow?.points ?? 0} 积分。`,
+          linkUrl: "/tasks",
+          metadata: {
+            taskId,
+          },
+        },
+        supabase,
+      );
+    } catch {
+      // best effort
+    }
+  }
 
   return NextResponse.json({
     ok: true,

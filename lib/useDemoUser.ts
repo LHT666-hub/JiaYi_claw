@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { demoUsers } from "@/data/demoUsers";
-import { clearDemoUser, readDemoUser, writeDemoUser } from "@/lib/storage";
+import { STORAGE_CHANGE_EVENT, clearDemoUser, readDemoUser, writeDemoUser } from "@/lib/storage";
 import { AppRole, DemoUser } from "@/lib/types";
 
 const staffRoles: AppRole[] = ["doctor", "nurse", "pharmacist", "community", "admin"];
@@ -34,25 +34,30 @@ export function isStaffRole(role?: AppRole | null) {
 }
 
 export function useDemoUser() {
-  const [currentUser, setCurrentUser] = useState<DemoUser | null>(() => readDemoUser());
+  const [currentUser, setCurrentUser] = useState<DemoUser | null>(null);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     function syncUser() {
       setCurrentUser(readDemoUser());
+      setIsReady(true);
     }
 
     syncUser();
     window.addEventListener("storage", syncUser);
     window.addEventListener("claw-demo-user-change", syncUser);
+    window.addEventListener(STORAGE_CHANGE_EVENT, syncUser);
 
     return () => {
       window.removeEventListener("storage", syncUser);
       window.removeEventListener("claw-demo-user-change", syncUser);
+      window.removeEventListener(STORAGE_CHANGE_EVENT, syncUser);
     };
   }, []);
 
   return {
     currentUser,
+    isReady,
     allUsers: demoUsers,
     hasRole: (role: AppRole) => currentUser?.role === role,
     isStaffRole: isStaffRole(currentUser?.role),

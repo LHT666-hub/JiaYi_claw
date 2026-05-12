@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/db/audit";
+import { createNotification } from "@/lib/db/notifications";
 import { exchangePoints } from "@/lib/db/points";
 import { getServerAuthContext } from "@/lib/supabase/server-auth";
 
@@ -54,6 +55,21 @@ export async function POST(request: NextRequest) {
     },
     supabase,
   });
+
+  try {
+    await createNotification(
+      {
+        userId: profile.id,
+        type: "exchange",
+        title: "积分兑换成功",
+        content: `已兑换“${itemName}”，消耗 ${pointsCost} 积分。`,
+        linkUrl: "/tasks",
+      },
+      supabase,
+    );
+  } catch {
+    // best effort
+  }
 
   return NextResponse.json({
     ok: true,

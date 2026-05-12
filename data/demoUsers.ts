@@ -6,7 +6,7 @@ export const demoUsers: DemoUser[] = [
     name: "张阿姨",
     role: "resident",
     roleLabel: "居民",
-    description: "老年慢病居民，可查看提醒、任务和家医服务入口。",
+    description: "老年慢病居民，可查看提醒、任务和家庭医生服务入口。",
     avatarColor: "#12365A",
     tags: ["高血压", "糖尿病"],
   },

@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ClipboardList, House, MessageCircleMore } from "lucide-react";
+import { Bell, ClipboardList, House, MessageCircleMore, Settings, Users } from "lucide-react";
+import { useDemoUser } from "@/lib/useDemoUser";
 
-const navItems = [
+const residentNavItems = [
   { href: "/tasks", label: "任务", icon: ClipboardList },
   { href: "/", label: "首页", icon: House },
   { href: "/group", label: "群聊", icon: MessageCircleMore },
@@ -12,12 +13,35 @@ const navItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { currentUser } = useDemoUser();
+  const role = currentUser?.role ?? "resident";
+  const navItems =
+    role === "family"
+      ? [
+          { href: "/family", label: "老人提醒", icon: Bell },
+          { href: "/", label: "首页", icon: House },
+          { href: "/contacts", label: "一键找人", icon: Users },
+        ]
+      : role === "admin"
+        ? [
+            { href: "/admin", label: "看板", icon: ClipboardList },
+            { href: "/", label: "首页", icon: House },
+            { href: "/admin", label: "管理", icon: Settings },
+          ]
+        : ["doctor", "nurse", "pharmacist", "community"].includes(role)
+          ? [
+              { href: "/doctor", label: "待办", icon: ClipboardList },
+              { href: "/", label: "首页", icon: House },
+              { href: "/notifications", label: "消息", icon: Bell },
+            ]
+          : residentNavItems;
   const isHomeBranch =
     pathname === "/" ||
     pathname.startsWith("/ask") ||
     pathname.startsWith("/contacts") ||
     pathname.startsWith("/courses") ||
-    pathname.startsWith("/me");
+    pathname.startsWith("/me") ||
+    (role === "family" && pathname.startsWith("/family"));
 
   return (
     <nav className="absolute inset-x-0 bottom-0 z-20 px-4 pb-5 pt-3">
@@ -25,14 +49,16 @@ export function BottomNav() {
         <div className="grid grid-cols-3 gap-2">
           {navItems.map((item) => {
             const isActive =
-              item.href === "/"
+              role === "admin" && item.label === "管理"
+                ? false
+                : item.href === "/"
                 ? isHomeBranch
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
 
             return (
               <Link
-                key={item.href}
+                key={`${item.href}-${item.label}`}
                 href={item.href}
                 className={`flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-[24px] px-3 py-3 transition active:scale-95 ${
                   isActive

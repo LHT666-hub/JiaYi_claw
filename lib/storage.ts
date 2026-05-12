@@ -1,4 +1,5 @@
 import { courses as defaultCourses } from "@/data/courses";
+import { demoUsers } from "@/data/demoUsers";
 import { faqs as defaultFaqs } from "@/data/faqs";
 import { tasks as defaultTasks } from "@/data/tasks";
 import {
@@ -13,13 +14,19 @@ import {
   DemoUser,
   FeedbackItem,
   FaqItem,
+  LocalFamilyBinding,
   LocalPointsSummary,
   LocalTaskRecord,
+  LocalNotification,
   ManagedCourseItem,
   ManagedFaqItem,
   ManagedTaskItem,
+  MatchedLeaderRecord,
+  MatchLogItem,
+  NotificationType,
   RiskLevel,
   TaskItem,
+  TodoStatusEvent,
 } from "@/lib/types";
 
 const STORAGE_KEY = "family-doctor-claw-state-v1";
@@ -37,6 +44,11 @@ export const STORAGE_KEYS = {
   doctorTodos: "jiayi_doctor_todos",
   points: "jiayi_points",
   taskRecords: "jiayi_task_records",
+  matchedLeader: "jiayi_matched_leader",
+  matchLogs: "jiayi_match_logs",
+  notifications: "jiayi_notifications",
+  familyBindings: "jiayi_family_bindings",
+  todoStatusEvents: "jiayi_todo_status_events",
 } as const;
 
 export const STORAGE_CHANGE_EVENT = "jiayi-storage-change";
@@ -103,7 +115,7 @@ export const defaultState: ClawState = {
       "group",
       "high",
     ),
-    createSeedMessage("group-4", "张阿姨", "user", "我早上量了 135/82。", "group"),
+    createSeedMessage("group-4", "群友", "user", "我早上量了 135/82。", "group"),
     createSeedMessage(
       "group-5",
       "Claw 群助手",
@@ -163,6 +175,78 @@ function writeJson<T>(key: string, value: T) {
 
 function createNow() {
   return new Date().toISOString();
+}
+
+function createDemoDoctorTodos(): DemoDoctorTodo[] {
+  const resident = demoUsers.find((user) => user.id === "demo-resident-zhang");
+  if (!resident) {
+    return [];
+  }
+
+  return [
+    {
+      id: "demo-progress-zhang-1",
+      residentId: resident.id,
+      residentName: resident.name,
+      question: "我能不能停药？",
+      riskLevel: "high",
+      status: "processing",
+      createdAt: createNow(),
+      source: "ask",
+      recommendedRole: "doctor",
+      recommendedRoleLabel: "李医生",
+      recommendedReason: "这类问题需要家庭医生进一步判断。",
+      originalQuestion: "我能不能停药？",
+      clawAnswer: "这类问题需要交给家医团队进一步确认，Claw 不能替代医生判断。",
+      summary: "Claw 已帮您整理问题，建议先带上药盒、处方和近期记录联系家庭医生。",
+      preparedMaterials: ["药盒或处方单", "近期血压血糖记录", "最近一次就诊信息"],
+    },
+  ];
+}
+
+function ensureDemoTodoEvents(todos: DemoDoctorTodo[]) {
+  const currentEvents = readJson<TodoStatusEvent[]>(STORAGE_KEYS.todoStatusEvents, []);
+
+  if (currentEvents.length || !todos.length) {
+    return currentEvents;
+  }
+
+  const createdAt = todos[0].createdAt;
+  const seed: TodoStatusEvent[] = [
+    {
+      id: "demo-progress-event-submit",
+      todoId: todos[0].id,
+      actorId: todos[0].residentId ?? null,
+      actorName: todos[0].residentName,
+      oldStatus: null,
+      newStatus: "pending",
+      note: "已提交给家医团队。",
+      createdAt,
+    },
+    {
+      id: "demo-progress-event-assign",
+      todoId: todos[0].id,
+      actorId: null,
+      actorName: "家医 Claw",
+      oldStatus: "pending",
+      newStatus: "pending",
+      note: "建议携带材料联系李医生。",
+      createdAt,
+    },
+    {
+      id: "demo-progress-event-processing",
+      todoId: todos[0].id,
+      actorId: "demo-doctor-li",
+      actorName: "李医生",
+      oldStatus: "pending",
+      newStatus: "processing",
+      note: "家医团队正在处理。",
+      createdAt: createNow(),
+    },
+  ];
+
+  writeJson(STORAGE_KEYS.todoStatusEvents, seed);
+  return seed;
 }
 
 function createManagedFaq(item: FaqItem): ManagedFaqItem {
@@ -280,6 +364,16 @@ export function readDemoUser(): DemoUser | null {
     return legacy;
   }
 
+  const legacyState = readJson<(Partial<ClawState> & { currentUser?: DemoUser }) | null>(
+    STORAGE_KEY,
+    null,
+  );
+
+  if (legacyState?.currentUser) {
+    writeJson(STORAGE_KEYS.currentUser, legacyState.currentUser);
+    return legacyState.currentUser;
+  }
+
   return null;
 }
 
@@ -291,6 +385,14 @@ export function writeDemoUser(user: DemoUser) {
   writeJson(STORAGE_KEYS.currentUser, user);
   window.localStorage.setItem(LEGACY_DEMO_USER_KEY, JSON.stringify(user));
   window.localStorage.setItem(LEGACY_DEMO_ROLE_KEY, user.role);
+  const legacyState = readJson<Partial<ClawState> | null>(STORAGE_KEY, null);
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      ...(legacyState ?? {}),
+      currentUser: user,
+    }),
+  );
 }
 
 export function clearDemoUser() {
@@ -301,6 +403,14 @@ export function clearDemoUser() {
   window.localStorage.removeItem(STORAGE_KEYS.currentUser);
   window.localStorage.removeItem(LEGACY_DEMO_USER_KEY);
   window.localStorage.removeItem(LEGACY_DEMO_ROLE_KEY);
+  const legacyState = readJson<(Partial<ClawState> & { currentUser?: DemoUser }) | null>(
+    STORAGE_KEY,
+    null,
+  );
+  if (legacyState?.currentUser) {
+    const { currentUser: _currentUser, ...rest } = legacyState;
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
+  }
   emitStorageChange();
 }
 
@@ -320,7 +430,12 @@ export function readDoctorTodos(): DemoDoctorTodo[] {
     return legacy;
   }
 
-  return [];
+  const seed = createDemoDoctorTodos();
+  if (seed.length) {
+    writeJson(STORAGE_KEYS.doctorTodos, seed);
+    ensureDemoTodoEvents(seed);
+  }
+  return seed;
 }
 
 export function writeDoctorTodos(todos: DemoDoctorTodo[]) {
@@ -335,6 +450,80 @@ export function writeDoctorTodos(todos: DemoDoctorTodo[]) {
 export function appendDoctorTodo(todo: DemoDoctorTodo) {
   const current = readDoctorTodos();
   writeDoctorTodos([todo, ...current]);
+  appendTodoStatusEvent({
+    id: `todo-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    todoId: todo.id,
+    actorId: todo.residentId ?? null,
+    actorName: todo.residentName,
+    oldStatus: null,
+    newStatus: "pending",
+    note: "已提交给家医团队。",
+    createdAt: todo.createdAt,
+  });
+}
+
+export function readTodoStatusEvents() {
+  return readJson<TodoStatusEvent[]>(STORAGE_KEYS.todoStatusEvents, []);
+}
+
+export function writeTodoStatusEvents(items: TodoStatusEvent[]) {
+  writeJson(STORAGE_KEYS.todoStatusEvents, items);
+}
+
+export function appendTodoStatusEvent(item: TodoStatusEvent) {
+  writeTodoStatusEvents([item, ...readTodoStatusEvents()]);
+}
+
+export function getTodoStatusEvents(todoId: string) {
+  return readTodoStatusEvents()
+    .filter((item) => item.todoId === todoId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+function getStatusEventNote(status: DemoDoctorTodo["status"]) {
+  if (status === "processing") {
+    return "家医团队正在处理。";
+  }
+  if (status === "done") {
+    return "家医团队已更新处理状态。";
+  }
+  if (status === "ignored") {
+    return "该提醒已关闭。";
+  }
+  return "已提交给家医团队。";
+}
+
+export function updateLocalDoctorTodoStatus(params: {
+  todoId: string;
+  status: DemoDoctorTodo["status"];
+  actorId?: string | null;
+  actorName?: string;
+  note?: string;
+}) {
+  const current = readDoctorTodos();
+  const target = current.find((item) => item.id === params.todoId);
+
+  if (!target || target.status === params.status) {
+    return target ?? null;
+  }
+
+  const updated = current.map((item) =>
+    item.id === params.todoId ? { ...item, status: params.status } : item,
+  );
+
+  writeDoctorTodos(updated);
+  appendTodoStatusEvent({
+    id: `todo-event-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    todoId: params.todoId,
+    actorId: params.actorId ?? null,
+    actorName: params.actorName ?? "",
+    oldStatus: target.status,
+    newStatus: params.status,
+    note: params.note ?? getStatusEventNote(params.status),
+    createdAt: createNow(),
+  });
+
+  return updated.find((item) => item.id === params.todoId) ?? null;
 }
 
 export function readAskLogs() {
@@ -590,5 +779,224 @@ export function getDashboardMetrics() {
     doctorTodoCount: readDoctorTodos().length,
     groupMessageCount: state.groupMessages.length,
     feedbackCount: readFeedbacks().length,
+    matchLeaderCount: readMatchLogs().length,
   };
+}
+
+// ── Match Leader ──────────────────────────────────────────
+
+export function readMatchedLeader(): MatchedLeaderRecord | null {
+  return readJson<MatchedLeaderRecord | null>(STORAGE_KEYS.matchedLeader, null);
+}
+
+export function writeMatchedLeader(record: MatchedLeaderRecord) {
+  writeJson(STORAGE_KEYS.matchedLeader, record);
+}
+
+export function clearMatchedLeader() {
+  if (!isBrowser()) return;
+  window.localStorage.removeItem(STORAGE_KEYS.matchedLeader);
+  emitStorageChange();
+}
+
+export function readMatchLogs(): MatchLogItem[] {
+  return readJson<MatchLogItem[]>(STORAGE_KEYS.matchLogs, []);
+}
+
+export function appendMatchLog(log: MatchLogItem) {
+  writeJson(STORAGE_KEYS.matchLogs, [log, ...readMatchLogs()]);
+}
+
+// ── Notifications (localStorage fallback) ───────────────────
+
+function normalizeLegacyNotification(
+  item: Partial<LocalNotification> & {
+    body?: string;
+    href?: string;
+  },
+): LocalNotification {
+  return {
+    id: item.id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: item.userId || readDemoUser()?.id || "anonymous",
+    actorId: item.actorId ?? null,
+    type: (item.type as NotificationType | undefined) ?? "system",
+    title: item.title || "系统提醒",
+    content: item.content ?? item.body ?? "",
+    linkUrl: item.linkUrl ?? item.href ?? "",
+    isRead: Boolean(item.isRead),
+    metadata:
+      item.metadata && typeof item.metadata === "object" ? item.metadata : {},
+    createdAt: item.createdAt || createNow(),
+  };
+}
+
+export function readLocalNotifications(userId?: string): LocalNotification[] {
+  const currentUserId = userId ?? readDemoUser()?.id ?? null;
+  const items = readJson<Array<Partial<LocalNotification> & { body?: string; href?: string }>>(
+    STORAGE_KEYS.notifications,
+    [],
+  ).map(normalizeLegacyNotification);
+
+  if (!currentUserId) {
+    return items;
+  }
+
+  return items.filter((item) => item.userId === currentUserId);
+}
+
+export function writeLocalNotifications(items: LocalNotification[]) {
+  writeJson(STORAGE_KEYS.notifications, items);
+}
+
+export function appendLocalNotification(params: {
+  userId?: string;
+  actorId?: string | null;
+  type: NotificationType;
+  title: string;
+  content?: string;
+  linkUrl?: string;
+  metadata?: Record<string, unknown>;
+}) {
+  const currentUserId = params.userId ?? readDemoUser()?.id ?? "anonymous";
+  const item: LocalNotification = {
+    id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    userId: currentUserId,
+    actorId: params.actorId ?? null,
+    type: params.type,
+    title: params.title,
+    content: params.content ?? "",
+    linkUrl: params.linkUrl ?? "",
+    isRead: false,
+    metadata: params.metadata ?? {},
+    createdAt: createNow(),
+  };
+
+  const existing = readJson<Array<Partial<LocalNotification> & { body?: string; href?: string }>>(
+    STORAGE_KEYS.notifications,
+    [],
+  ).map(normalizeLegacyNotification);
+  writeLocalNotifications([item, ...existing]);
+  return item;
+}
+
+export function markLocalNotificationRead(id: string, userId?: string) {
+  const currentUserId = userId ?? readDemoUser()?.id ?? null;
+  const items = readJson<Array<Partial<LocalNotification> & { body?: string; href?: string }>>(
+    STORAGE_KEYS.notifications,
+    [],
+  ).map(normalizeLegacyNotification);
+  const updated = items.map((item) =>
+    item.id === id && (!currentUserId || item.userId === currentUserId)
+      ? { ...item, isRead: true }
+      : item,
+  );
+  writeLocalNotifications(updated);
+}
+
+export function markAllLocalNotificationsRead(userId?: string) {
+  const currentUserId = userId ?? readDemoUser()?.id ?? null;
+  const items = readJson<Array<Partial<LocalNotification> & { body?: string; href?: string }>>(
+    STORAGE_KEYS.notifications,
+    [],
+  ).map(normalizeLegacyNotification);
+  const updated = items.map((item) =>
+    !currentUserId || item.userId === currentUserId ? { ...item, isRead: true } : item,
+  );
+  writeLocalNotifications(updated);
+}
+
+export function getLocalUnreadNotificationCount(userId?: string): number {
+  return readLocalNotifications(userId).filter((item) => !item.isRead).length;
+}
+
+// ── Family bindings (localStorage fallback) ─────────────────
+
+function createDemoFamilyBindings(): LocalFamilyBinding[] {
+  const resident = demoUsers.find((user) => user.id === "demo-resident-zhang");
+  const family = demoUsers.find((user) => user.id === "demo-family-daughter");
+
+  if (!resident || !family) {
+    return [];
+  }
+
+  const now = createNow();
+  return [
+    {
+      id: "demo-binding-zhang-daughter",
+      residentId: resident.id,
+      familyId: family.id,
+      residentName: resident.name,
+      familyName: family.name,
+      relationship: "女儿",
+      note: "主要家属联系人",
+      isPrimary: true,
+      status: "active",
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+}
+
+export function readFamilyBindings(): LocalFamilyBinding[] {
+  const current = readJson<LocalFamilyBinding[]>(STORAGE_KEYS.familyBindings, []);
+
+  if (current.length) {
+    return current;
+  }
+
+  const seed = createDemoFamilyBindings();
+  if (seed.length) {
+    writeJson(STORAGE_KEYS.familyBindings, seed);
+  }
+  return seed;
+}
+
+export function writeFamilyBindings(items: LocalFamilyBinding[]) {
+  writeJson(STORAGE_KEYS.familyBindings, items);
+}
+
+export function upsertFamilyBinding(item: LocalFamilyBinding) {
+  const current = readFamilyBindings();
+  const now = createNow();
+  const nextItem: LocalFamilyBinding = {
+    ...item,
+    id: item.id || `binding-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    status: item.status ?? "active",
+    createdAt: item.createdAt || now,
+    updatedAt: now,
+  };
+  const index = current.findIndex((entry) => entry.id === nextItem.id);
+  const next = [...current];
+
+  if (index >= 0) {
+    next[index] = nextItem;
+  } else {
+    next.unshift(nextItem);
+  }
+
+  writeFamilyBindings(next);
+  return nextItem;
+}
+
+export function updateFamilyBinding(id: string, patch: Partial<LocalFamilyBinding>) {
+  const current = readFamilyBindings();
+  const next = current.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          ...patch,
+          updatedAt: createNow(),
+        }
+      : item,
+  );
+  writeFamilyBindings(next);
+  return next.find((item) => item.id === id) ?? null;
+}
+
+export function getFamilyBindingsForResident(residentId: string) {
+  return readFamilyBindings().filter((item) => item.residentId === residentId);
+}
+
+export function getFamilyBindingsForFamily(familyId: string) {
+  return readFamilyBindings().filter((item) => item.familyId === familyId);
 }

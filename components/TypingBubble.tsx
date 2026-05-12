@@ -7,7 +7,7 @@ export function TypingBubble({ author = "家医 Claw" }: { author?: string }) {
         <span className="typing-dot typing-dot-delay-1 bg-navy/55" />
         <span className="typing-dot typing-dot-delay-2 bg-navy/70" />
       </div>
-      <p className="mt-1 text-[11px] text-navy/40">正在整理回复…</p>
+      <p className="mt-1 text-[11px] text-navy/40">正在整理回复...</p>
     </div>
   );
 }

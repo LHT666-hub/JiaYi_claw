@@ -7,6 +7,7 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
 import { useClawState } from "@/lib/useClawState";
+import { useDemoUser } from "@/lib/useDemoUser";
 
 const followupOptions = [
   "我可以按时参加",
@@ -19,6 +20,8 @@ export default function FollowupPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const { state, confirmFollowup, markNotificationsRead } = useClawState();
   const { showToast } = useToast();
+  const { currentUser } = useDemoUser();
+  const displayName = currentUser?.name ?? "当前居民";
 
   useEffect(() => {
     markNotificationsRead(["notification-followup"]);
@@ -32,7 +35,7 @@ export default function FollowupPage() {
         author: "王护士",
         role: "nurse" as const,
         content:
-          "张阿姨您好，本周三上午 9:30 安排了慢病随访，请您确认一下是否方便参加。",
+          `${displayName}您好，本周三上午 9:30 安排了慢病随访，请您确认一下是否方便参加。`,
         context: "direct" as const,
         threadId: "followup",
         createdAt: "2026-04-27T09:10:00.000Z",
@@ -47,13 +50,13 @@ export default function FollowupPage() {
         createdAt: "2026-04-27T09:12:00.000Z",
       },
     ],
-    [],
+    [displayName],
   );
 
   const followupReplyMessage = state.followupConfirmed && state.followupResponse
     ? {
         id: "followup-user-reply",
-        author: "张阿姨",
+        author: displayName,
         role: "user" as const,
         content: state.followupResponse,
         context: "direct" as const,

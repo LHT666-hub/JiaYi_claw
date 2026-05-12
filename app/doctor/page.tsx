@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Activity,
   AlertTriangle,
+  Bell,
   ClipboardList,
   GraduationCap,
   MessageSquareWarning,
@@ -15,7 +16,7 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { readDoctorTodos, writeDoctorTodos } from "@/lib/storage";
+import { readDoctorTodos, updateLocalDoctorTodoStatus } from "@/lib/storage";
 import { fetchCurrentProfile, getRoleLabel, isWorkbenchRole } from "@/lib/supabase/mvp";
 import { AppRole, DemoDoctorTodo, DoctorTodoRow, ProfileRow } from "@/lib/types";
 import { useDemoUser } from "@/lib/useDemoUser";
@@ -73,7 +74,7 @@ const roleContentMap: Record<
       { label: "健康教育", value: "2 条", icon: GraduationCap },
     ],
     tasks: ["提醒居民确认随访时间", "回访连续未打卡居民", "解释小课堂和积分规则"],
-    alerts: ["有居民连续两天未记录血压", "���居民错过随访确认电话"],
+    alerts: ["有居民连续两天未记录血压", "有居民错过随访确认电话"],
   },
   pharmacist: {
     title: "药师工作台",
@@ -97,7 +98,7 @@ const roleContentMap: Record<
       { label: "群组维护", value: "2 条", icon: GraduationCap },
     ],
     tasks: ["提醒老人查看体检通知", "协助不太会用手机的居民进入页面", "维护高血压互助小组秩序"],
-    alerts: ["有居民不会查看公众号排班表", "��居民需要协助联系家庭医生"],
+    alerts: ["有居民不会查看公众号排班表", "有居民需要协助联系家庭医生"],
   },
   admin: {
     title: "管理员总览",
@@ -124,8 +125,13 @@ type TodoCardView = {
   status: DoctorTodoRow["status"];
   source: string;
   createdAt: string;
-  recommendedRole?: string;
+  recommendedRoleKey?: string;
+  recommendedRoleLabel?: string;
   recommendedReason?: string;
+  originalQuestion?: string;
+  clawAnswer?: string;
+  doctorSummary?: string;
+  preparedMaterials?: string[];
 };
 
 function mapRemoteTodo(todo: DoctorTodoRow): TodoCardView {
@@ -149,15 +155,20 @@ function mapLocalTodo(todo: DemoDoctorTodo): TodoCardView {
     status: todo.status,
     source: todo.source,
     createdAt: todo.createdAt,
-    recommendedRole: todo.recommendedRole,
+    recommendedRoleKey: todo.recommendedRole,
+    recommendedRoleLabel: todo.recommendedRoleLabel ?? todo.recommendedRole,
     recommendedReason: todo.recommendedReason,
+    originalQuestion: todo.originalQuestion,
+    clawAnswer: todo.clawAnswer,
+    doctorSummary: todo.summary,
+    preparedMaterials: todo.preparedMaterials,
   };
 }
 
 export default function DoctorPage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-  const { currentUser: demoUser } = useDemoUser();
+  const { currentUser: demoUser, isReady: demoUserReady } = useDemoUser();
   const { showToast } = useToast();
   const [todos, setTodos] = useState<TodoCardView[]>([]);
   const [authMode, setAuthMode] = useState<AuthMode>("loading");
@@ -221,6 +232,10 @@ export default function DoctorPage() {
         }
       }
 
+      if (!demoUserReady) {
+        return;
+      }
+
       if (demoUser) {
         setRole(demoUser.role);
         setAuthMode("demo");
@@ -229,7 +244,7 @@ export default function DoctorPage() {
       }
 
       setAuthMode("none");
-      router.replace("/login");
+      router.replace("/welcome");
     }
 
     void bootstrap();
@@ -237,7 +252,7 @@ export default function DoctorPage() {
     return () => {
       active = false;
     };
-  }, [demoUser, router, supabase]);
+  }, [demoUser, demoUserReady, router, supabase]);
 
   async function updateTodoStatus(todoId: string, status: DoctorTodoRow["status"]) {
     if (syncMode === "supabase" && role && isWorkbenchRole(role)) {
@@ -270,17 +285,61 @@ export default function DoctorPage() {
       }
     }
 
-    const localTodos = readDoctorTodos().map((todo) =>
-      todo.id === todoId ? { ...todo, status: status as DemoDoctorTodo["status"] } : todo,
-    );
-    writeDoctorTodos(localTodos);
+    updateLocalDoctorTodoStatus({
+      todoId,
+      status: status as DemoDoctorTodo["status"],
+      actorId: demoUser?.id ?? profile?.id ?? null,
+      actorName: demoUser?.name ?? profile?.display_name ?? "",
+    });
+    const localTodos = readDoctorTodos();
     setTodos(localTodos.map(mapLocalTodo));
     showToast("待办状态已更新", "success");
   }
 
+  const workbenchRole = isWorkbenchRole(role)
+    ? (role as "doctor" | "nurse" | "pharmacist" | "community" | "admin")
+    : null;
+  const roleConfig = workbenchRole ? roleContentMap[workbenchRole] : null;
+  const canOpenAdmin = demoUser?.role === "admin" || profile?.role === "admin";
+
+  const isFilteredRole =
+    workbenchRole === "nurse" ||
+    workbenchRole === "pharmacist" ||
+    workbenchRole === "community";
+
+  const { myTodos, otherTodos } = useMemo(() => {
+    if (!workbenchRole || !isFilteredRole) {
+      return { myTodos: todos, otherTodos: [] as TodoCardView[] };
+    }
+    const mine: TodoCardView[] = [];
+    const rest: TodoCardView[] = [];
+    for (const t of todos) {
+      if (t.recommendedRoleKey === workbenchRole) {
+        mine.push(t);
+      } else {
+        rest.push(t);
+      }
+    }
+    return { myTodos: mine, otherTodos: rest };
+  }, [todos, isFilteredRole, workbenchRole]);
+
+  const pendingCount = myTodos.filter((todo) => todo.status === "pending").length;
+  const riskCount = myTodos.filter(
+    (todo) => todo.riskLevel === "high" || todo.riskLevel === "emergency",
+  ).length;
+  const doneCount = myTodos.filter((todo) => todo.status === "done").length;
+
+  const todosByRisk = useMemo(() => {
+    const high = myTodos.filter((t) => t.riskLevel === "high" || t.riskLevel === "emergency");
+    const medium = myTodos.filter((t) => t.riskLevel === "medium");
+    const low = myTodos.filter((t) => t.riskLevel === "low" && t.status !== "done" && t.status !== "ignored");
+    const done = myTodos.filter((t) => t.status === "done" || t.status === "ignored");
+    return { high, medium, low, done };
+  }, [myTodos]);
+
   if (authMode === "loading") {
     return (
-      <PhoneShell>
+      <PhoneShell showBottomNav>
         <div className="space-y-5 px-4 pb-8">
           <BackHeader title="团队工作台" subtitle="正在读取当前身份..." />
         </div>
@@ -292,9 +351,9 @@ export default function DoctorPage() {
     return null;
   }
 
-  if (!isWorkbenchRole(role)) {
+  if (!workbenchRole || !roleConfig) {
     return (
-      <PhoneShell>
+      <PhoneShell showBottomNav>
         <div className="space-y-5 px-4 pb-8">
           <BackHeader title="团队工作台" subtitle="当前页面仅对医生、护士、药师、社区支持和管理员开放。" />
           <SectionCard>
@@ -315,7 +374,7 @@ export default function DoctorPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push("/login")}
+                  onClick={() => router.push("/welcome")}
                   className="rounded-full border border-line bg-cream px-5 py-2.5 text-sm font-semibold text-navy"
                 >
                   切换身份
@@ -328,35 +387,28 @@ export default function DoctorPage() {
     );
   }
 
-  const workbenchRole = role as "doctor" | "nurse" | "pharmacist" | "community" | "admin";
-  const roleConfig = roleContentMap[workbenchRole];
-  const pendingCount = todos.filter((todo) => todo.status === "pending").length;
-  const riskCount = todos.filter(
-    (todo) => todo.riskLevel === "high" || todo.riskLevel === "emergency",
-  ).length;
-  const doneCount = todos.filter((todo) => todo.status === "done").length;
-  const canOpenAdmin = demoUser?.role === "admin" || profile?.role === "admin";
-
-  const todosByRisk = useMemo(() => {
-    const high = todos.filter((t) => t.riskLevel === "high" || t.riskLevel === "emergency");
-    const medium = todos.filter((t) => t.riskLevel === "medium");
-    const low = todos.filter((t) => t.riskLevel === "low" && t.status !== "done" && t.status !== "ignored");
-    const done = todos.filter((t) => t.status === "done" || t.status === "ignored");
-    return { high, medium, low, done };
-  }, [todos]);
-
   return (
-    <PhoneShell>
+    <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader
-          sticky
-          title={roleConfig.title}
-          subtitle={
-            authMode === "supabase"
-              ? `${profile?.display_name ?? ""} / ${role ? getRoleLabel(role) : ""}`
-              : roleConfig.subtitle
-          }
-        />
+        <div className="flex items-start justify-between">
+          <BackHeader
+            sticky
+            title={roleConfig.title}
+            subtitle={
+              authMode === "supabase"
+                ? `${profile?.display_name ?? ""} / ${role ? getRoleLabel(role) : ""}`
+                : roleConfig.subtitle
+            }
+          />
+          <button
+            type="button"
+            onClick={() => router.push("/notifications")}
+            className="mt-6 flex h-10 w-10 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft transition active:scale-95"
+            aria-label="通知中心"
+          >
+            <Bell className="h-4.5 w-4.5" strokeWidth={2.1} />
+          </button>
+        </div>
 
         {/* Key Metrics - Dashboard Style */}
         <div className="grid grid-cols-2 gap-3">
@@ -381,7 +433,7 @@ export default function DoctorPage() {
         </div>
 
         {/* Todos by risk group */}
-        <SectionCard title="Claw 转入待办">
+        <SectionCard title={isFilteredRole ? "建议我处理的待办" : "Claw 转入待办"}>
           {todos.length ? (
             <div className="space-y-3">
               {todosByRisk.high.length > 0 && (
@@ -434,6 +486,19 @@ export default function DoctorPage() {
           )}
         </SectionCard>
 
+        {isFilteredRole && otherTodos.length > 0 ? (
+          <SectionCard title="其他角色待办">
+            <p className="mb-3 text-xs text-navy/50">
+              以下待办建议由其他角色处理，仅供参考。
+            </p>
+            <div className="space-y-3">
+              {otherTodos.map((todo) => (
+                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+              ))}
+            </div>
+          </SectionCard>
+        ) : null}
+
         {/* Role-specific alerts */}
         <SectionCard title="风险与提醒">
           <div className="space-y-2.5">
@@ -461,7 +526,7 @@ export default function DoctorPage() {
           </button>
           <button
             type="button"
-            onClick={() => router.push("/login")}
+            onClick={() => router.push("/welcome")}
             className="flex h-12 items-center justify-center gap-2 rounded-[20px] border border-line bg-cream text-sm font-semibold text-navy"
           >
             <Users className="h-4 w-4" />
@@ -490,7 +555,9 @@ function TodoCard({
   todo: TodoCardView;
   onStatusChange: (id: string, status: DoctorTodoRow["status"]) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const riskStyle = riskStyleMap[todo.riskLevel] || riskStyleMap.low;
+  const hasSummaryDetails = !!(todo.originalQuestion || todo.clawAnswer || todo.doctorSummary || todo.preparedMaterials?.length);
 
   return (
     <div className={`rounded-[22px] border p-4 ${riskStyle}`}>
@@ -500,19 +567,58 @@ function TodoCard({
           <p className="mt-1 text-xs text-navy/50">
             来源：{todo.source} · {new Date(todo.createdAt).toLocaleDateString()}
           </p>
-          <p className="mt-2.5 text-sm leading-6 text-navy/72 line-clamp-3">{todo.summary}</p>
+          {todo.doctorSummary ? (
+            <p className="mt-2.5 text-sm leading-6 text-navy/72">{todo.doctorSummary}</p>
+          ) : (
+            <p className="mt-2.5 text-sm leading-6 text-navy/72 line-clamp-3">{todo.summary}</p>
+          )}
         </div>
         <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${statusStyleMap[todo.status]}`}>
           {statusLabelMap[todo.status]}
         </span>
       </div>
-      {todo.recommendedRole ? (
+      {todo.recommendedRoleLabel ? (
         <div className="mt-3 rounded-[14px] border border-sage/20 bg-[#EEF5F3]/60 px-3 py-2">
           <p className="text-xs font-semibold text-sage">
-            建议处理：{todo.recommendedRole}
+            建议处理：{todo.recommendedRoleLabel}
           </p>
           {todo.recommendedReason ? (
             <p className="mt-0.5 text-xs text-navy/55">{todo.recommendedReason}</p>
+          ) : null}
+        </div>
+      ) : null}
+      {hasSummaryDetails ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2.5 text-xs font-semibold text-sage active:scale-95"
+        >
+          {expanded ? "收起详情" : "展开 Claw 整理详情"}
+        </button>
+      ) : null}
+      {expanded && hasSummaryDetails ? (
+        <div className="mt-3 space-y-2.5 rounded-[16px] border border-sage/15 bg-white/60 p-3 text-sm leading-6 text-navy/75">
+          {todo.originalQuestion ? (
+            <div>
+              <p className="text-[11px] font-semibold text-navy/45">居民原始问题</p>
+              <p className="mt-0.5">{todo.originalQuestion}</p>
+            </div>
+          ) : null}
+          {todo.clawAnswer ? (
+            <div>
+              <p className="text-[11px] font-semibold text-navy/45">Claw 回答</p>
+              <p className="mt-0.5">{todo.clawAnswer}</p>
+            </div>
+          ) : null}
+          {todo.preparedMaterials && todo.preparedMaterials.length > 0 ? (
+            <div>
+              <p className="text-[11px] font-semibold text-navy/45">建议准备的材料</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {todo.preparedMaterials.map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       ) : null}

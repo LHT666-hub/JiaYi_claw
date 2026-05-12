@@ -48,6 +48,31 @@ export async function getDoctorTodosForUser(
   }
 }
 
+export async function getDoctorTodosForResidents(
+  residentIds: string[],
+  supabase: TypedSupabaseClient,
+) {
+  if (!residentIds.length) {
+    return [] as DoctorTodoRow[];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("doctor_todos")
+      .select(todoSelect)
+      .in("resident_id", residentIds)
+      .order("created_at", { ascending: false });
+
+    if (error || !data) {
+      return [] as DoctorTodoRow[];
+    }
+
+    return data as DoctorTodoRow[];
+  } catch {
+    return [] as DoctorTodoRow[];
+  }
+}
+
 export async function createDoctorTodo({
   residentId = null,
   assignedTo = null,

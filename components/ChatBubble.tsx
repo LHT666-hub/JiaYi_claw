@@ -13,15 +13,11 @@ const roleStyleMap = {
   family: "mr-auto max-w-[88%] bg-[#FDEEE7] text-navy border border-[#E4C7B8]",
 } as const;
 
-const sourceLabelMap: Record<string, { label: string; style: string }> = {
-  safety: { label: "安全提示", style: "bg-[#F8DDD9] text-danger border-danger/20" },
-  faq: { label: "FAQ 回答", style: "bg-[#E8F0EE] text-sage border-sage/20" },
-  knowledge_kimi: { label: "知识库生成", style: "bg-[#EDE8F5] text-[#5B4A8A] border-[#D5CCE9]" },
-  kimi: { label: "Kimi 生成", style: "bg-[#EDE8F5] text-[#5B4A8A] border-[#D5CCE9]" },
-  fallback: { label: "兜底提示", style: "bg-[#F3E4CD] text-navy/68 border-line/40" },
-  greeting: { label: "FAQ 回答", style: "bg-[#E8F0EE] text-sage border-sage/20" },
-  knowledge: { label: "知识库生成", style: "bg-[#EDE8F5] text-[#5B4A8A] border-[#D5CCE9]" },
-};
+const riskLabelMap = {
+  medium: "建议再确认",
+  high: "建议联系家医",
+  emergency: "紧急就医提示",
+} as const;
 
 type ChatBubbleProps = {
   message: ChatMessage;
@@ -32,11 +28,14 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
   const router = useRouter();
   const isUser = message.role === "user";
   const time = formatMessageTime(message.createdAt);
-  const sourceInfo = message.source ? sourceLabelMap[message.source] : null;
 
   const isSafety = message.source === "safety";
   const isHighRisk = message.riskLevel === "high" || message.riskLevel === "emergency";
   const showActionButtons = !isUser && (isHighRisk || isSafety);
+  const riskLabel =
+    message.riskLevel && message.riskLevel !== "low"
+      ? riskLabelMap[message.riskLevel as keyof typeof riskLabelMap]
+      : null;
 
   const bubbleStyle = isSafety
     ? "mr-auto max-w-[88%] bg-[#FBF0ED] text-navy border border-danger/20"
@@ -51,20 +50,17 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
         <p className="text-sm leading-7">{message.content}</p>
       </div>
 
-      {!isUser && sourceInfo ? (
+      {!isUser && riskLabel ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${sourceInfo.style}`}>
-            {sourceInfo.label}
-          </span>
-          {message.riskLevel && message.riskLevel !== "low" ? (
-            <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+          <span
+            className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
               isHighRisk
                 ? "border-danger/20 bg-[#F8DDD9] text-danger"
                 : "border-amber/20 bg-[#FFF1DD] text-amber"
-            }`}>
-              风险：{message.riskLevel === "emergency" ? "紧急" : message.riskLevel === "high" ? "高" : "中"}
-            </span>
-          ) : null}
+            }`}
+          >
+            {riskLabel}
+          </span>
         </div>
       ) : null}
 
@@ -83,7 +79,7 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
               onClick={onSummaryRequest}
               className="rounded-full border border-sage/30 bg-[#EEF5F3] px-3 py-1.5 text-xs font-semibold text-sage active:scale-95"
             >
-              让 Claw 帮我整理问题
+              让 Claw 帮我说明情况
             </button>
           ) : null}
           <button

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
-import { LucideIcon } from "lucide-react";
+import { Check, LucideIcon } from "lucide-react";
 import { PointsBadge } from "@/components/PointsBadge";
 
 type TaskCardProps = {
@@ -72,7 +71,7 @@ export function TaskCard({
               : "bg-navy text-white shadow-soft active:scale-95"
           }`}
         >
-          {completed ? "✓ 已完成" : "完成"}
+          {completed ? "已完成" : "完成"}
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { writeAuditLog } from "@/lib/db/audit";
 import { updateDoctorTodoStatus } from "@/lib/db/doctorTodos";
+import { createTodoStatusEvent } from "@/lib/db/todoStatusEvents";
 import { canAccessWorkbench, getServerAuthContext } from "@/lib/supabase/server-auth";
 import { DoctorTodoRow } from "@/lib/types";
 
@@ -35,10 +36,10 @@ export async function PATCH(
 
   const todoQuery = (await supabase
     .from("doctor_todos")
-    .select("id, assigned_to")
+    .select("id, assigned_to, status")
     .eq("id", id)
     .maybeSingle()) as {
-    data: { id: string; assigned_to: string | null } | null;
+    data: { id: string; assigned_to: string | null; status: DoctorTodoRow["status"] } | null;
   };
   const todo = todoQuery.data;
 
@@ -65,6 +66,22 @@ export async function PATCH(
       status,
       legacyRoute: true,
     },
+    supabase,
+  });
+
+  await createTodoStatusEvent({
+    todoId: id,
+    actorId: profile.id,
+    oldStatus: todo.status,
+    newStatus: status,
+    note:
+      status === "processing"
+        ? "家医团队已开始处理。"
+        : status === "done"
+          ? "家医团队已更新处理结果。"
+          : status === "ignored"
+            ? "该提醒已关闭。"
+            : "该提醒已重新标记为待处理。",
     supabase,
   });
 

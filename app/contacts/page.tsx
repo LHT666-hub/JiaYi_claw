@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { HeartPulse, Stethoscope, Users } from "lucide-react";
+import { HeartPulse, Stethoscope, UserRoundPlus, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { ContactAvatar } from "@/components/ContactAvatar";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { contacts as localContacts } from "@/data/contacts";
 import { getContactsForResident, mapContactRowToContactItem } from "@/lib/db/contacts";
+import { readMatchedLeader, STORAGE_CHANGE_EVENT } from "@/lib/storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile, resolveResidentScope } from "@/lib/supabase/mvp";
-import { ContactItem } from "@/lib/types";
+import { ContactItem, MatchedLeaderRecord } from "@/lib/types";
 
 const groupConfig = [
   {
@@ -36,6 +37,20 @@ const groupConfig = [
 export default function ContactsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<ContactItem[]>(localContacts);
+  const [matchedLeader, setMatchedLeader] = useState<MatchedLeaderRecord | null>(null);
+
+  useEffect(() => {
+    function refresh() {
+      setMatchedLeader(readMatchedLeader());
+    }
+    refresh();
+    window.addEventListener(STORAGE_CHANGE_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(STORAGE_CHANGE_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -74,7 +89,7 @@ export default function ContactsPage() {
   }, [supabase]);
 
   return (
-    <PhoneShell>
+    <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
         <BackHeader
           title="我的支持网络"
@@ -103,10 +118,44 @@ export default function ContactsPage() {
                 {groupContacts.map((contact) => (
                   <ContactNetworkCard key={contact.id} contact={contact} />
                 ))}
+                {group.key === "community" && matchedLeader && (
+                  <div className="rounded-[22px] border border-sage/30 bg-[#EEF5F3] p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage/20 text-sm font-semibold text-sage">
+                        {matchedLeader.leaderName.slice(0, 1)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-navy">
+                          {matchedLeader.leaderName}
+                          <span className="ml-2 text-[11px] font-medium text-sage">我的小组长</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-navy/55">匹配度 {matchedLeader.matchPercent}%</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </SectionCard>
           );
         })}
+
+        <SectionCard
+          title="小组长匹配"
+          action={<UserRoundPlus className="h-4 w-4 text-sage" />}
+        >
+          <p className="mb-3 text-xs leading-5 text-navy/55">
+            {matchedLeader
+              ? `当前小组长：${matchedLeader.leaderName}（匹配度 ${matchedLeader.matchPercent}%）`
+              : "还没有匹配小组长？试试智能匹配，找到最适合您的社区健康小组长。"}
+          </p>
+          <a
+            href="/match-leader"
+            className="inline-flex items-center gap-1.5 rounded-full bg-navy px-5 py-2.5 text-sm font-semibold text-white active:scale-95"
+          >
+            <UserRoundPlus className="h-4 w-4" />
+            {matchedLeader ? "重新匹配小组长" : "帮我匹配小组长"}
+          </a>
+        </SectionCard>
       </div>
     </PhoneShell>
   );

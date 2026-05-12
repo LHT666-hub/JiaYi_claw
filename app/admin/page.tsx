@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
+import { demoUsers } from "@/data/demoUsers";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import {
@@ -23,9 +24,12 @@ import {
   readCustomCourses,
   readCustomTasks,
   readFeedbacks,
+  readFamilyBindings,
   readMergedCourses,
   readMergedFaqs,
   readMergedTasks,
+  updateFamilyBinding,
+  upsertFamilyBinding,
   upsertCustomCourse,
   upsertCustomFaq,
   upsertCustomTask,
@@ -34,9 +38,11 @@ import { analyzeBreakpoints, BreakpointItem } from "@/lib/breakpoints";
 import { useDemoUser } from "@/lib/useDemoUser";
 import {
   FeedbackItem,
+  FamilyBindingStatus,
   ManagedCourseItem,
   ManagedFaqItem,
   ManagedTaskItem,
+  LocalFamilyBinding,
   ProfileRow,
 } from "@/lib/types";
 
@@ -45,6 +51,7 @@ const tabs = [
   "FAQ 管理",
   "小课堂管理",
   "任务与积分管理",
+  "家属绑定管理",
   "体验反馈",
 ] as const;
 
@@ -52,6 +59,26 @@ type AdminTab = (typeof tabs)[number];
 type AdminMode = "local" | "supabase";
 
 type DashboardMetrics = ReturnType<typeof getDashboardMetrics>;
+
+function createFamilyBindingDraft(): LocalFamilyBinding {
+  const resident = demoUsers.find((user) => user.role === "resident");
+  const family = demoUsers.find((user) => user.role === "family");
+  const now = new Date().toISOString();
+
+  return {
+    id: "",
+    residentId: resident?.id ?? "",
+    familyId: family?.id ?? "",
+    residentName: resident?.name ?? "",
+    familyName: family?.name ?? "",
+    relationship: "女儿",
+    note: "主要家属联系人",
+    isPrimary: true,
+    status: "active",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
 function MetricCard({
   title,
@@ -164,9 +191,13 @@ export default function AdminPage() {
   const [faqDraft, setFaqDraft] = useState<ManagedFaqItem>(createManagedFaqDraft());
   const [courseDraft, setCourseDraft] = useState<ManagedCourseItem>(createManagedCourseDraft());
   const [taskDraft, setTaskDraft] = useState<ManagedTaskItem>(createManagedTaskDraft());
+  const [familyBindingDraft, setFamilyBindingDraft] = useState<LocalFamilyBinding>(
+    createFamilyBindingDraft(),
+  );
   const [faqItems, setFaqItems] = useState<ManagedFaqItem[]>([]);
   const [courseItems, setCourseItems] = useState<ManagedCourseItem[]>([]);
   const [taskItems, setTaskItems] = useState<ManagedTaskItem[]>([]);
+  const [familyBindingItems, setFamilyBindingItems] = useState<LocalFamilyBinding[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics>(() => getDashboardMetrics());
   const [breakpoints, setBreakpoints] = useState<BreakpointItem[]>(() => analyzeBreakpoints(readAskLogs()));
@@ -180,6 +211,7 @@ export default function AdminPage() {
   function syncLocalData() {
     setCourseItems(readMergedCourses());
     setTaskItems(readMergedTasks());
+    setFamilyBindingItems(readFamilyBindings());
     setFeedbacks(readFeedbacks());
   }
 
@@ -280,13 +312,27 @@ export default function AdminPage() {
     });
   }
 
+  async function loadSupabaseFamilyBindings() {
+    const response = await fetch("/api/family/bindings", { method: "GET", cache: "no-store" });
+    const payload = (await response.json().catch(() => ({}))) as {
+      message?: string;
+      bindings?: LocalFamilyBinding[];
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.message ?? "Failed to load family bindings");
+    }
+
+    setFamilyBindingItems(payload.bindings ?? []);
+  }
+
   useEffect(() => {
     let active = true;
 
     async function syncAdminData() {
       if (adminMode === "supabase" && isSupabaseAdmin) {
         try {
-          await Promise.all([loadSupabaseFaqs(), loadSupabaseDashboard()]);
+          await Promise.all([loadSupabaseFaqs(), loadSupabaseDashboard(), loadSupabaseFamilyBindings()]);
           return;
         } catch {
           if (!active) {
@@ -295,6 +341,7 @@ export default function AdminPage() {
           setAdminMode("local");
           setFaqItems(readMergedFaqs());
           setMetrics(getDashboardMetrics());
+          setFamilyBindingItems(readFamilyBindings());
           setBreakpoints(analyzeBreakpoints(readAskLogs()));
           return;
         }
@@ -302,6 +349,7 @@ export default function AdminPage() {
 
       setFaqItems(readMergedFaqs());
       setMetrics(getDashboardMetrics());
+      setFamilyBindingItems(readFamilyBindings());
       setBreakpoints(analyzeBreakpoints(readAskLogs()));
     }
 
@@ -329,7 +377,7 @@ export default function AdminPage() {
 
   if (!canAccessAdmin) {
     return (
-      <PhoneShell>
+      <PhoneShell showBottomNav>
         <div className="space-y-5 bg-[#F3DDC2] px-4 pb-8">
           <BackHeader title="管理后台" subtitle="当前页面仅对管理员开放。" />
           <SectionCard>
@@ -348,7 +396,7 @@ export default function AdminPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push("/login")}
+                  onClick={() => router.push("/welcome")}
                   className="rounded-full border border-line bg-cream px-4 py-2 text-sm font-semibold text-navy"
                 >
                   切换身份
@@ -461,6 +509,90 @@ export default function AdminPage() {
     showToast("任务配置已保存，任务页会优先读取本地配置。", "success");
   }
 
+  async function saveFamilyBindingDraft() {
+    const resident = demoUsers.find((user) => user.id === familyBindingDraft.residentId);
+    const family = demoUsers.find((user) => user.id === familyBindingDraft.familyId);
+    const relationship = familyBindingDraft.relationship.trim();
+
+    if (!familyBindingDraft.residentId || !familyBindingDraft.familyId || !relationship) {
+      showToast("请填写老人、家属和关系。", "warning");
+      return;
+    }
+
+    if (adminMode === "supabase" && isSupabaseAdmin) {
+      try {
+        const response = await fetch("/api/family/bindings", {
+          method: familyBindingDraft.id ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: familyBindingDraft.id || undefined,
+            residentId: familyBindingDraft.residentId,
+            familyId: familyBindingDraft.familyId,
+            relationship,
+            note: familyBindingDraft.note?.trim() ?? "",
+            isPrimary: familyBindingDraft.isPrimary,
+            status: familyBindingDraft.status,
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        if (!response.ok) {
+          throw new Error(payload.message ?? "家属绑定保存失败");
+        }
+        await loadSupabaseFamilyBindings();
+        setFamilyBindingDraft(createFamilyBindingDraft());
+        showToast("家属绑定已保存。", "success");
+        return;
+      } catch {
+        showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+        return;
+      }
+    }
+
+    upsertFamilyBinding({
+      ...familyBindingDraft,
+      residentName: familyBindingDraft.residentName || resident?.name || "老人",
+      familyName: familyBindingDraft.familyName || family?.name || "家属",
+      relationship,
+      note: familyBindingDraft.note?.trim() ?? "",
+      createdAt: familyBindingDraft.createdAt || new Date().toISOString(),
+    });
+    setFamilyBindingDraft(createFamilyBindingDraft());
+    showToast("家属绑定已保存。", "success");
+  }
+
+  async function disableFamilyBinding(item: LocalFamilyBinding) {
+    if (adminMode === "supabase" && isSupabaseAdmin) {
+      try {
+        const response = await fetch("/api/family/bindings", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: item.id,
+            status: "disabled",
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { message?: string };
+        if (!response.ok) {
+          throw new Error(payload.message ?? "家属绑定停用失败");
+        }
+        await loadSupabaseFamilyBindings();
+        showToast("绑定关系已停用。", "success");
+        return;
+      } catch {
+        showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+        return;
+      }
+    }
+
+    updateFamilyBinding(item.id, { status: "disabled" });
+    setFamilyBindingItems(readFamilyBindings());
+    showToast("绑定关系已停用。", "success");
+  }
+
   async function toggleFaq(item: ManagedFaqItem) {
     if (adminMode === "supabase" && isSupabaseAdmin) {
       try {
@@ -544,6 +676,11 @@ export default function AdminPage() {
         title: "体验反馈数",
         value: metrics.feedbackCount,
         description: "统计当前已提交的体验反馈数量。",
+      },
+      {
+        title: "小组长匹配数",
+        value: metrics.matchLeaderCount,
+        description: "统计居民完成小组长智能匹配的次数。",
       },
     ];
 
@@ -1009,6 +1146,188 @@ export default function AdminPage() {
     );
   }
 
+  function renderFamilyBindingsTab() {
+    const residents = demoUsers.filter((user) => user.role === "resident");
+    const families = demoUsers.filter((user) => user.role === "family");
+
+    return (
+      <div className="space-y-5">
+        <SectionCard title="家属绑定管理">
+          <div className="space-y-3">
+            <SectionHint>
+              家属绑定用于让家属只读查看绑定老人的提醒、健康任务、积分和服务进度。家属不能替老人完成任务，也不能修改医疗信息。
+            </SectionHint>
+            {familyBindingItems.length ? (
+              familyBindingItems.map((item) => (
+                <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-navy">
+                        {item.familyName} 绑定 {item.residentName}
+                      </p>
+                      <p className="mt-1 text-xs text-navy/56">
+                        {item.relationship} / {item.isPrimary ? "主要联系人" : "普通联系人"} /{" "}
+                        {item.status === "active" ? "有效" : item.status === "pending" ? "待确认" : "已停用"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-xs font-semibold text-navy">
+                      {adminMode === "supabase" ? "数据库" : "演示"}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-navy/68">{item.note || "未填写说明"}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFamilyBindingDraft(item)}
+                      className="rounded-full bg-navy px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      编辑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void disableFamilyBinding(item)}
+                      className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
+                    >
+                      停用绑定
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState title="暂无绑定关系" description="新增绑定后，家属端会显示对应老人信息。" />
+            )}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="新增 / 编辑绑定">
+          <div className="space-y-4">
+            {adminMode === "local" ? (
+              <>
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-navy">选择老人</span>
+                  <select
+                    value={familyBindingDraft.residentId}
+                    onChange={(event) => {
+                      const resident = residents.find((user) => user.id === event.target.value);
+                      setFamilyBindingDraft((current) => ({
+                        ...current,
+                        residentId: event.target.value,
+                        residentName: resident?.name ?? current.residentName,
+                      }));
+                    }}
+                    className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                  >
+                    {residents.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span className="text-sm font-semibold text-navy">选择家属</span>
+                  <select
+                    value={familyBindingDraft.familyId}
+                    onChange={(event) => {
+                      const family = families.find((user) => user.id === event.target.value);
+                      setFamilyBindingDraft((current) => ({
+                        ...current,
+                        familyId: event.target.value,
+                        familyName: family?.name ?? current.familyName,
+                      }));
+                    }}
+                    className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                  >
+                    {families.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <>
+                <FormInput
+                  label="老人用户 ID"
+                  value={familyBindingDraft.residentId}
+                  onChange={(value) =>
+                    setFamilyBindingDraft((current) => ({ ...current, residentId: value }))
+                  }
+                />
+                <FormInput
+                  label="家属用户 ID"
+                  value={familyBindingDraft.familyId}
+                  onChange={(value) =>
+                    setFamilyBindingDraft((current) => ({ ...current, familyId: value }))
+                  }
+                />
+              </>
+            )}
+            <FormInput
+              label="关系"
+              value={familyBindingDraft.relationship}
+              onChange={(value) =>
+                setFamilyBindingDraft((current) => ({ ...current, relationship: value }))
+              }
+              placeholder="例如：女儿、儿子、配偶"
+            />
+            <FormTextarea
+              label="关系说明"
+              value={familyBindingDraft.note ?? ""}
+              onChange={(value) => setFamilyBindingDraft((current) => ({ ...current, note: value }))}
+              placeholder="例如：主要家属联系人"
+            />
+            <label className="block space-y-1.5">
+              <span className="text-sm font-semibold text-navy">状态</span>
+              <select
+                value={familyBindingDraft.status}
+                onChange={(event) =>
+                  setFamilyBindingDraft((current) => ({
+                    ...current,
+                    status: event.target.value as FamilyBindingStatus,
+                  }))
+                }
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+              >
+                <option value="active">有效</option>
+                <option value="pending">待确认</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-3 rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 py-3.5">
+              <input
+                type="checkbox"
+                checked={familyBindingDraft.isPrimary}
+                onChange={(event) =>
+                  setFamilyBindingDraft((current) => ({ ...current, isPrimary: event.target.checked }))
+                }
+                className="h-5 w-5 rounded border-line accent-navy"
+              />
+              <span className="text-sm font-semibold text-navy">设为主要联系人</span>
+            </label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => void saveFamilyBindingDraft()}
+                className="flex-1 rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
+              >
+                保存绑定
+              </button>
+              <button
+                type="button"
+                onClick={() => setFamilyBindingDraft(createFamilyBindingDraft())}
+                className="rounded-full border border-line bg-cream px-4 py-3 text-sm font-semibold text-navy"
+              >
+                新建
+              </button>
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
+
   function renderFeedbackTab() {
     return (
       <div className="space-y-5">
@@ -1062,7 +1381,7 @@ export default function AdminPage() {
   }
 
   return (
-    <PhoneShell>
+    <PhoneShell showBottomNav>
       <div className="space-y-5 bg-[#F3DDC2] px-4 pb-8">
         <BackHeader
           title="家医 Claw 管理后台"
@@ -1088,6 +1407,7 @@ export default function AdminPage() {
         {activeTab === "FAQ 管理" ? renderFaqTab() : null}
         {activeTab === "小课堂管理" ? renderCourseTab() : null}
         {activeTab === "任务与积分管理" ? renderTaskTab() : null}
+        {activeTab === "家属绑定管理" ? renderFamilyBindingsTab() : null}
         {activeTab === "体验反馈" ? renderFeedbackTab() : null}
       </div>
     </PhoneShell>

@@ -10,6 +10,7 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { TypingBubble } from "@/components/TypingBubble";
 import { contacts } from "@/data/contacts";
 import { useClawState } from "@/lib/useClawState";
+import { useDemoUser } from "@/lib/useDemoUser";
 
 function getDirectRole(contactId: string) {
   if (contactId.includes("doctor")) {
@@ -55,6 +56,7 @@ export default function ContactMessagePage() {
   const handledInitial = useRef(false);
   const timeoutRef = useRef<number[]>([]);
   const { state, pushDirectMessage } = useClawState();
+  const { currentUser } = useDemoUser();
   const contact = contacts.find((item) => item.id === params.id);
 
   const thread = useMemo(
@@ -108,7 +110,7 @@ export default function ContactMessagePage() {
       return;
     }
 
-    pushDirectMessage(contact.id, "张阿姨", "user", trimmed);
+    pushDirectMessage(contact.id, currentUser?.name ?? "当前用户", "user", trimmed);
     setInput("");
     setIsThinking(true);
 

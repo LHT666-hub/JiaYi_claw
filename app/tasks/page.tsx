@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   BookOpen,
@@ -11,8 +12,10 @@ import {
   MessageSquareText,
   Pill,
   Stethoscope,
+  Users,
 } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
+import { EmptyState } from "@/components/EmptyState";
 import { PhoneShell } from "@/components/PhoneShell";
 import { PointsBadge } from "@/components/PointsBadge";
 import { SafetyNotice } from "@/components/SafetyNotice";
@@ -24,6 +27,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile, fetchSupabaseTasks, fetchTaskRecords } from "@/lib/supabase/mvp";
 import { ManagedTaskItem, ProfileRow, SupabaseTaskRow } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
+import { useDemoUser } from "@/lib/useDemoUser";
 
 const iconMap = {
   medicine: Pill,
@@ -33,17 +37,6 @@ const iconMap = {
   followup: ClipboardCheck,
   other: Activity,
 };
-
-const categoryLabelMap: Record<string, string> = {
-  medicine: "用药",
-  record: "记录",
-  course: "学习",
-  group: "互助",
-  followup: "随访",
-  other: "其他",
-};
-
-const categoryOrder = ["medicine", "record", "course", "group", "followup", "other"];
 
 const rewards = [
   { id: "reward-rice", name: "大米", points: 60, icon: Gift },
@@ -69,8 +62,44 @@ function mapSupabaseTask(task: SupabaseTaskRow): ManagedTaskItem {
   };
 }
 
+function pickTaskSections(taskItems: ManagedTaskItem[]) {
+  const mustDoIds = ["task-medicine-am", "task-pressure-record", "task-followup-confirm"];
+  const optionalIds = ["task-course-preview", "task-group-reply", "task-family-share"];
+  const byId = new Map(taskItems.map((task) => [task.id, task]));
+
+  const mustDo = mustDoIds
+    .map((id) => byId.get(id))
+    .filter(Boolean) as ManagedTaskItem[];
+  const filledMustDo =
+    mustDo.length >= 3
+      ? mustDo.slice(0, 3)
+      : [
+          ...mustDo,
+          ...taskItems.filter((task) => !mustDo.some((item) => item.id === task.id)),
+        ].slice(0, 3);
+
+  const optional = optionalIds
+    .map((id) => byId.get(id))
+    .filter(Boolean) as ManagedTaskItem[];
+  const optionalFilled = [
+    ...optional,
+    ...taskItems.filter(
+      (task) =>
+        !filledMustDo.some((item) => item.id === task.id) &&
+        !optional.some((item) => item.id === task.id),
+    ),
+  ];
+
+  return {
+    mustDo: filledMustDo,
+    optional: optionalFilled,
+  };
+}
+
 export default function TasksPage() {
+  const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const { currentUser } = useDemoUser();
   const { state, completeTask: completeLocalTask, redeemReward: redeemLocalReward } = useClawState();
   const { showToast } = useToast();
   const [syncMode, setSyncMode] = useState<SyncMode>("local");
@@ -108,13 +137,13 @@ export default function TasksPage() {
 
   async function loadSupabaseState(profileOverride?: ProfileRow | null) {
     if (!supabase) {
-      throw new Error("Supabase unavailable");
+      throw new Error("service unavailable");
     }
 
     const profile = profileOverride ?? (await fetchCurrentProfile(supabase));
 
     if (!profile || profile.role !== "resident") {
-      throw new Error("Current user is not a resident");
+      throw new Error("resident profile unavailable");
     }
 
     const [remoteTasks, remoteRecords, summaryResponse] = await Promise.all([
@@ -125,7 +154,7 @@ export default function TasksPage() {
 
     if (!summaryResponse.ok) {
       const payload = (await summaryResponse.json().catch(() => ({}))) as { message?: string };
-      throw new Error(payload.message ?? "Failed to load points summary");
+      throw new Error(payload.message ?? "failed to load points");
     }
 
     const summaryPayload = (await summaryResponse.json()) as {
@@ -203,7 +232,7 @@ export default function TasksPage() {
         };
 
         if (!response.ok) {
-          throw new Error(payload.message ?? "Failed to complete task");
+          throw new Error(payload.message ?? "failed to complete task");
         }
 
         const alreadyCompleted = payload.alreadyCompleted ?? payload.already_completed ?? false;
@@ -214,7 +243,7 @@ export default function TasksPage() {
         setPoints(Number(payload.totalPoints ?? points));
 
         showToast(
-          alreadyCompleted ? "今天已经完成过这个任务了" : `任务已完成，+${task.points} 分`,
+          alreadyCompleted ? "今天已经完成过这件事了" : `已完成，积分 +${task.points}`,
           alreadyCompleted ? "warning" : "success",
         );
 
@@ -224,8 +253,8 @@ export default function TasksPage() {
         activateLocalFallback();
         const changed = completeLocalTask(task.id, task.points, task.title);
         showToast(
-          changed ? "接口暂时不可用，已回退到本地演示积分。" : "这项任务今天已经完成过了。",
-          "warning",
+          changed ? `已先为您记录，积分 +${task.points}` : "这件事今天已经完成了",
+          changed ? "success" : "warning",
         );
         return;
       }
@@ -233,7 +262,7 @@ export default function TasksPage() {
 
     const changed = completeLocalTask(task.id, task.points, task.title);
     showToast(
-      changed ? `任务已完成，+${task.points} 分` : "这项任务今天已经完成过了。",
+      changed ? `已完成，积分 +${task.points}` : "这件事今天已经完成了",
       changed ? "success" : "warning",
     );
   }
@@ -259,11 +288,11 @@ export default function TasksPage() {
 
         if (!response.ok) {
           if (payload.insufficient) {
-            showToast(payload.message ?? "当前积分不足，暂时无法兑换。", "warning");
+            showToast(payload.message ?? "当前积分不足，先完成健康小事吧", "warning");
             return;
           }
 
-          throw new Error(payload.message ?? "Failed to exchange points");
+          throw new Error(payload.message ?? "failed to exchange points");
         }
 
         setPoints(Number(payload.totalPoints ?? points));
@@ -274,8 +303,8 @@ export default function TasksPage() {
         activateLocalFallback();
         const success = redeemLocalReward(reward.name, reward.points);
         showToast(
-          success ? `接口暂时不可用，已用本地模式兑换 ${reward.name}。` : "积分不足，先去完成任务吧。",
-          "warning",
+          success ? `已兑换 ${reward.name}` : "积分不足，先去完成健康小事吧",
+          success ? "success" : "warning",
         );
         return;
       }
@@ -283,49 +312,89 @@ export default function TasksPage() {
 
     const success = redeemLocalReward(reward.name, reward.points);
     showToast(
-      success ? `已兑换 ${reward.name}` : "积分不足，先去完成任务吧。",
+      success ? `已兑换 ${reward.name}` : "积分不足，先去完成健康小事吧",
       success ? "success" : "warning",
     );
   }
 
   const streakDays = state.streakDays;
+  const { mustDo, optional } = useMemo(() => pickTaskSections(taskItems), [taskItems]);
   const todayCompletedCount = completedTaskIds.length;
   const todayTotalCount = taskItems.length;
+  const todayAwardedPoints = taskItems
+    .filter((task) => completedTaskIds.includes(task.id))
+    .reduce((sum, task) => sum + task.points, 0);
+  const isResident = currentUser?.role === "resident";
+  const isFamily = currentUser?.role === "family";
 
-  const groupedTasks = useMemo(() => {
-    const groups: Record<string, ManagedTaskItem[]> = {};
-    for (const task of taskItems) {
-      const cat = task.category || "other";
-      if (!groups[cat]) {
-        groups[cat] = [];
-      }
-      groups[cat].push(task);
-    }
-    return categoryOrder
-      .filter((cat) => groups[cat]?.length)
-      .map((cat) => ({ category: cat, label: categoryLabelMap[cat] || cat, tasks: groups[cat] }));
-  }, [taskItems]);
+  if (!currentUser) {
+    return (
+      <PhoneShell showBottomNav>
+        <div className="space-y-5 px-4 pb-8">
+          <BackHeader title="今日健康计划" subtitle="请先选择身份。" />
+          <SectionCard>
+            <EmptyState
+              title="请先选择身份"
+              description="选择身份后，家医 Claw 会显示适合您的服务入口。"
+            />
+            <button
+              type="button"
+              onClick={() => router.push("/welcome")}
+              className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
+            >
+              开始使用
+            </button>
+          </SectionCard>
+        </div>
+      </PhoneShell>
+    );
+  }
+
+  if (!isResident && !isFamily) {
+    return (
+      <PhoneShell showBottomNav>
+        <div className="space-y-5 px-4 pb-8">
+          <BackHeader title="今日健康计划" subtitle="当前页面主要给居民和家属查看。" />
+          <SectionCard>
+            <EmptyState
+              title="当前身份不适用任务页"
+              description="工作人员可前往工作台查看待处理问题、风险提醒和状态更新。"
+            />
+            <button
+              type="button"
+              onClick={() => router.push(currentUser.role === "admin" ? "/admin" : "/doctor")}
+              className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
+            >
+              进入对应工作台
+            </button>
+          </SectionCard>
+        </div>
+      </PhoneShell>
+    );
+  }
 
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="今日任务" subtitle="今天完成这些，可以领积分。" />
+        <BackHeader
+          title={isFamily ? "老人任务情况" : "今日健康计划"}
+          subtitle={isFamily ? "这里先只读查看，方便帮老人提醒。" : "先完成必做，再做加分项。"}
+        />
 
-        {/* Progress Card */}
         <section className="rounded-[30px] bg-gradient-to-br from-navy to-navySoft px-5 py-5 text-white shadow-float">
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <p className="text-[11px] tracking-wide text-white/60">今日完成</p>
-              <p className="mt-1.5 text-xl font-bold">{todayCompletedCount}/{todayTotalCount}</p>
-            </div>
-            <div>
-              <p className="text-[11px] tracking-wide text-white/60">今日积分</p>
-              <p className="mt-1.5 text-xl font-bold text-[#F5D5A0]">
-                +{taskItems.filter((t) => completedTaskIds.includes(t.id)).reduce((s, t) => s + t.points, 0)}
+              <p className="mt-1.5 text-xl font-bold">
+                {todayCompletedCount}/{todayTotalCount}
               </p>
             </div>
             <div>
-              <p className="text-[11px] tracking-wide text-white/60">总积分</p>
+              <p className="text-[11px] tracking-wide text-white/60">今日积分</p>
+              <p className="mt-1.5 text-xl font-bold text-[#F5D5A0]">+{todayAwardedPoints}</p>
+            </div>
+            <div>
+              <p className="text-[11px] tracking-wide text-white/60">我的积分</p>
               <p className="mt-1.5 text-xl font-bold">{points}</p>
             </div>
             <div>
@@ -339,12 +408,13 @@ export default function TasksPage() {
           <div className="mt-4 h-2 rounded-full bg-white/20">
             <div
               className="h-2 rounded-full bg-[#F5D5A0] transition-all duration-500"
-              style={{ width: `${todayTotalCount > 0 ? (todayCompletedCount / todayTotalCount) * 100 : 0}%` }}
+              style={{
+                width: `${todayTotalCount > 0 ? (todayCompletedCount / todayTotalCount) * 100 : 0}%`,
+              }}
             />
           </div>
         </section>
 
-        {/* Streak Bonus */}
         <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
           <div className="flex items-center gap-2">
             <Gift className="h-4 w-4 text-amber" />
@@ -355,29 +425,56 @@ export default function TasksPage() {
           <PointsBadge points={30} />
         </div>
 
-        {/* Tasks by category */}
-        {groupedTasks.map((group) => (
-          <SectionCard key={group.category} title={group.label}>
-            <div className="space-y-3">
-              {group.tasks.map((task) => {
-                const Icon = iconMap[task.category] ?? Activity;
-                return (
-                  <TaskCard
-                    key={task.id}
-                    title={task.title}
-                    description={task.description}
-                    points={task.points}
-                    icon={Icon}
-                    completed={completedTaskIds.includes(task.id)}
-                    onComplete={() => void handleCompleteTask(task)}
-                  />
-                );
-              })}
-            </div>
-          </SectionCard>
-        ))}
+        <SectionCard title="今日必做">
+          <div className="space-y-3">
+            {mustDo.map((task) => {
+              const Icon = iconMap[task.category] ?? ClipboardCheck;
+              return (
+                <TaskCard
+                  key={task.id}
+                  title={task.title}
+                  description={task.description}
+                  points={task.points}
+                  icon={Icon}
+                  completed={completedTaskIds.includes(task.id)}
+                  onComplete={() => {
+                    if (isFamily) {
+                      showToast("家属端先用于查看和提醒老人完成。", "info");
+                      return;
+                    }
+                    void handleCompleteTask(task);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </SectionCard>
 
-        {/* Rewards */}
+        <SectionCard title="可选加分">
+          <div className="space-y-3">
+            {optional.map((task) => {
+              const Icon = iconMap[task.category] ?? Users;
+              return (
+                <TaskCard
+                  key={task.id}
+                  title={task.title}
+                  description={task.description}
+                  points={task.points}
+                  icon={Icon}
+                  completed={completedTaskIds.includes(task.id)}
+                  onComplete={() => {
+                    if (isFamily) {
+                      showToast("家属端先用于查看和提醒老人完成。", "info");
+                      return;
+                    }
+                    void handleCompleteTask(task);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </SectionCard>
+
         <SectionCard title="积分兑换">
           <div className="grid grid-cols-2 gap-3">
             {rewards.map((reward) => {
@@ -411,7 +508,7 @@ export default function TasksPage() {
 
           <div className="mt-4">
             <SafetyNotice tone="danger">
-              积分不能提现、不能充值、不能购买处方药、不能医保支付，也不承诺疗效。
+              积分不能提现、不能充值、不能购买处方药、不能医保支付，也不承诺治疗效果。
             </SafetyNotice>
           </div>
         </SectionCard>

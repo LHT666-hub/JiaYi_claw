@@ -59,6 +59,7 @@ export type Database = {
           available_time: string | null;
           avatar_url: string | null;
           sort_order: number;
+          is_primary: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -73,6 +74,7 @@ export type Database = {
           available_time?: string | null;
           avatar_url?: string | null;
           sort_order?: number;
+          is_primary?: boolean;
         };
         Update: Partial<{
           name: string;
@@ -82,6 +84,36 @@ export type Database = {
           available_time: string | null;
           avatar_url: string | null;
           sort_order: number;
+          is_primary: boolean;
+          updated_at: string;
+        }>;
+      };
+      family_bindings: {
+        Row: {
+          id: string;
+          resident_id: string;
+          family_id: string;
+          relationship: string;
+          note: string | null;
+          is_primary: boolean;
+          status: "pending" | "active" | "disabled";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          resident_id: string;
+          family_id: string;
+          relationship: string;
+          note?: string | null;
+          is_primary?: boolean;
+          status?: "pending" | "active" | "disabled";
+        };
+        Update: Partial<{
+          relationship: string;
+          note: string | null;
+          is_primary: boolean;
+          status: "pending" | "active" | "disabled";
           updated_at: string;
         }>;
       };
@@ -160,6 +192,7 @@ export type Database = {
           points: number;
           video_url: string | null;
           is_active: boolean;
+          status: string;
           created_at: string;
           updated_at: string;
         };
@@ -173,6 +206,7 @@ export type Database = {
           points?: number;
           video_url?: string | null;
           is_active?: boolean;
+          status?: string;
         };
         Update: Partial<{
           title: string;
@@ -183,7 +217,95 @@ export type Database = {
           points: number;
           video_url: string | null;
           is_active: boolean;
+          status: string;
           updated_at: string;
+        }>;
+      };
+      course_views: {
+        Row: {
+          id: string;
+          resident_id: string;
+          course_id: string;
+          viewed_at: string;
+          points_awarded: number;
+        };
+        Insert: {
+          id?: string;
+          resident_id: string;
+          course_id: string;
+          viewed_at?: string;
+          points_awarded?: number;
+        };
+        Update: Partial<{
+          viewed_at: string;
+          points_awarded: number;
+        }>;
+      };
+      group_leaders: {
+        Row: {
+          id: string;
+          name: string;
+          role_label: string;
+          area: string | null;
+          tags: string[];
+          strengths: string[];
+          suitable_for: string[];
+          description: string | null;
+          avatar_url: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          role_label: string;
+          area?: string | null;
+          tags?: string[];
+          strengths?: string[];
+          suitable_for?: string[];
+          description?: string | null;
+          avatar_url?: string | null;
+          is_active?: boolean;
+        };
+        Update: Partial<{
+          name: string;
+          role_label: string;
+          area: string | null;
+          tags: string[];
+          strengths: string[];
+          suitable_for: string[];
+          description: string | null;
+          avatar_url: string | null;
+          is_active: boolean;
+          updated_at: string;
+        }>;
+      };
+      leader_matches: {
+        Row: {
+          id: string;
+          resident_id: string;
+          leader_id: string;
+          score: number;
+          reasons: string[];
+          needs: string[];
+          is_selected: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          resident_id: string;
+          leader_id: string;
+          score: number;
+          reasons?: string[];
+          needs?: string[];
+          is_selected?: boolean;
+        };
+        Update: Partial<{
+          score: number;
+          reasons: string[];
+          needs: string[];
+          is_selected: boolean;
         }>;
       };
       tasks: {
@@ -371,6 +493,27 @@ export type Database = {
           updated_at: string;
         }>;
       };
+      todo_status_events: {
+        Row: {
+          id: string;
+          todo_id: string;
+          actor_id: string | null;
+          old_status: "pending" | "processing" | "done" | "ignored" | null;
+          new_status: "pending" | "processing" | "done" | "ignored";
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          todo_id: string;
+          actor_id?: string | null;
+          old_status?: "pending" | "processing" | "done" | "ignored" | null;
+          new_status: "pending" | "processing" | "done" | "ignored";
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: never;
+      };
       audit_logs: {
         Row: {
           id: string;
@@ -391,6 +534,41 @@ export type Database = {
           created_at?: string;
         };
         Update: never;
+      };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          actor_id: string | null;
+          type: "ask_todo_created" | "todo_status_changed" | "task_completed" | "points_changed" | "family_binding_created" | "leader_matched" | "course_recommended" | "group_notice" | "system";
+          title: string;
+          content: string;
+          link_url: string | null;
+          is_read: boolean;
+          metadata: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          actor_id?: string | null;
+          type: "ask_todo_created" | "todo_status_changed" | "task_completed" | "points_changed" | "family_binding_created" | "leader_matched" | "course_recommended" | "group_notice" | "system";
+          title: string;
+          content: string;
+          link_url?: string | null;
+          is_read?: boolean;
+          metadata?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: Partial<{
+          actor_id: string | null;
+          type: "ask_todo_created" | "todo_status_changed" | "task_completed" | "points_changed" | "family_binding_created" | "leader_matched" | "course_recommended" | "group_notice" | "system";
+          title: string;
+          content: string;
+          link_url: string | null;
+          is_read: boolean;
+          metadata: Record<string, unknown> | null;
+        }>;
       };
     };
   };
