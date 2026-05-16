@@ -8,10 +8,10 @@ type PointsBadgeProps = {
 export function PointsBadge({ points, className = "" }: PointsBadgeProps) {
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-full border border-amber/20 bg-[#FFF1DF] px-3 py-1.5 text-sm font-semibold text-amber ${className}`}
+      className={`inline-flex h-7 min-w-[44px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-amber/20 bg-[#FFF1DF] px-2.5 py-1 text-sm font-semibold leading-none text-amber ${className}`}
     >
-      <Coins className="h-4 w-4" strokeWidth={2.1} />
-      <span>{points} 分</span>
+      <Coins className="h-4 w-4 shrink-0" strokeWidth={2.1} />
+      <span className="whitespace-nowrap">{points} 分</span>
     </div>
   );
 }

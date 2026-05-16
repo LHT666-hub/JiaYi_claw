@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { House, ImagePlus, Mic, Send, Sparkles, UserRoundPlus } from "lucide-react";
 import { ChatBubble } from "@/components/ChatBubble";
+import { GroupVoicePanel } from "@/components/GroupVoicePanel";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SafetyNotice } from "@/components/SafetyNotice";
 import { SectionCard } from "@/components/SectionCard";
@@ -18,6 +18,11 @@ import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import { ChatMessage, ProfileRow, RiskLevel } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 import { useDemoUser } from "@/lib/useDemoUser";
+
+type PendingImage = {
+  file: File;
+  previewUrl: string;
+};
 
 const GROUP_ID = "hypertension-haiwan";
 const commonQuestions = [
@@ -105,9 +110,10 @@ function mergeWithSeedMessages(localMessages: ChatMessage[]) {
 }
 
 export default function GroupPage() {
-  const router = useRouter();
   const [input, setInput] = useState("");
   const [showQuestions, setShowQuestions] = useState(false);
+  const [voicePanelOpen, setVoicePanelOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(seedMessages);
   const [isRemoteMode, setIsRemoteMode] = useState(false);
@@ -119,6 +125,9 @@ export default function GroupPage() {
   const { state, completeGroupCheckIn, pushGroupMessage } = useClawState();
   const { showToast } = useToast();
   const [matchedLeaderName, setMatchedLeaderName] = useState<string | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [composerHeight, setComposerHeight] = useState(0);
 
   useEffect(() => {
     function refresh() {
@@ -180,6 +189,36 @@ export default function GroupPage() {
       timeoutRef.current.forEach((timer) => window.clearTimeout(timer));
     },
     [],
+  );
+
+  useEffect(() => {
+    const composer = composerRef.current;
+
+    if (!composer) {
+      return;
+    }
+
+    const updateComposerHeight = () => {
+      setComposerHeight(composer.getBoundingClientRect().height);
+    };
+
+    updateComposerHeight();
+
+    const observer = new ResizeObserver(updateComposerHeight);
+    observer.observe(composer);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [showQuestions, pendingImage]);
+
+  useEffect(
+    () => () => {
+      if (pendingImage) {
+        URL.revokeObjectURL(pendingImage.previewUrl);
+      }
+    },
+    [pendingImage],
   );
 
   async function persistUserMessage(content: string) {
@@ -274,9 +313,100 @@ export default function GroupPage() {
     showToast("已完成今日小组打卡，+5 分", "success");
   }
 
+  function handleVoiceConfirm(text: string) {
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+      showToast("语音内容为空，请再试一次", "warning");
+      return;
+    }
+
+    void submitMessage(trimmed);
+  }
+
+  function handleVoiceSend(durationSeconds: number) {
+    const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
+    const voiceMessage = buildLocalMessage(authorName, "user", `[[voice:${durationSeconds}]]`);
+
+    setMessages((current) => [...current, voiceMessage]);
+
+    if (!isRemoteMode) {
+      pushGroupMessage(authorName, "user", `[[voice:${durationSeconds}]]`);
+    }
+
+    setVoicePanelOpen(false);
+    showToast("语音已发送", "success");
+  }
+
+  function handleVoiceTextSend(text: string) {
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+      showToast("语音内容为空，请再试一次", "warning");
+      return;
+    }
+
+    setVoicePanelOpen(false);
+    void submitMessage(trimmed);
+  }
+
+  function clearPendingImage() {
+    setPendingImage((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+
+      return null;
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  function handleImagePick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    setShowQuestions(false);
+    setVoicePanelOpen(false);
+    setPendingImage((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.previewUrl);
+      }
+
+      return {
+        file,
+        previewUrl: URL.createObjectURL(file),
+      };
+    });
+  }
+
+  function handleImageSend() {
+    if (!pendingImage) {
+      return;
+    }
+
+    const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
+    const imageLabel = `[图片] ${pendingImage.file.name}`;
+    const imageMessage = buildLocalMessage(authorName, "user", imageLabel);
+
+    setMessages((current) => [...current, imageMessage]);
+
+    if (!isRemoteMode) {
+      pushGroupMessage(authorName, "user", imageLabel);
+    }
+
+    clearPendingImage();
+    showToast("图片已添加", "success");
+  }
+
   return (
     <PhoneShell showBottomNav>
-      <div className="space-y-5 px-4 pb-[18rem]">
+      <div className="space-y-5 px-4" style={{ paddingBottom: composerHeight + 20 }}>
         <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-6 text-center backdrop-blur-sm">
           <Link
             href="/"
@@ -342,7 +472,31 @@ export default function GroupPage() {
         ) : null}
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-4 pt-3">
+      {voicePanelOpen ? (
+        <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
+          <GroupVoicePanel
+            open={voicePanelOpen}
+            onClose={() => setVoicePanelOpen(false)}
+            onSendVoice={handleVoiceSend}
+            onSendText={handleVoiceTextSend}
+          />
+        </div>
+      ) : null}
+
+      <div
+        ref={composerRef}
+        className={`absolute inset-x-0 bottom-0 z-10 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 transition ${
+          voicePanelOpen ? "pointer-events-none opacity-0" : ""
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImagePick}
+        />
+
         {showQuestions ? (
           <div className="mb-3 rounded-[28px] border border-line bg-cream p-4 shadow-soft">
             <p className="text-sm font-semibold text-navy">常见问题</p>
@@ -361,12 +515,50 @@ export default function GroupPage() {
           </div>
         ) : null}
 
+        {pendingImage ? (
+          <div className="mb-3 rounded-[28px] border border-line bg-cream p-3 shadow-soft">
+            <div className="flex items-start gap-3">
+              <img
+                src={pendingImage.previewUrl}
+                alt={pendingImage.file.name}
+                className="h-20 w-20 shrink-0 rounded-[20px] object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-navy">图片预览</p>
+                <p className="mt-1 truncate text-xs text-navy/55">{pendingImage.file.name}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={clearPendingImage}
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-line bg-[#FFF8ED] px-4 text-sm font-semibold text-navy"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImageSend}
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-navy px-4 text-sm font-semibold text-white"
+                  >
+                    发送
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="rounded-t-[32px] rounded-b-[26px] border border-line bg-[#FBF1E2]/98 p-3 shadow-float backdrop-blur-sm">
-          <div className="mb-3 grid grid-cols-4 gap-2">
+          <div
+            className="mb-3 flex flex-nowrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             <button
               type="button"
-              onClick={() => router.push("/ask?mode=voice")}
-              className="flex min-h-[46px] items-center justify-center gap-1 rounded-full border border-line bg-cream px-3 py-2 text-sm font-semibold text-navy active:scale-95"
+              onClick={() => {
+                setShowQuestions(false);
+                setVoicePanelOpen(true);
+              }}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy active:scale-95"
             >
               <Mic className="h-4 w-4" />
               <span className="hidden sm:inline">语音问</span>
@@ -374,8 +566,8 @@ export default function GroupPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push("/ask?mode=photo")}
-              className="flex min-h-[46px] items-center justify-center gap-1 rounded-full border border-line bg-cream px-3 py-2 text-sm font-semibold text-navy active:scale-95"
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy active:scale-95"
             >
               <ImagePlus className="h-4 w-4" />
               发图片
@@ -383,14 +575,14 @@ export default function GroupPage() {
             <button
               type="button"
               onClick={() => setShowQuestions((current) => !current)}
-              className="min-h-[46px] rounded-full border border-line bg-cream px-3 py-2 text-sm font-semibold text-navy"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-cream px-4 text-sm font-semibold text-navy"
             >
               常见问题
             </button>
             <button
               type="button"
               onClick={() => void handleCheckIn()}
-              className="min-h-[46px] rounded-full bg-navy px-3 py-2 text-sm font-semibold text-white"
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-navy px-4 text-sm font-semibold text-white"
             >
               打卡
             </button>

@@ -436,6 +436,7 @@ export default function TasksPage() {
                   description={task.description}
                   points={task.points}
                   icon={Icon}
+                  variant="plan"
                   completed={completedTaskIds.includes(task.id)}
                   onComplete={() => {
                     if (isFamily) {
@@ -461,6 +462,7 @@ export default function TasksPage() {
                   description={task.description}
                   points={task.points}
                   icon={Icon}
+                  variant="plan"
                   completed={completedTaskIds.includes(task.id)}
                   onComplete={() => {
                     if (isFamily) {

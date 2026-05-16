@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { Mic } from "lucide-react";
 import { formatMessageTime } from "@/lib/format";
 import { ChatMessage } from "@/lib/types";
 
@@ -24,10 +26,23 @@ type ChatBubbleProps = {
   onSummaryRequest?: () => void;
 };
 
+function parseVoiceMessage(content: string) {
+  const match = content.match(/^\[\[voice:(\d+)\]\]$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    durationSeconds: Number(match[1]),
+  };
+}
+
 export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
   const router = useRouter();
   const isUser = message.role === "user";
   const time = formatMessageTime(message.createdAt);
+  const [isPlayingVoice, setIsPlayingVoice] = useState(false);
 
   const isSafety = message.source === "safety";
   const isHighRisk = message.riskLevel === "high" || message.riskLevel === "emergency";
@@ -40,6 +55,19 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
   const bubbleStyle = isSafety
     ? "mr-auto max-w-[88%] bg-[#FBF0ED] text-navy border border-danger/20"
     : roleStyleMap[message.role];
+  const voiceMessage = useMemo(() => parseVoiceMessage(message.content), [message.content]);
+
+  useEffect(() => {
+    if (!isPlayingVoice) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsPlayingVoice(false);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [isPlayingVoice]);
 
   return (
     <div className={isUser ? "ml-auto max-w-[82%]" : "mr-auto max-w-[88%]"}>
@@ -47,7 +75,29 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
         <p className="mb-1.5 text-xs font-semibold text-navy/55">{message.author}</p>
       ) : null}
       <div className={`rounded-[22px] px-4 py-3 shadow-soft ${bubbleStyle}`}>
-        <p className="text-sm leading-7">{message.content}</p>
+        {voiceMessage ? (
+          <button
+            type="button"
+            onClick={() => setIsPlayingVoice((current) => !current)}
+            className="flex items-center gap-3 text-left"
+          >
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-full ${
+                isUser ? "bg-white/12" : "bg-navy/8"
+              }`}
+            >
+              <Mic className={`h-4 w-4 ${isPlayingVoice ? "animate-pulse" : ""}`} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold">{voiceMessage.durationSeconds}''</span>
+              <span className={`text-xs ${isUser ? "text-white/70" : "text-navy/45"}`}>
+                {isPlayingVoice ? "播放中" : "点击播放"}
+              </span>
+            </div>
+          </button>
+        ) : (
+          <p className="text-sm leading-7">{message.content}</p>
+        )}
       </div>
 
       {!isUser && riskLabel ? (
