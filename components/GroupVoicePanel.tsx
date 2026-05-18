@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mic } from "lucide-react";
+import { useSpeechRecognition } from "@/lib/useSpeechRecognition";
 
 export type GroupVoiceMode = "voice" | "text";
 
@@ -27,18 +28,6 @@ function formatDurationLabel(durationMs: number) {
   return `${Math.max(1, Math.round(durationMs / 1000))}''`;
 }
 
-function buildMockTranscript(durationMs: number) {
-  if (durationMs >= 5000) {
-    return "我刚刚录了一段语音，想和大家同步一下今天的情况。";
-  }
-
-  if (durationMs >= 2500) {
-    return "我量完血压了，稍后发一下结果。";
-  }
-
-  return "识别结果将在这里显示。";
-}
-
 export function GroupVoicePanel({
   open,
   onClose,
@@ -52,22 +41,18 @@ export function GroupVoicePanel({
   const [errorMessage, setErrorMessage] = useState("");
   const intervalRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
-  const transcriptionTimerRef = useRef<number | null>(null);
+  const speech = useSpeechRecognition();
 
   function clearTimers() {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-
-    if (transcriptionTimerRef.current !== null) {
-      window.clearTimeout(transcriptionTimerRef.current);
-      transcriptionTimerRef.current = null;
-    }
   }
 
   function resetPanel(nextMode: GroupVoiceMode = mode) {
     clearTimers();
+    speech.reset();
     startTimeRef.current = null;
     setMode(nextMode);
     setStatus("idle");
@@ -85,6 +70,19 @@ export function GroupVoicePanel({
       clearTimers();
     };
   }, [open]);
+
+  useEffect(() => {
+    if (mode !== "text" || status !== "transcribing") return;
+
+    if (speech.state === "result" && speech.transcript) {
+      setDraftText(speech.transcript);
+      setStatus("transcribed");
+    } else if (speech.state === "error" || speech.state === "unsupported") {
+      setDraftText("");
+      setStatus("transcribed");
+      setErrorMessage(speech.errorMessage ?? "语音识别不可用，请手动输入文字");
+    }
+  }, [mode, status, speech.state, speech.transcript, speech.errorMessage]);
 
   const holdLabel = useMemo(() => {
     if (status === "recording") {
@@ -122,6 +120,10 @@ export function GroupVoicePanel({
         setDurationMs(Date.now() - startTimeRef.current);
       }
     }, 100);
+
+    if (mode === "text") {
+      speech.start();
+    }
   }
 
   function finishRecording(cancelled = false) {
@@ -153,10 +155,7 @@ export function GroupVoicePanel({
     }
 
     setStatus("transcribing");
-    transcriptionTimerRef.current = window.setTimeout(() => {
-      setDraftText(buildMockTranscript(finalDuration));
-      setStatus("transcribed");
-    }, 900);
+    speech.stop();
   }
 
   function handleClose() {
@@ -207,7 +206,7 @@ export function GroupVoicePanel({
         </button>
       </div>
 
-      <div className="mt-4 flex gap-2 rounded-full bg-[#FFF8ED] p-1">
+      <div className="mt-4 flex gap-2 rounded-full bg-surface-card p-1">
         <button
           type="button"
           onClick={() => resetPanel("voice")}
@@ -228,7 +227,7 @@ export function GroupVoicePanel({
         </button>
       </div>
 
-      <div className="mt-4 rounded-[24px] bg-[#FFF8ED] px-4 py-5 text-center">
+      <div className="mt-4 rounded-[24px] bg-surface-card px-4 py-5 text-center">
         {status === "idle" ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-navy">
@@ -321,7 +320,7 @@ export function GroupVoicePanel({
         <button
           type="button"
           onClick={status === "recording" ? handleCancelRecording : handleClose}
-          className="rounded-full border border-line bg-[#FFF8ED] px-4 py-3 text-sm font-semibold text-navy"
+          className="rounded-full border border-line bg-surface-card px-4 py-3 text-sm font-semibold text-navy"
         >
           取消
         </button>

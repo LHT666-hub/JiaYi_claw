@@ -1,15 +1,15 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Mic } from "lucide-react";
+import { ImagePlus, Mic } from "lucide-react";
 import { formatMessageTime } from "@/lib/format";
 import { ChatMessage } from "@/lib/types";
 
 const roleStyleMap = {
   user: "ml-auto max-w-[82%] bg-navy text-white",
-  assistant: "mr-auto max-w-[88%] bg-[#FFF8ED] text-navy border border-line/70",
-  doctor: "mr-auto max-w-[88%] bg-[#EEF5F3] text-navy border border-sage/25",
+  assistant: "mr-auto max-w-[88%] bg-surface-card text-navy border border-line/70",
+  doctor: "mr-auto max-w-[88%] bg-health-soft text-navy border border-sage/25",
   nurse: "mr-auto max-w-[88%] bg-[#F5F1E6] text-navy border border-line/70",
   leader: "mr-auto max-w-[88%] bg-[#F7F2FF] text-navy border border-[#D5CCE9]",
   family: "mr-auto max-w-[88%] bg-[#FDEEE7] text-navy border border-[#E4C7B8]",
@@ -38,6 +38,22 @@ function parseVoiceMessage(content: string) {
   };
 }
 
+function parseImageMessage(content: string) {
+  const richMatch = content.match(/^\[\[image:(.*?):(.*?)\]\]$/);
+
+  if (richMatch) {
+    return { url: richMatch[1], name: richMatch[2] };
+  }
+
+  const legacyMatch = content.match(/^\[图片\]\s*(.+)$/);
+
+  if (legacyMatch) {
+    return { url: null, name: legacyMatch[1] };
+  }
+
+  return null;
+}
+
 export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
   const router = useRouter();
   const isUser = message.role === "user";
@@ -53,9 +69,10 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
       : null;
 
   const bubbleStyle = isSafety
-    ? "mr-auto max-w-[88%] bg-[#FBF0ED] text-navy border border-danger/20"
+    ? "mr-auto max-w-[88%] bg-risk-soft text-navy border border-danger/20"
     : roleStyleMap[message.role];
   const voiceMessage = useMemo(() => parseVoiceMessage(message.content), [message.content]);
+  const imageMessage = useMemo(() => parseImageMessage(message.content), [message.content]);
 
   useEffect(() => {
     if (!isPlayingVoice) {
@@ -89,12 +106,31 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
               <Mic className={`h-4 w-4 ${isPlayingVoice ? "animate-pulse" : ""}`} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold">{voiceMessage.durationSeconds}''</span>
+              <span className="text-sm font-semibold">{voiceMessage.durationSeconds} 秒</span>
               <span className={`text-xs ${isUser ? "text-white/70" : "text-navy/45"}`}>
                 {isPlayingVoice ? "播放中" : "点击播放"}
               </span>
             </div>
           </button>
+        ) : imageMessage ? (
+          imageMessage.url ? (
+            <div className="space-y-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageMessage.url}
+                alt={imageMessage.name}
+                className="max-h-48 rounded-[16px] object-cover"
+              />
+              <p className={`text-xs ${isUser ? "text-white/60" : "text-navy/45"}`}>
+                {imageMessage.name}
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <ImagePlus className={`h-5 w-5 shrink-0 ${isUser ? "text-white/60" : "text-navy/45"}`} />
+              <span className="text-sm">{imageMessage.name}</span>
+            </div>
+          )
         ) : (
           <p className="text-sm leading-7">{message.content}</p>
         )}
@@ -119,7 +155,7 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
           <button
             type="button"
             onClick={() => router.push("/contacts/li-doctor")}
-            className="rounded-full border border-danger/20 bg-[#FBF0ED] px-3 py-1.5 text-xs font-semibold text-danger active:scale-95"
+            className="rounded-full border border-danger/20 bg-risk-soft px-3 py-1.5 text-xs font-semibold text-danger active:scale-95"
           >
             联系李医生
           </button>
@@ -127,7 +163,7 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
             <button
               type="button"
               onClick={onSummaryRequest}
-              className="rounded-full border border-sage/30 bg-[#EEF5F3] px-3 py-1.5 text-xs font-semibold text-sage active:scale-95"
+              className="rounded-full border border-sage/30 bg-health-soft px-3 py-1.5 text-xs font-semibold text-sage active:scale-95"
             >
               让 Claw 帮我说明情况
             </button>

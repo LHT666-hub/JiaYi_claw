@@ -26,6 +26,26 @@ export function parseDurationLabel(label: string) {
   return minutes * 60 + seconds;
 }
 
+export function getNextFollowupLabel() {
+  const now = new Date();
+  const day = now.getDay();
+  let daysUntilWed = (3 - day + 7) % 7;
+
+  if (daysUntilWed === 0) {
+    const hour = now.getHours();
+
+    if (hour >= 10) {
+      daysUntilWed = 7;
+    }
+  }
+
+  if (daysUntilWed === 0) return "今天上午 9:30";
+  if (daysUntilWed === 1) return "明天上午 9:30";
+  if (daysUntilWed === 2) return "后天上午 9:30";
+
+  return "本周三上午 9:30";
+}
+
 export function formatPlaybackTime(seconds: number) {
   const safeValue = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeValue / 60);

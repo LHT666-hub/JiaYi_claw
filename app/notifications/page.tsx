@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { getNotificationAccent, getNotificationLabel } from "@/lib/notificationLabels";
 import {
   STORAGE_CHANGE_EVENT,
+  ensureSeedNotifications,
   markAllLocalNotificationsRead,
   markLocalNotificationRead,
   readLocalNotifications,
@@ -85,6 +86,7 @@ export default function NotificationsPage() {
       // Fall through to local notifications.
     }
 
+    ensureSeedNotifications();
     const local = readLocalNotifications();
     setNotifications(
       local.map((item) => ({
@@ -169,8 +171,8 @@ export default function NotificationsPage() {
         onClick={() => void handleClick(notif)}
         className={`flex w-full items-start justify-between rounded-[24px] border px-4 py-4 text-left transition active:scale-[0.98] ${
           notif.isRead
-            ? "border-line/50 bg-[#FFF8ED]/70"
-            : "border-line/70 bg-[#FFF8ED] shadow-soft"
+            ? "border-line/50 bg-surface-card/70"
+            : "border-line/70 bg-surface-card shadow-soft"
         }`}
       >
         <div className="flex gap-3">
@@ -228,7 +230,7 @@ export default function NotificationsPage() {
         <BackHeader title="通知中心" subtitle="随访、群提醒和课程更新都会出现在这里" />
 
         {unreadCount > 0 ? (
-          <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+          <div className="flex items-center justify-between rounded-[22px] bg-surface-tint px-4 py-3">
             <p className="text-sm font-semibold text-navy">{unreadCount} 条未读通知</p>
             <button
               type="button"

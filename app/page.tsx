@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -23,8 +23,11 @@ import { SectionCard } from "@/components/SectionCard";
 import { TaskCard } from "@/components/TaskCard";
 import { TopBar } from "@/components/TopBar";
 import { useToast } from "@/components/ToastProvider";
+import { getNextFollowupLabel } from "@/lib/format";
 import {
+  ensureSeedNotifications,
   getLocalUnreadNotificationCount,
+  getTodayKey,
   readDoctorTodos,
   readMatchedLeader,
   STORAGE_CHANGE_EVENT,
@@ -133,7 +136,7 @@ function RoleHomeCards({ user, onOpen }: { user: DemoUser; onOpen: (href: string
   return (
     <>
       <SectionCard>
-        <div className="rounded-[26px] bg-[#FFF8ED] p-5">
+        <div className="rounded-[26px] bg-surface-card p-5">
           <p className="text-xl font-semibold text-navy">{config.title}</p>
           <p className="mt-2 text-sm leading-6 text-navy/66">{config.subtitle}</p>
           <button
@@ -155,9 +158,9 @@ function RoleHomeCards({ user, onOpen }: { user: DemoUser; onOpen: (href: string
                 key={item.title}
                 type="button"
                 onClick={() => onOpen(config.href)}
-                className="flex w-full items-start gap-3 rounded-[22px] border border-line/60 bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+                className="flex w-full items-start gap-3 rounded-[22px] border border-line/60 bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#E8F0EE] text-sage">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-health-muted text-sage">
                   <Icon className="h-5 w-5" />
                 </span>
                 <span>
@@ -217,6 +220,7 @@ export default function HomePage() {
     }
 
     function refresh() {
+      ensureSeedNotifications();
       const todos = readDoctorTodos();
       setPendingTodoCount(
         todos.filter((todo) => todo.status === "pending" || todo.status === "processing").length,
@@ -284,7 +288,7 @@ export default function HomePage() {
       <PhoneShell>
         <div className="flex min-h-full items-center px-4 py-8">
           <SectionCard>
-            <div className="rounded-[24px] bg-[#FFF8ED] p-5 text-center">
+            <div className="rounded-[24px] bg-surface-card p-5 text-center">
               <p className="text-xl font-semibold text-navy">请先选择身份</p>
               <p className="mt-3 text-sm leading-6 text-navy/64">
                 家医 Claw 会根据您的身份显示合适的服务入口。
@@ -312,7 +316,7 @@ export default function HomePage() {
           onBellClick={() => router.push("/notifications")}
         />
 
-        <div className="rounded-[22px] border border-line/70 bg-[#FFF8ED] px-4 py-3">
+        <div className="ios-control rounded-[24px] px-4 py-3">
           <p className="text-sm font-semibold text-navy">
             {currentUser.name} / {currentUser.roleLabel}
           </p>
@@ -321,26 +325,43 @@ export default function HomePage() {
           </p>
         </div>
 
+        <SectionCard>
+          <div className="rounded-[24px] border border-line/55 bg-surface-card px-4 py-4">
+            <p className="text-sm font-semibold text-navy">演示中心已就绪</p>
+            <p className="mt-1 text-xs leading-5 text-navy/58">
+              可一页查看所有页面入口、推荐讲解路线，并一键重置演示数据。
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/demo-center")}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white"
+            >
+              打开演示中心
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </SectionCard>
+
         {currentUser.role !== "resident" ? (
           <RoleHomeCards user={currentUser} onOpen={(href) => router.push(href)} />
         ) : (
           <>
 
         <SectionCard title="今日提醒">
-          <div className="rounded-[24px] bg-[#FAEEDB] p-4">
+          <div className="rounded-[26px] border border-white/55 bg-[linear-gradient(145deg,rgba(250,238,219,0.95),rgba(255,248,237,0.82))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]">
             <div className="flex items-start justify-between gap-3">
               <div className="flex gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F5E4D0] text-navy">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/55 text-navy shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   <ClipboardCheck className="h-5 w-5" strokeWidth={2.1} />
                 </div>
                 <div>
                   <p className="text-base font-semibold text-navy">
-                    {state.followupConfirmed ? "本周随访已确认" : "周三上午 9:30 有随访确认"}
+                    {state.followupConfirmed ? "本周随访已确认" : `${getNextFollowupLabel()} 有随访确认`}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-navy/62">
                     {state.followupConfirmed
                       ? `您已回复：${state.followupResponse ?? "可以按时参加"}`
-                      : "王护士想确认您本周慢病随访是否方便参加。"}
+                      : `${contacts.find((c) => c.id === "wang-nurse")?.name ?? "王护士"}想确认您本周慢病随访是否方便参加。`}
                   </p>
                   {pendingTodoCount > 0 ? (
                     <p className="mt-2 text-xs leading-5 text-amber">
@@ -350,7 +371,7 @@ export default function HomePage() {
                 </div>
               </div>
               {state.followupConfirmed ? (
-                <span className="rounded-full bg-[#DDEFE4] px-3 py-1 text-xs font-semibold text-[#2F6C56]">
+                <span className="rounded-full bg-health-success px-3 py-1 text-xs font-semibold text-success">
                   已确认
                 </span>
               ) : (
@@ -396,14 +417,14 @@ export default function HomePage() {
             </button>
           }
         >
-          <div className="mb-4 flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+          <div className="mb-4 flex items-center justify-between rounded-[24px] border border-white/55 bg-surface-tint px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.62)]">
             <div>
               <p className="text-xs text-navy/55">今天先完成这 3 件</p>
               <p className="mt-1 text-lg font-semibold text-navy">
                 已完成 {previewCompletedCount}/3
               </p>
             </div>
-            <div className="h-10 w-10 rounded-full border-[3px] border-sage/30 flex items-center justify-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-sage/30 bg-white/35">
               <span className="text-xs font-bold text-sage">
                 {Math.round((previewCompletedCount / 3) * 100)}%
               </span>
@@ -455,12 +476,12 @@ export default function HomePage() {
         </SectionCard>
 
         <SectionCard title="健康小组">
-          <div className="rounded-[24px] bg-[#F8F0E1] p-4">
+          <div className="rounded-[26px] border border-white/50 bg-surface-tintSoft p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
             <div className="flex items-center justify-between gap-3">
               <p className="text-base font-semibold text-navy">高血压互助小组</p>
               <span className="flex items-center gap-1.5 rounded-full bg-sage/15 px-3 py-1 text-xs font-semibold text-sage">
                 <Users className="h-3.5 w-3.5" />
-                今日 12 人打卡
+                今日 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人打卡
               </span>
             </div>
             <p className="mt-2 text-sm leading-6 text-navy/68">
@@ -490,7 +511,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => router.push("/match-leader")}
-                className="flex items-center gap-1.5 rounded-full border border-sage/30 bg-[#EEF5F3] px-4 py-2.5 text-sm font-semibold text-sage active:scale-95"
+                className="flex items-center gap-1.5 rounded-full border border-sage/30 bg-health-soft px-4 py-2.5 text-sm font-semibold text-sage active:scale-95"
               >
                 <UserRoundPlus className="h-4 w-4" />
                 {matchedLeaderName ? "重新匹配" : "找小组长"}
@@ -504,7 +525,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => router.push("/contacts")}
-              className="rounded-[22px] border border-line bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="rounded-[22px] border border-line bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <Users className="h-5 w-5 text-sage" />
               <p className="mt-3 text-sm font-semibold text-navy">我的家属</p>
@@ -513,7 +534,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => router.push("/match-leader")}
-              className="rounded-[22px] border border-line bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="rounded-[22px] border border-line bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <UserRoundPlus className="h-5 w-5 text-sage" />
               <p className="mt-3 text-sm font-semibold text-navy">我的小组长</p>
@@ -523,7 +544,7 @@ export default function HomePage() {
         </SectionCard>
 
         <SectionCard title="小课堂推荐">
-          <div className="rounded-[24px] bg-[#FFF8ED] p-4">
+          <div className="rounded-[26px] border border-line/45 bg-surface-card p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-base font-semibold text-navy">{featuredCourse.title}</p>

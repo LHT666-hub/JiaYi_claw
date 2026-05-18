@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,7 +90,7 @@ function MetricCard({
   description: string;
 }) {
   return (
-    <div className="rounded-[22px] border border-line/50 bg-[#FFF8ED] px-4 py-4">
+    <div className="rounded-[22px] border border-line/50 bg-surface-card px-4 py-4">
       <p className="text-[11px] tracking-wide text-navy/50">{title}</p>
       <p className="mt-2 text-2xl font-bold text-navy">{value}</p>
       <p className="mt-2 text-xs leading-5 text-navy/55">{description}</p>
@@ -114,7 +114,7 @@ function TabButton({
       className={`rounded-full px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
         active
           ? "bg-navy text-white shadow-soft"
-          : "border border-line/70 bg-[#FFF8ED] text-navy hover:bg-[#FAF0DD]"
+          : "border border-line/70 bg-surface-card text-navy hover:bg-surface-hover"
       }`}
     >
       {label}
@@ -143,7 +143,7 @@ function FormInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30 placeholder:text-navy/35"
+        className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30 placeholder:text-navy/35"
       />
     </label>
   );
@@ -167,7 +167,7 @@ function FormTextarea({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="min-h-24 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30 placeholder:text-navy/35"
+        className="min-h-24 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30 placeholder:text-navy/35"
       />
     </label>
   );
@@ -175,7 +175,7 @@ function FormTextarea({
 
 function SectionHint({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-[22px] bg-[#FFF8ED] px-4 py-3 text-sm leading-6 text-navy/68">
+    <div className="rounded-[22px] bg-surface-card px-4 py-3 text-sm leading-6 text-navy/68">
       {children}
     </div>
   );
@@ -381,7 +381,7 @@ export default function AdminPage() {
         <div className="space-y-5 bg-[#F3DDC2] px-4 pb-8">
           <BackHeader title="管理后台" subtitle="当前页面仅对管理员开放。" />
           <SectionCard>
-            <div className="rounded-[24px] bg-[#FFF8ED] p-5 text-center">
+            <div className="rounded-[24px] bg-surface-card p-5 text-center">
               <p className="text-lg font-semibold text-navy">当前身份暂无管理员权限</p>
               <p className="mt-3 text-sm leading-6 text-navy/66">
                 请切换到管理员身份后，再查看运行看板和内容配置。
@@ -715,7 +715,7 @@ export default function AdminPage() {
                 URL.revokeObjectURL(url);
                 showToast("数据已导出为 JSON 文件", "success");
               }}
-              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-[#FFF8ED] text-navy active:scale-95"
+              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-surface-card text-navy active:scale-95"
             >
               <span className="text-sm font-semibold">导出备份</span>
               <span className="text-[11px] text-navy/50">JSON 格式</span>
@@ -725,7 +725,7 @@ export default function AdminPage() {
               onClick={() => {
                 showToast("当前为本地模式，数据已存储在浏览器中", "info");
               }}
-              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-[#FFF8ED] text-navy active:scale-95"
+              className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-surface-card text-navy active:scale-95"
             >
               <span className="text-sm font-semibold">存储状态</span>
               <span className="text-[11px] text-navy/50">{adminMode === "supabase" ? "Supabase" : "localStorage"}</span>
@@ -739,7 +739,7 @@ export default function AdminPage() {
               {breakpoints.map((bp, index) => (
                 <div
                   key={bp.category}
-                  className="rounded-[20px] border border-line/60 bg-[#FFF8ED] p-4"
+                  className="rounded-[20px] border border-line/60 bg-surface-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
@@ -751,7 +751,7 @@ export default function AdminPage() {
                       </div>
                       {bp.exampleQuestion ? (
                         <p className="mt-2 text-xs leading-5 text-navy/60">
-                          代表问题："{bp.exampleQuestion}"
+                          代表问题：“{bp.exampleQuestion}”
                         </p>
                       ) : null}
                       <p className="mt-1.5 text-xs leading-5 text-sage">
@@ -766,9 +766,9 @@ export default function AdminPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[20px] bg-[#FFF8ED] px-4 py-6 text-center">
+            <div className="rounded-[20px] bg-surface-card px-4 py-6 text-center">
               <p className="text-sm text-navy/55">
-                暂无断点数据。在"问 Claw"中多提问几次后，这里会自动统计高频问题分类。
+                暂无断点数据。在“问 Claw”中多提问几次后，这里会自动统计高频问题分类。
               </p>
             </div>
           )}
@@ -799,7 +799,7 @@ export default function AdminPage() {
 
             <div className="space-y-3">
               {filteredFaqItems.map((item) => (
-                <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+                <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-navy">{item.question}</p>
@@ -807,7 +807,7 @@ export default function AdminPage() {
                         {item.category} / {item.riskLevel} / {item.isActive ? "启用中" : "已停用"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-xs font-semibold text-navy">
+                    <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
                       {adminMode === "supabase"
                         ? "数据库"
                         : customIds.has(item.id)
@@ -884,7 +884,7 @@ export default function AdminPage() {
                     riskLevel: event.target.value as ManagedFaqItem["riskLevel"],
                   }))
                 }
-                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
               >
                 <option value="low">low - 低风险</option>
                 <option value="medium">medium - 中风险</option>
@@ -892,7 +892,7 @@ export default function AdminPage() {
                 <option value="emergency">emergency - 紧急</option>
               </select>
             </label>
-            <label className="flex items-center gap-3 rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 py-3.5 transition hover:bg-[#FAF0DD]">
+            <label className="flex items-center gap-3 rounded-[18px] border border-line/70 bg-surface-card px-4 py-3.5 transition hover:bg-surface-hover">
               <input
                 type="checkbox"
                 checked={faqDraft.suggestDoctor}
@@ -939,7 +939,7 @@ export default function AdminPage() {
           <div className="space-y-3">
             <SectionHint>/courses 继续优先读取这里保存的本地课程内容，再回退到默认课程。</SectionHint>
             {courseItems.map((item) => (
-              <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+              <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-navy">{item.title}</p>
@@ -947,7 +947,7 @@ export default function AdminPage() {
                       {item.category} / {item.duration} / {item.points} 分 / {item.isActive ? "启用中" : "已停用"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-xs font-semibold text-navy">
+                  <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
                     {customIds.has(item.id) ? "本地配置" : "默认"}
                   </span>
                 </div>
@@ -1044,7 +1044,7 @@ export default function AdminPage() {
           <div className="space-y-3">
             <SectionHint>/tasks 继续保留数据库优先 + 本地 fallback，管理员本地配置仍用于演示模式。</SectionHint>
             {taskItems.map((item) => (
-              <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+              <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-navy">{item.title}</p>
@@ -1052,7 +1052,7 @@ export default function AdminPage() {
                       {item.category} / {item.points} 分 / {item.isActive ? "启用中" : "已停用"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-xs font-semibold text-navy">
+                  <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
                     {customIds.has(item.id) ? "本地配置" : "默认"}
                   </span>
                 </div>
@@ -1134,7 +1134,7 @@ export default function AdminPage() {
         </SectionCard>
 
         <SectionCard title="积分规则说明" action={<Activity className="h-4 w-4 text-sage" />}>
-          <div className="space-y-3 rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-sm leading-6 text-navy/72">
+          <div className="space-y-3 rounded-[22px] bg-surface-card px-4 py-4 text-sm leading-6 text-navy/72">
             <p>积分不能提现。</p>
             <p>积分不能充值。</p>
             <p>积分不能购买处方药。</p>
@@ -1159,7 +1159,7 @@ export default function AdminPage() {
             </SectionHint>
             {familyBindingItems.length ? (
               familyBindingItems.map((item) => (
-                <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+                <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-navy">
@@ -1170,7 +1170,7 @@ export default function AdminPage() {
                         {item.status === "active" ? "有效" : item.status === "pending" ? "待确认" : "已停用"}
                       </p>
                     </div>
-                    <span className="rounded-full bg-[#F3E4CD] px-3 py-1 text-xs font-semibold text-navy">
+                    <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
                       {adminMode === "supabase" ? "数据库" : "演示"}
                     </span>
                   </div>
@@ -1215,7 +1215,7 @@ export default function AdminPage() {
                         residentName: resident?.name ?? current.residentName,
                       }));
                     }}
-                    className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                    className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                   >
                     {residents.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -1236,7 +1236,7 @@ export default function AdminPage() {
                         familyName: family?.name ?? current.familyName,
                       }));
                     }}
-                    className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                    className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                   >
                     {families.map((user) => (
                       <option key={user.id} value={user.id}>
@@ -1288,14 +1288,14 @@ export default function AdminPage() {
                     status: event.target.value as FamilyBindingStatus,
                   }))
                 }
-                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
               >
                 <option value="active">有效</option>
                 <option value="pending">待确认</option>
                 <option value="disabled">已停用</option>
               </select>
             </label>
-            <label className="flex items-center gap-3 rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 py-3.5">
+            <label className="flex items-center gap-3 rounded-[18px] border border-line/70 bg-surface-card px-4 py-3.5">
               <input
                 type="checkbox"
                 checked={familyBindingDraft.isPrimary}
@@ -1332,7 +1332,7 @@ export default function AdminPage() {
     return (
       <div className="space-y-5">
         <SectionCard title="体验反馈" action={<MessageSquareText className="h-4 w-4 text-sage" />}>
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-[22px] bg-[#FFF8ED] px-4 py-3">
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-[22px] bg-surface-card px-4 py-3">
             <p className="text-sm text-navy/72">当前共收到 {feedbacks.length} 条反馈。</p>
             <button
               type="button"
@@ -1353,7 +1353,7 @@ export default function AdminPage() {
           <div className="space-y-3">
             {feedbacks.length ? (
               feedbacks.map((item) => (
-                <div key={item.id} className="rounded-[22px] bg-[#FFF8ED] px-4 py-4">
+                <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                   <p className="text-xs text-navy/56">{new Date(item.createdAt).toLocaleString()}</p>
                   <p className="mt-2 text-sm font-semibold text-navy">{item.identity}</p>
                   <p className="mt-3 text-sm text-navy/72">最有用功能：{item.mostUseful || "未填写"}</p>

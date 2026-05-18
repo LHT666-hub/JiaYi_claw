@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -184,7 +184,7 @@ export default function FamilyPage() {
         <div className="space-y-5 px-4 pb-8">
           <BackHeader title="家属协助" subtitle="当前页面适合家属协助老人使用。" />
           <SectionCard>
-            <div className="rounded-[24px] bg-[#FFF8ED] p-5 text-center">
+            <div className="rounded-[24px] bg-surface-card p-5 text-center">
               <p className="text-lg font-semibold text-navy">当前身份暂无家属端权限</p>
               <p className="mt-3 text-sm leading-6 text-navy/64">
                 您可以回到首页继续使用，也可以重新选择身份。
@@ -218,9 +218,9 @@ export default function FamilyPage() {
         <BackHeader title="家属协助" subtitle={`${currentUser.name} / ${currentUser.roleLabel}`} />
 
         <SectionCard>
-          <div className="rounded-[24px] bg-[#FFF8ED] p-5">
+          <div className="rounded-[24px] bg-surface-card p-5">
             <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8F0EE] text-sage">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-health-muted text-sage">
                 <HeartPulse className="h-7 w-7" />
               </div>
               <div>
@@ -239,7 +239,7 @@ export default function FamilyPage() {
               {bindings.map((binding) => {
                 const stats = getResidentStats(binding);
                 return (
-                  <div key={binding.id} className="rounded-[22px] border border-line/60 bg-[#FFF8ED] p-4">
+                  <div key={binding.id} className="rounded-[22px] border border-line/60 bg-surface-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-base font-semibold text-navy">{binding.residentName}</p>
@@ -293,7 +293,7 @@ export default function FamilyPage() {
               })}
             </div>
           ) : (
-            <div className="rounded-[22px] bg-[#FFF8ED] p-5 text-sm leading-6 text-navy/66">
+            <div className="rounded-[22px] bg-surface-card p-5 text-sm leading-6 text-navy/66">
               还没有绑定老人。请联系管理员或家医团队完成绑定后再查看。
             </div>
           )}
@@ -304,7 +304,7 @@ export default function FamilyPage() {
             <button
               type="button"
               onClick={() => router.push("/contacts")}
-              className="flex w-full items-center gap-3 rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="flex w-full items-center gap-3 rounded-[22px] bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <Phone className="h-5 w-5 text-sage" />
               <span>
@@ -317,7 +317,7 @@ export default function FamilyPage() {
             <button
               type="button"
               onClick={() => router.push("/ask")}
-              className="flex w-full items-center gap-3 rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="flex w-full items-center gap-3 rounded-[22px] bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <MessageCircleMore className="h-5 w-5 text-amber" />
               <span>
@@ -330,7 +330,7 @@ export default function FamilyPage() {
             <button
               type="button"
               onClick={() => router.push("/match-leader")}
-              className="flex w-full items-center gap-3 rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="flex w-full items-center gap-3 rounded-[22px] bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <Users className="h-5 w-5 text-sage" />
               <span>
@@ -343,13 +343,13 @@ export default function FamilyPage() {
             <button
               type="button"
               onClick={() => router.push("/notifications")}
-              className="flex w-full items-center gap-3 rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left active:scale-[0.98]"
+              className="flex w-full items-center gap-3 rounded-[22px] bg-surface-card px-4 py-4 text-left active:scale-[0.98]"
             >
               <Bell className="h-5 w-5 text-amber" />
               <span>
-                <span className="block text-sm font-semibold text-navy">联系家医团队</span>
+                <span className="block text-sm font-semibold text-navy">通知中心</span>
                 <span className="mt-1 block text-xs leading-5 text-navy/58">
-                  有病情、报告异常或用药问题时，请联系家庭医生或线下医生。
+                  查看老人相关提醒、服务进度和家医团队处理更新。
                 </span>
               </span>
             </button>
@@ -365,7 +365,7 @@ export default function FamilyPage() {
         </SectionCard>
 
         <SectionCard title="身份信息">
-          <div className="rounded-[22px] bg-[#FFF8ED] p-4">
+          <div className="rounded-[22px] bg-surface-card p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-navy text-lg font-semibold text-white">
                 {currentUser.name.slice(0, 1)}
@@ -381,7 +381,7 @@ export default function FamilyPage() {
           </div>
         </SectionCard>
 
-        <p className="rounded-[20px] bg-[#FFF8ED] px-4 py-3 text-xs leading-5 text-navy/58">
+        <p className="rounded-[20px] bg-surface-card px-4 py-3 text-xs leading-5 text-navy/58">
           家属端用于协助老人查看提醒、任务和服务进度，不提供诊断、处方、停药、换药或剂量调整建议。涉及病情、报告异常或用药问题，请联系家庭医生或线下医生。
         </p>
       </div>

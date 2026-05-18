@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -415,7 +415,7 @@ export default function TasksPage() {
           </div>
         </section>
 
-        <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+        <div className="flex items-center justify-between rounded-[22px] bg-surface-tint px-4 py-3">
           <div className="flex items-center gap-2">
             <Gift className="h-4 w-4 text-amber" />
             <p className="text-sm text-navy">

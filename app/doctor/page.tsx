@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Bell,
   ClipboardList,
-  GraduationCap,
   MessageSquareWarning,
   Users,
 } from "lucide-react";
@@ -16,7 +15,7 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { readDoctorTodos, updateLocalDoctorTodoStatus } from "@/lib/storage";
+import { readAskLogs, readDoctorTodos, updateLocalDoctorTodoStatus } from "@/lib/storage";
 import { fetchCurrentProfile, getRoleLabel, isWorkbenchRole } from "@/lib/supabase/mvp";
 import { AppRole, DemoDoctorTodo, DoctorTodoRow, ProfileRow } from "@/lib/types";
 import { useDemoUser } from "@/lib/useDemoUser";
@@ -30,16 +29,16 @@ const statusLabelMap: Record<DoctorTodoRow["status"], string> = {
 
 const statusStyleMap: Record<DoctorTodoRow["status"], string> = {
   pending: "bg-amber/15 text-amber border-amber/20",
-  processing: "bg-[#E8F0EE] text-sage border-sage/20",
-  done: "bg-[#DDEFE4] text-[#2F6C56] border-[#2F6C56]/20",
+  processing: "bg-health-muted text-sage border-sage/20",
+  done: "bg-health-success text-success border-success/20",
   ignored: "bg-navy/8 text-navy/50 border-navy/10",
 };
 
 const riskStyleMap: Record<string, string> = {
-  high: "border-danger/25 bg-[#FBF0ED]",
-  emergency: "border-danger/40 bg-[#F8E4DF]",
-  medium: "border-amber/25 bg-[#FFF8ED]",
-  low: "border-line/60 bg-[#FFF8ED]",
+  high: "border-danger/25 bg-risk-soft",
+  emergency: "border-danger/40 bg-risk-strong",
+  medium: "border-amber/25 bg-surface-card",
+  low: "border-line/60 bg-surface-card",
 };
 
 const roleContentMap: Record<
@@ -47,70 +46,33 @@ const roleContentMap: Record<
   {
     title: string;
     subtitle: string;
-    overview: { label: string; value: string; icon: typeof Users }[];
     tasks: string[];
-    alerts: string[];
   }
 > = {
   doctor: {
     title: "医生工作台",
     subtitle: "专业判断和风险提醒",
-    overview: [
-      { label: "居民提问", value: "12 条", icon: Users },
-      { label: "风险提醒", value: "2 条", icon: AlertTriangle },
-      { label: "待处理工单", value: "5 条", icon: ClipboardList },
-      { label: "课程推荐", value: "3 条", icon: GraduationCap },
-    ],
     tasks: ["解释体检异常提示", "确认是否需要门诊复诊", "安排本周慢病随访"],
-    alerts: ["有居民咨询停药相关问题", "有居民咨询报告异常是否严重"],
   },
   nurse: {
     title: "护士工作台",
     subtitle: "随访和健康记录",
-    overview: [
-      { label: "待随访确认", value: "6 条", icon: Users },
-      { label: "提醒协助", value: "4 条", icon: AlertTriangle },
-      { label: "打卡异常", value: "3 条", icon: ClipboardList },
-      { label: "健康教育", value: "2 条", icon: GraduationCap },
-    ],
     tasks: ["提醒居民确认随访时间", "回访连续未打卡居民", "解释小课堂和积分规则"],
-    alerts: ["有居民连续两天未记录血压", "有居民错过随访确认电话"],
   },
   pharmacist: {
     title: "药师工作台",
     subtitle: "配药和用药规则",
-    overview: [
-      { label: "配药咨询", value: "5 条", icon: Users },
-      { label: "用药说明", value: "4 条", icon: AlertTriangle },
-      { label: "规则解释", value: "3 条", icon: ClipboardList },
-      { label: "药盒识别", value: "2 条", icon: GraduationCap },
-    ],
     tasks: ["解释社区配药与医院配药区别", "说明长处方与延伸处方规则", "整理药盒对应说明流程"],
-    alerts: ["有居民问药快吃完了怎么办", "有居民问社区没有这个药怎么办"],
   },
   community: {
     title: "社区支持工作台",
     subtitle: "体检通知和操作协助",
-    overview: [
-      { label: "通知任务", value: "8 条", icon: Users },
-      { label: "操作协助", value: "4 条", icon: AlertTriangle },
-      { label: "体检动员", value: "3 条", icon: ClipboardList },
-      { label: "群组维护", value: "2 条", icon: GraduationCap },
-    ],
     tasks: ["提醒老人查看体检通知", "协助不太会用手机的居民进入页面", "维护高血压互助小组秩序"],
-    alerts: ["有居民不会查看公众号排班表", "有居民需要协助联系家庭医生"],
   },
   admin: {
     title: "管理员总览",
     subtitle: "全部数据和管理入口",
-    overview: [
-      { label: "FAQ 配置", value: "42 条", icon: Users },
-      { label: "课程内容", value: "12 条", icon: GraduationCap },
-      { label: "任务模板", value: "10 条", icon: ClipboardList },
-      { label: "全部待办", value: "9 条", icon: AlertTriangle },
-    ],
     tasks: ["检查 FAQ 命中质量", "更新任务与课程配置", "整理反馈和医生待办趋势"],
-    alerts: ["有高风险问答待人工复核", "有新反馈建议需要整理"],
   },
 };
 
@@ -328,6 +290,7 @@ export default function DoctorPage() {
     (todo) => todo.riskLevel === "high" || todo.riskLevel === "emergency",
   ).length;
   const doneCount = myTodos.filter((todo) => todo.status === "done").length;
+  const askLogCount = useMemo(() => readAskLogs().length, [todos]);
 
   const todosByRisk = useMemo(() => {
     const high = myTodos.filter((t) => t.riskLevel === "high" || t.riskLevel === "emergency");
@@ -357,7 +320,7 @@ export default function DoctorPage() {
         <div className="space-y-5 px-4 pb-8">
           <BackHeader title="团队工作台" subtitle="当前页面仅对医生、护士、药师、社区支持和管理员开放。" />
           <SectionCard>
-            <div className="rounded-[24px] bg-[#FFF8ED] p-5 text-center">
+            <div className="rounded-[24px] bg-surface-card p-5 text-center">
               <p className="text-lg font-semibold text-navy">当前身份暂无工作台权限</p>
               <p className="mt-3 text-sm leading-6 text-navy/64">
                 {authMode === "supabase"
@@ -412,23 +375,21 @@ export default function DoctorPage() {
 
         {/* Key Metrics - Dashboard Style */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-[22px] bg-[#FFF8ED] px-4 py-4 border border-line/50">
+          <div className="rounded-[22px] bg-surface-card px-4 py-4 border border-line/50">
             <p className="text-[11px] tracking-wide text-navy/50">待处理</p>
             <p className="mt-2 text-2xl font-bold text-navy">{pendingCount}</p>
           </div>
-          <div className={`rounded-[22px] px-4 py-4 border ${riskCount > 0 ? "border-danger/25 bg-[#FBF0ED]" : "border-line/50 bg-[#FFF8ED]"}`}>
+          <div className={`rounded-[22px] px-4 py-4 border ${riskCount > 0 ? "border-danger/25 bg-risk-soft" : "border-line/50 bg-surface-card"}`}>
             <p className="text-[11px] tracking-wide text-danger/70">高风险</p>
             <p className={`mt-2 text-2xl font-bold ${riskCount > 0 ? "text-danger" : "text-navy"}`}>{riskCount}</p>
           </div>
-          <div className="rounded-[22px] bg-[#E8F0EE] px-4 py-4 border border-sage/20">
+          <div className="rounded-[22px] bg-health-muted px-4 py-4 border border-sage/20">
             <p className="text-[11px] tracking-wide text-sage">FAQ 已分流</p>
-            <p className="mt-2 text-2xl font-bold text-navy">
-              {roleConfig.overview[0]?.value?.replace(" 条", "") ?? "0"}
-            </p>
+            <p className="mt-2 text-2xl font-bold text-navy">{askLogCount}</p>
           </div>
-          <div className="rounded-[22px] bg-[#DDEFE4] px-4 py-4 border border-[#2F6C56]/15">
-            <p className="text-[11px] tracking-wide text-[#2F6C56]">已处理</p>
-            <p className="mt-2 text-2xl font-bold text-[#2F6C56]">{doneCount}</p>
+          <div className="rounded-[22px] bg-health-success px-4 py-4 border border-success/15">
+            <p className="text-[11px] tracking-wide text-success">已处理</p>
+            <p className="mt-2 text-2xl font-bold text-success">{doneCount}</p>
           </div>
         </div>
 
@@ -477,7 +438,7 @@ export default function DoctorPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[22px] bg-[#FFF8ED] px-4 py-6 text-center">
+            <div className="rounded-[22px] bg-surface-card px-4 py-6 text-center">
               <Activity className="mx-auto h-8 w-8 text-sage/60" />
               <p className="mt-3 text-sm text-navy/60">
                 当前没有新的待办。问 Claw 出现高风险问题后，这里会自动出现。
@@ -499,18 +460,24 @@ export default function DoctorPage() {
           </SectionCard>
         ) : null}
 
-        {/* Role-specific alerts */}
+        {/* Dynamic alerts from real todos */}
         <SectionCard title="风险与提醒">
           <div className="space-y-2.5">
-            {roleConfig.alerts.map((line) => (
-              <div
-                key={line}
-                className="flex items-center gap-3 rounded-[20px] border border-danger/15 bg-[#FBF0ED] px-4 py-3 text-sm text-danger"
-              >
-                <MessageSquareWarning className="h-4 w-4 shrink-0" />
-                {line}
+            {todosByRisk.high.length > 0 ? (
+              todosByRisk.high.slice(0, 3).map((todo) => (
+                <div
+                  key={`alert-${todo.id}`}
+                  className="flex items-center gap-3 rounded-[20px] border border-danger/15 bg-risk-soft px-4 py-3 text-sm text-danger"
+                >
+                  <MessageSquareWarning className="h-4 w-4 shrink-0" />
+                  {todo.title}：{todo.summary.length > 30 ? `${todo.summary.slice(0, 30)}…` : todo.summary}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-[20px] border border-sage/20 bg-health-soft px-4 py-3 text-sm text-sage">
+                当前没有高风险提醒，继续保持关注。
               </div>
-            ))}
+            )}
           </div>
         </SectionCard>
 
@@ -536,7 +503,7 @@ export default function DoctorPage() {
             <button
               type="button"
               onClick={() => router.push("/admin")}
-              className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-[20px] border border-line bg-[#FFF8ED] text-sm font-semibold text-navy"
+              className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-[20px] border border-line bg-surface-card text-sm font-semibold text-navy"
             >
               <ClipboardList className="h-4 w-4" />
               进入管理后台
@@ -578,7 +545,7 @@ function TodoCard({
         </span>
       </div>
       {todo.recommendedRoleLabel ? (
-        <div className="mt-3 rounded-[14px] border border-sage/20 bg-[#EEF5F3]/60 px-3 py-2">
+        <div className="mt-3 rounded-[14px] border border-sage/20 bg-health-soft/60 px-3 py-2">
           <p className="text-xs font-semibold text-sage">
             建议处理：{todo.recommendedRoleLabel}
           </p>

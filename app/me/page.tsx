@@ -1,9 +1,17 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bell, ChevronRight, ClipboardList, MessageSquareText, Settings, Users } from "lucide-react";
+import {
+  Bell,
+  ChevronRight,
+  ClipboardList,
+  MessageSquareText,
+  Settings,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { EmptyState } from "@/components/EmptyState";
 import { PhoneShell } from "@/components/PhoneShell";
@@ -12,6 +20,7 @@ import { SectionCard } from "@/components/SectionCard";
 import { contacts as localContacts } from "@/data/contacts";
 import {
   STORAGE_CHANGE_EVENT,
+  getTodayKey,
   readDoctorTodos,
   readFamilyBindings,
   readMatchedLeader,
@@ -50,7 +59,7 @@ function ActionRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between rounded-[22px] bg-[#FFF8ED] px-4 py-4 text-left transition active:scale-[0.98] active:bg-[#F7ECDA]"
+      className="flex w-full items-center justify-between rounded-[22px] bg-surface-card px-4 py-4 text-left transition active:scale-[0.98] active:bg-surface-press"
     >
       <div className="flex items-center gap-3">
         {icon}
@@ -71,9 +80,9 @@ function SimpleContactCard({
   avatarUrl?: string;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-[22px] bg-[#FFF8ED] px-4 py-3">
+    <div className="flex items-center justify-between rounded-[22px] bg-surface-card px-4 py-3">
       <div className="flex items-center gap-3">
-        <div className="relative h-12 w-12 overflow-hidden rounded-full border border-white/60 bg-[#F6E9D7] shadow-soft">
+        <div className="relative h-12 w-12 overflow-hidden rounded-full border border-white/60 bg-surface-avatar shadow-soft">
           {avatarUrl ? <Image src={avatarUrl} alt={name} fill sizes="48px" className="object-cover" /> : null}
         </div>
         <div>
@@ -417,7 +426,7 @@ export default function MePage() {
         </SectionCard>
 
         <SectionCard title="当前身份信息">
-          <div className="space-y-3 rounded-[22px] bg-[#FFF8ED] p-4 text-sm leading-6 text-navy/72">
+          <div className="space-y-3 rounded-[22px] bg-surface-card p-4 text-sm leading-6 text-navy/72">
             <p>
               <span className="font-semibold text-navy">身份：</span>
               {roleLabel}
@@ -446,7 +455,7 @@ export default function MePage() {
                 onChange={(event) =>
                   setBasicForm((current) => ({ ...current, name: event.target.value }))
                 }
-                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
               />
             </label>
             <label className="block">
@@ -456,7 +465,7 @@ export default function MePage() {
                 onChange={(event) =>
                   setBasicForm((current) => ({ ...current, phone: event.target.value }))
                 }
-                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
               />
             </label>
             <label className="block">
@@ -466,7 +475,7 @@ export default function MePage() {
                 onChange={(event) =>
                   setBasicForm((current) => ({ ...current, area: event.target.value }))
                 }
-                className="h-12 w-full rounded-[18px] border border-line/70 bg-[#FFF8ED] px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line/70 bg-surface-card px-4 text-sm text-navy outline-none focus:border-sage focus:ring-1 focus:ring-sage/30"
               />
             </label>
             <button
@@ -483,7 +492,7 @@ export default function MePage() {
 
         <SectionCard title="我的积分" action={<PointsBadge points={state.points} />}>
           <p className="text-sm leading-6 text-navy/68">
-            积分用于鼓励完成健康小事和参与小组互助，不能提现吗、不能买处方药。
+            积分用于鼓励完成健康小事和参与小组互助，不能提现、不能买处方药。
           </p>
         </SectionCard>
 
@@ -492,7 +501,7 @@ export default function MePage() {
             {serviceTodos.length ? (
               <div className="space-y-3">
                 {serviceTodos.slice(0, 3).map((todo) => (
-                  <div key={todo.id} className="rounded-[22px] border border-line/60 bg-[#FFF8ED] p-4">
+                  <div key={todo.id} className="rounded-[22px] border border-line/60 bg-surface-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-navy line-clamp-2">
                         {todo.originalQuestion}
@@ -528,7 +537,7 @@ export default function MePage() {
             {residentBindings.length ? (
               <div className="space-y-3">
                 {residentBindings.map((binding) => (
-                  <div key={binding.id} className="rounded-[22px] bg-[#FFF8ED] p-4">
+                  <div key={binding.id} className="rounded-[22px] bg-surface-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-navy">{binding.familyName}</p>
@@ -557,7 +566,7 @@ export default function MePage() {
             {familyUserBindings.length ? (
               <div className="space-y-3">
                 {familyUserBindings.map((binding) => (
-                  <div key={binding.id} className="rounded-[22px] bg-[#FFF8ED] p-4">
+                  <div key={binding.id} className="rounded-[22px] bg-surface-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-navy">{binding.residentName}</p>
@@ -590,7 +599,7 @@ export default function MePage() {
           <SectionCard title="我的待处理提醒">
             <div className="space-y-3">
               {myTodos.slice(0, 3).map((todo) => (
-                <div key={todo.id} className="rounded-[22px] border border-line/60 bg-[#FFF8ED] p-4">
+                <div key={todo.id} className="rounded-[22px] border border-line/60 bg-surface-card p-4">
                   <div className="flex items-start justify-between gap-3">
                     <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-navy line-clamp-2">
                       {todo.originalQuestion ?? todo.question}
@@ -611,10 +620,10 @@ export default function MePage() {
         {(role === "resident" || role === "family") && (
           <>
             <SectionCard title="我的健康小组">
-              <div className="rounded-[22px] bg-[#FFF8ED] p-4">
+              <div className="rounded-[22px] bg-surface-card p-4">
                 <p className="text-sm font-semibold text-navy">高血压互助小组</p>
                 <p className="mt-1 text-xs leading-5 text-navy/58">
-                  小组长：{matchedLeader?.leaderName ?? "王阿姨"}。今天 12 位邻居已打卡。
+                  小组长：{matchedLeader?.leaderName ?? "王阿姨"}。今天 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 位邻居已打卡。
                 </p>
                 <div className="mt-3 flex gap-3">
                   <button
@@ -665,6 +674,11 @@ export default function MePage() {
 
         <SectionCard title="设置">
           <div className="space-y-3">
+            <ActionRow
+              icon={<Sparkles className="h-4 w-4 text-sage" />}
+              label="演示中心"
+              onClick={() => router.push("/demo-center")}
+            />
             <ActionRow
               icon={<Bell className="h-4 w-4 text-sage" />}
               label="通知中心"

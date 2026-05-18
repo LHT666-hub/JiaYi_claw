@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -191,17 +191,17 @@ function ServiceProgressPageContent() {
         />
 
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-[22px] border border-line/50 bg-[#FFF8ED] px-4 py-4">
+          <div className="rounded-[22px] border border-line/50 bg-surface-card px-4 py-4">
             <p className="text-[11px] text-navy/50">待处理</p>
             <p className="mt-2 text-2xl font-bold text-navy">{pendingCount}</p>
           </div>
-          <div className="rounded-[22px] border border-sage/20 bg-[#E8F0EE] px-4 py-4">
+          <div className="rounded-[22px] border border-sage/20 bg-health-muted px-4 py-4">
             <p className="text-[11px] text-sage">处理中</p>
             <p className="mt-2 text-2xl font-bold text-sage">{processingCount}</p>
           </div>
-          <div className="rounded-[22px] border border-[#2F6C56]/20 bg-[#DDEFE4] px-4 py-4">
-            <p className="text-[11px] text-[#2F6C56]">已处理</p>
-            <p className="mt-2 text-2xl font-bold text-[#2F6C56]">{doneCount}</p>
+          <div className="rounded-[22px] border border-success/20 bg-health-success px-4 py-4">
+            <p className="text-[11px] text-success">已处理</p>
+            <p className="mt-2 text-2xl font-bold text-success">{doneCount}</p>
           </div>
         </div>
 
@@ -209,7 +209,7 @@ function ServiceProgressPageContent() {
           {items.length ? (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="rounded-[22px] border border-line/60 bg-[#FFF8ED] p-4">
+                <div key={item.id} className="rounded-[22px] border border-line/60 bg-surface-card p-4">
                   {role !== "resident" ? (
                     <p className="mb-2 text-xs font-semibold text-sage">{item.residentName}</p>
                   ) : null}
@@ -259,7 +259,7 @@ function ServiceProgressPageContent() {
           )}
         </SectionCard>
 
-        <div className="rounded-[20px] bg-[#FFF8ED] px-4 py-3 text-xs leading-5 text-navy/58">
+        <div className="rounded-[20px] bg-surface-card px-4 py-3 text-xs leading-5 text-navy/58">
           家医 Claw 只显示服务处理状态和协助说明，不显示诊断结果，也不提供处方、停药、换药或剂量调整建议。
         </div>
       </div>

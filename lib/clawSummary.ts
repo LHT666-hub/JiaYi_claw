@@ -1,4 +1,4 @@
-import { AskReply, AppRole } from "@/lib/types";
+import { AppRole } from "@/lib/types";
 
 export type RecommendedRole = Extract<AppRole, "doctor" | "nurse" | "pharmacist" | "community" | "family">;
 

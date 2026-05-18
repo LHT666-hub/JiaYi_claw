@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import {
   ChevronRight,
   HeartPulse,
   House,
+  Sparkles,
   Stethoscope,
   Users,
 } from "lucide-react";
@@ -116,7 +117,7 @@ function ChoiceButton({
       className="rounded-[18px] border px-4 py-3 text-left text-sm font-semibold transition active:scale-[0.98]"
       style={{
         borderColor: selected ? "#12324A" : "#E3D0B8",
-        backgroundColor: selected ? "#12324A" : "#FFF9F0",
+        backgroundColor: selected ? "#12324A" : "var(--surface-input)",
         color: selected ? "#FFF8EE" : "#12324A",
         fontFamily: PAGE_FONT_FAMILY,
       }}
@@ -152,7 +153,7 @@ function FormInput({
         className="h-[52px] w-full rounded-[18px] border px-4 text-base outline-none transition placeholder:text-[#8A9197]"
         style={{
           borderColor: "#E3D0B8",
-          backgroundColor: "#FFF9F0",
+          backgroundColor: "var(--surface-input)",
           color: "#12324A",
           fontFamily: PAGE_FONT_FAMILY,
         }}
@@ -339,7 +340,7 @@ export default function WelcomePage() {
                         setRole(item.option.role);
                         setStep(2);
                       }}
-                      className="flex w-full items-center gap-[14px] border bg-[#FFF9F0] px-4 text-left transition duration-150 ease-out active:scale-[0.985] active:border-[#B89157] active:bg-[#FDF3E6] active:shadow-[0_4px_12px_rgba(18,50,74,0.03)]"
+                      className="flex w-full items-center gap-[14px] border bg-surface-input px-4 text-left transition duration-150 ease-out active:scale-[0.985] active:border-[#B89157] active:bg-[#FDF3E6] active:shadow-[0_4px_12px_rgba(18,50,74,0.03)]"
                       style={{
                         height: 94,
                         borderRadius: 24,
@@ -401,6 +402,21 @@ export default function WelcomePage() {
                 已有账号或想先看演示
               </button>
 
+              <button
+                type="button"
+                onClick={() => router.push("/demo-center")}
+                className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-full border text-[15px] font-semibold"
+                style={{
+                  borderColor: "#E3D0B8",
+                  backgroundColor: "#FAF0E2",
+                  color: "#12324A",
+                  fontFamily: PAGE_FONT_FAMILY,
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                先看演示中心
+              </button>
+
               <p
                 className="mt-3 text-center text-[13px] leading-5"
                 style={{ color: "#8A9197" }}
@@ -413,7 +429,7 @@ export default function WelcomePage() {
               <div
                 className="rounded-[24px] px-4 py-4"
                 style={{
-                  backgroundColor: "#FFF9F0",
+                  backgroundColor: "var(--surface-input)",
                   border: "1px solid #E3D0B8",
                   boxShadow: "0 8px 20px rgba(18, 50, 74, 0.04)",
                 }}
@@ -594,7 +610,7 @@ export default function WelcomePage() {
                       className="min-h-24 w-full rounded-[18px] border px-4 py-3 text-base leading-6 outline-none"
                       style={{
                         borderColor: "#E3D0B8",
-                        backgroundColor: "#FFF9F0",
+                        backgroundColor: "var(--surface-input)",
                         color: "#12324A",
                         fontFamily: PAGE_FONT_FAMILY,
                       }}
@@ -623,7 +639,7 @@ export default function WelcomePage() {
           <div
             className="mt-6 rounded-[22px] px-4 py-4"
             style={{
-              backgroundColor: "#FFF9F0",
+              backgroundColor: "var(--surface-input)",
               border: "1px solid #EBDCCA",
             }}
           >

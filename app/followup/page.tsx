@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { BackHeader } from "@/components/BackHeader";
@@ -6,8 +6,12 @@ import { ChatBubble } from "@/components/ChatBubble";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
+import { contacts } from "@/data/contacts";
+import { getNextFollowupLabel } from "@/lib/format";
 import { useClawState } from "@/lib/useClawState";
 import { useDemoUser } from "@/lib/useDemoUser";
+
+const nurseName = contacts.find((c) => c.id === "wang-nurse")?.name ?? "王护士";
 
 const followupOptions = [
   "我可以按时参加",
@@ -32,17 +36,17 @@ export default function FollowupPage() {
     () => [
       {
         id: "followup-nurse-1",
-        author: "王护士",
+        author: nurseName,
         role: "nurse" as const,
         content:
-          `${displayName}您好，本周三上午 9:30 安排了慢病随访，请您确认一下是否方便参加。`,
+          `${displayName}您好，${getNextFollowupLabel()} 安排了慢病随访，请您确认一下是否方便参加。`,
         context: "direct" as const,
         threadId: "followup",
         createdAt: "2026-04-27T09:10:00.000Z",
       },
       {
         id: "followup-nurse-2",
-        author: "王护士",
+        author: nurseName,
         role: "nurse" as const,
         content: "如果时间不方便，也可以直接告诉我，我帮您调整。",
         context: "direct" as const,
@@ -93,8 +97,8 @@ export default function FollowupPage() {
         </section>
 
         <SectionCard title="随访详情">
-          <div className="rounded-[24px] bg-[#FFF8ED] p-4">
-            <p className="text-sm font-semibold text-navy">时间：本周三上午 9:30</p>
+          <div className="rounded-[24px] bg-surface-card p-4">
+            <p className="text-sm font-semibold text-navy">时间：{getNextFollowupLabel()}</p>
             <p className="mt-2 text-sm text-navy/65">地点：社区卫生服务中心三楼慢病随访室</p>
             <p className="mt-2 text-sm text-navy/65">
               内容：血压记录查看、近期用药确认、下阶段管理提醒
@@ -112,7 +116,7 @@ export default function FollowupPage() {
                 className={`flex w-full items-center justify-between rounded-[24px] border px-4 py-4 text-left transition active:scale-[0.98] ${
                   selected === option
                     ? "border-navy bg-[#EEF3F8] text-navy shadow-soft"
-                    : "border-line bg-[#FFF8ED] text-navy/75"
+                    : "border-line bg-surface-card text-navy/75"
                 }`}
               >
                 <span className="text-sm font-semibold">{option}</span>
@@ -142,10 +146,10 @@ export default function FollowupPage() {
 
         {showSuccess ? (
           <div className="animate-task-complete rounded-[28px] border border-[#BFD9CB] bg-[#EAF4EE] px-4 py-5 text-center shadow-soft">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[#2F6C56] text-lg font-semibold text-white">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-success text-lg font-semibold text-white">
               ✓
             </div>
-            <p className="mt-3 text-base font-semibold text-[#2F6C56]">随访确认已发送</p>
+            <p className="mt-3 text-base font-semibold text-success">随访确认已发送</p>
             <p className="mt-2 text-sm text-[#355C52]">
               家医团队已收到您的回复，后续会按安排继续跟进。
             </p>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   createContext,
@@ -30,7 +30,7 @@ const toneConfig: Record<ToastTone, { className: string; Icon: typeof Bell }> = 
     Icon: Bell,
   },
   success: {
-    className: "border-sage/30 bg-[#EEF5F3] text-navy",
+    className: "border-sage/30 bg-health-soft text-navy",
     Icon: Check,
   },
   warning: {
@@ -38,7 +38,7 @@ const toneConfig: Record<ToastTone, { className: string; Icon: typeof Bell }> = 
     Icon: AlertTriangle,
   },
   danger: {
-    className: "border-danger/30 bg-[#FBF0ED] text-danger",
+    className: "border-danger/30 bg-risk-soft text-danger",
     Icon: AlertTriangle,
   },
 };

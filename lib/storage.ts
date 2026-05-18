@@ -177,6 +177,21 @@ function createNow() {
   return new Date().toISOString();
 }
 
+function createDefaultStateSnapshot(): ClawState {
+  return {
+    ...defaultState,
+    completedTaskIds: [...defaultState.completedTaskIds],
+    viewedCourseIds: [...defaultState.viewedCourseIds],
+    redeemedItems: [...defaultState.redeemedItems],
+    askMessages: defaultState.askMessages.map((item) => ({ ...item })),
+    groupMessages: defaultState.groupMessages.map((item) => ({ ...item })),
+    directMessages: {},
+    groupCheckInDates: [...defaultState.groupCheckInDates],
+    contactRequestIds: [...defaultState.contactRequestIds],
+    readNotificationIds: [...defaultState.readNotificationIds],
+  };
+}
+
 function createDemoDoctorTodos(): DemoDoctorTodo[] {
   const resident = demoUsers.find((user) => user.id === "demo-resident-zhang");
   if (!resident) {
@@ -200,6 +215,73 @@ function createDemoDoctorTodos(): DemoDoctorTodo[] {
       clawAnswer: "这类问题需要交给家医团队进一步确认，Claw 不能替代医生判断。",
       summary: "Claw 已帮您整理问题，建议先带上药盒、处方和近期记录联系家庭医生。",
       preparedMaterials: ["药盒或处方单", "近期血压血糖记录", "最近一次就诊信息"],
+    },
+    {
+      id: "demo-progress-zhang-2",
+      residentId: resident.id,
+      residentName: resident.name,
+      question: "药快吃完了怎么配药？",
+      riskLevel: "medium",
+      status: "pending",
+      createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+      source: "ask",
+      recommendedRole: "pharmacist",
+      recommendedRoleLabel: "陈药师",
+      recommendedReason: "配药流程问题建议由药师协助说明。",
+      originalQuestion: "药快吃完了怎么配药？",
+      clawAnswer: "社区卫生服务中心可以凭处方续方配药，部分药品支持长处方。建议带上药盒和上次处方单。",
+      summary: "居民询问配药流程，Claw 已给出初步解释，建议药师跟进确认。",
+      preparedMaterials: ["社区配药流程说明", "长处方与延伸处方规则"],
+    },
+    {
+      id: "demo-progress-zhang-3",
+      residentId: resident.id,
+      residentName: resident.name,
+      question: "血压 155/98 正常吗？",
+      riskLevel: "high",
+      status: "pending",
+      createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      source: "ask",
+      recommendedRole: "nurse",
+      recommendedRoleLabel: "王护士",
+      recommendedReason: "血压数值偏高，建议护士先跟进了解连续记录情况。",
+      originalQuestion: "血压 155/98 正常吗？",
+      clawAnswer: "这个数值偏高，建议继续监测并记录。如果持续偏高或伴有不适，请联系家医团队。",
+      summary: "居民血压读数偏高，需要护士跟进确认是否为持续异常。",
+      preparedMaterials: ["近期血压记录", "用药清单"],
+    },
+    {
+      id: "demo-progress-zhang-4",
+      residentId: resident.id,
+      residentName: resident.name,
+      question: "体检报告怎么看？",
+      riskLevel: "low",
+      status: "done",
+      createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+      source: "ask",
+      recommendedRole: "nurse",
+      recommendedRoleLabel: "王护士",
+      recommendedReason: "体检报告查看属于日常随访范围。",
+      originalQuestion: "体检报告怎么看？",
+      clawAnswer: "您可以在健康云 App 查看体检报告，也可以在随访时带纸质报告让家医团队帮您解读。",
+      summary: "居民咨询体检报告查看方式，已解释完毕。",
+    },
+    {
+      id: "demo-progress-zhang-5",
+      residentId: resident.id,
+      residentName: resident.name,
+      question: "不会用健康云怎么办？",
+      riskLevel: "low",
+      status: "pending",
+      createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+      source: "ask",
+      recommendedRole: "community",
+      recommendedRoleLabel: "居委张老师",
+      recommendedReason: "操作协助类问题建议由社区支持人员处理。",
+      originalQuestion: "不会用健康云怎么办？",
+      clawAnswer: "您可以在社区卫生服务中心前台请工作人员帮忙操作，也可以让家属协助。",
+      summary: "居民不会使用手机应用，需要社区协助指导操作。",
+      preparedMaterials: ["健康云操作指南（大字版）"],
     },
   ];
 }
@@ -408,7 +490,8 @@ export function clearDemoUser() {
     null,
   );
   if (legacyState?.currentUser) {
-    const { currentUser: _currentUser, ...rest } = legacyState;
+    const rest = { ...legacyState };
+    delete rest.currentUser;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rest));
   }
   emitStorageChange();
@@ -420,6 +503,14 @@ export function readDoctorTodos(): DemoDoctorTodo[] {
   }
 
   const current = readJson<DemoDoctorTodo[]>(STORAGE_KEYS.doctorTodos, []);
+  if (current.length > 1) {
+    return current;
+  }
+  if (current.length === 1 && current[0].id === "demo-progress-zhang-1") {
+    const seed = createDemoDoctorTodos();
+    writeJson(STORAGE_KEYS.doctorTodos, seed);
+    return seed;
+  }
   if (current.length) {
     return current;
   }
@@ -909,6 +1000,103 @@ export function getLocalUnreadNotificationCount(userId?: string): number {
   return readLocalNotifications(userId).filter((item) => !item.isRead).length;
 }
 
+function createSeedNotifications(): LocalNotification[] {
+  const now = Date.now();
+  return [
+    {
+      id: "seed-notif-followup",
+      userId: "demo-resident-zhang",
+      actorId: null,
+      type: "todo_status_changed",
+      title: "随访确认提醒",
+      content: "王护士想确认您本周慢病随访是否方便参加。",
+      linkUrl: "/followup",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 20).toISOString(),
+    },
+    {
+      id: "seed-notif-course",
+      userId: "demo-resident-zhang",
+      actorId: null,
+      type: "course_recommended",
+      title: "小课堂推荐",
+      content: "今天的小课堂《高血压药为什么不能随便停》已上线，看完可得 5 分。",
+      linkUrl: "/courses",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 60).toISOString(),
+    },
+    {
+      id: "seed-notif-task",
+      userId: "demo-resident-zhang",
+      actorId: null,
+      type: "task_completed",
+      title: "健康打卡提醒",
+      content: "今天还没有完成血压记录，记得量一次血压并打卡。",
+      linkUrl: "/tasks",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 120).toISOString(),
+    },
+    {
+      id: "seed-notif-doctor-todo",
+      userId: "demo-doctor-li",
+      actorId: "demo-resident-zhang",
+      type: "ask_todo_created",
+      title: "新待办：居民咨询停药问题",
+      content: "张阿姨咨询「我能不能停药？」，Claw 判定为高风险，已转入您的待办。",
+      linkUrl: "/doctor",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 15).toISOString(),
+    },
+    {
+      id: "seed-notif-nurse-todo",
+      userId: "demo-nurse-wang",
+      actorId: "demo-resident-zhang",
+      type: "ask_todo_created",
+      title: "新待办：居民血压偏高",
+      content: "张阿姨血压 155/98，建议跟进确认是否持续异常。",
+      linkUrl: "/doctor",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 50).toISOString(),
+    },
+    {
+      id: "seed-notif-family",
+      userId: "demo-family-daughter",
+      actorId: null,
+      type: "family_binding_created",
+      title: "家属绑定成功",
+      content: "您已成功绑定张阿姨，可以查看老人的健康提醒和任务情况。",
+      linkUrl: "/family",
+      isRead: true,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 180).toISOString(),
+    },
+    {
+      id: "seed-notif-family-remind",
+      userId: "demo-family-daughter",
+      actorId: null,
+      type: "todo_status_changed",
+      title: "老人随访提醒",
+      content: "张阿姨本周有慢病随访安排，请帮忙提醒确认。",
+      linkUrl: "/family",
+      isRead: false,
+      metadata: {},
+      createdAt: new Date(now - 1000 * 60 * 30).toISOString(),
+    },
+  ];
+}
+
+export function ensureSeedNotifications() {
+  if (!isBrowser()) return;
+  const existing = readJson<LocalNotification[]>(STORAGE_KEYS.notifications, []);
+  if (existing.length) return;
+  writeLocalNotifications(createSeedNotifications());
+}
+
 // ── Family bindings (localStorage fallback) ─────────────────
 
 function createDemoFamilyBindings(): LocalFamilyBinding[] {
@@ -999,4 +1187,150 @@ export function getFamilyBindingsForResident(residentId: string) {
 
 export function getFamilyBindingsForFamily(familyId: string) {
   return readFamilyBindings().filter((item) => item.familyId === familyId);
+}
+
+type ResetDemoLocalDataOptions = {
+  keepCurrentUser?: boolean;
+  keepCustomContent?: boolean;
+};
+
+export function resetDemoLocalData(options: ResetDemoLocalDataOptions = {}) {
+  if (!isBrowser()) {
+    return;
+  }
+
+  const keepCurrentUser = options.keepCurrentUser ?? true;
+  const keepCustomContent = options.keepCustomContent ?? false;
+  const preservedUser = keepCurrentUser ? readDemoUser() : null;
+  const preservedFaqs = keepCustomContent ? readCustomFaqs() : [];
+  const preservedCourses = keepCustomContent ? readCustomCourses() : [];
+  const preservedTasks = keepCustomContent ? readCustomTasks() : [];
+
+  const keysToClear = [
+    STORAGE_KEY,
+    LEGACY_DEMO_USER_KEY,
+    LEGACY_DEMO_ROLE_KEY,
+    LEGACY_DOCTOR_TODOS_KEY,
+    ...Object.values(STORAGE_KEYS),
+  ];
+
+  keysToClear.forEach((key) => {
+    window.localStorage.removeItem(key);
+  });
+
+  writeState(createDefaultStateSnapshot());
+
+  const seededTodos = createDemoDoctorTodos();
+  if (seededTodos.length) {
+    writeDoctorTodos(seededTodos);
+    ensureDemoTodoEvents(seededTodos);
+  }
+
+  const seededBindings = createDemoFamilyBindings();
+  if (seededBindings.length) {
+    writeFamilyBindings(seededBindings);
+  }
+
+  ensureSeedNotifications();
+
+  if (keepCustomContent) {
+    if (preservedFaqs.length) {
+      writeCustomFaqs(preservedFaqs);
+    }
+    if (preservedCourses.length) {
+      writeCustomCourses(preservedCourses);
+    }
+    if (preservedTasks.length) {
+      writeCustomTasks(preservedTasks);
+    }
+  }
+
+  if (preservedUser) {
+    writeDemoUser(preservedUser);
+  } else {
+    emitStorageChange();
+  }
+}
+
+export function seedShowcaseScenario() {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const resident =
+    demoUsers.find((item) => item.id === "demo-resident-zhang") ??
+    demoUsers.find((item) => item.role === "resident") ??
+    null;
+  const doctor =
+    demoUsers.find((item) => item.id === "demo-doctor-li") ??
+    demoUsers.find((item) => item.role === "doctor") ??
+    null;
+
+  const question = "最近两天血压都在155/98，需要马上去医院吗？";
+  const answer =
+    "这个数值偏高，建议继续监测并尽快联系家医团队进一步评估。若伴随胸痛、呼吸困难、肢体无力或言语不清，请立即就医。";
+  const todoId = `demo-showcase-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const createdAt = createNow();
+  const residentName = resident?.name ?? "当前居民";
+
+  appendAskLog({
+    id: `ask-showcase-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question,
+    answer,
+    source: "safety",
+    category: "风险提醒",
+    riskLevel: "high",
+    suggestDoctor: true,
+    reason: "high_risk_pattern",
+    createdAt,
+  });
+
+  const todo: DemoDoctorTodo = {
+    id: todoId,
+    residentId: resident?.id,
+    residentName,
+    question,
+    riskLevel: "high",
+    status: "pending",
+    createdAt,
+    source: "demo_showcase",
+    recommendedRole: "doctor",
+    recommendedRoleLabel: doctor?.name ?? "家庭医生",
+    recommendedReason: "连续偏高读数伴随风险提示，建议医生优先评估。",
+    originalQuestion: question,
+    clawAnswer: answer,
+    summary: "居民连续两天血压偏高，Claw 已提示高风险，建议医生尽快跟进。",
+    preparedMaterials: ["最近3天血压记录", "当前用药清单", "最近一次就诊信息"],
+  };
+  appendDoctorTodo(todo);
+
+  if (resident?.id) {
+    appendLocalNotification({
+      userId: resident.id,
+      actorId: doctor?.id ?? null,
+      type: "ask_todo_created",
+      title: "已转交家医团队处理",
+      content: "您的高风险问题已同步给家医团队，建议在服务进度查看处理状态。",
+      linkUrl: "/service-progress",
+      metadata: {
+        todoId: todo.id,
+      },
+    });
+  }
+
+  if (doctor?.id) {
+    appendLocalNotification({
+      userId: doctor.id,
+      actorId: resident?.id ?? null,
+      type: "ask_todo_created",
+      title: "新高风险待办",
+      content: `${residentName}咨询了连续高血压问题，请优先处理。`,
+      linkUrl: "/doctor",
+      metadata: {
+        todoId: todo.id,
+      },
+    });
+  }
+
+  return todo;
 }

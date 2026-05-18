@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -8,7 +8,6 @@ import { BackHeader } from "@/components/BackHeader";
 import { ChatBubble } from "@/components/ChatBubble";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SafetyNotice } from "@/components/SafetyNotice";
-import { TypingBubble } from "@/components/TypingBubble";
 import { useToast } from "@/components/ToastProvider";
 import { VoiceInputPanel } from "@/components/VoiceInputPanel";
 import { PhotoQuestionPanel } from "@/components/PhotoQuestionPanel";
@@ -441,6 +440,14 @@ function AskPageContent() {
           subtitle="流程问题、配药规则、体检报告、随访安排，都可以先问我。"
         />
 
+        <Link
+          href="/ask/history"
+          className="flex items-center gap-1.5 text-sm font-semibold text-sage"
+        >
+          <ClipboardList className="h-4 w-4" />
+          提问记录
+        </Link>
+
         <SafetyNotice tone="danger">
           Claw 不能提供诊断、处方、停药、换药或个体化治疗建议，遇到紧急情况请立即就医。
         </SafetyNotice>
@@ -475,7 +482,7 @@ function AskPageContent() {
           {isLoading ? (
             <div className="mr-auto max-w-[88%]">
               <p className="mb-1.5 text-xs font-semibold text-navy/55">家医 Claw</p>
-              <div className="rounded-[22px] border border-line/70 bg-[#FFF8ED] px-4 py-3 shadow-soft">
+              <div className="rounded-[22px] border border-line/70 bg-surface-card px-4 py-3 shadow-soft">
                 <p className="text-sm text-navy/70">Claw 正在整理回答…</p>
                 <div className="mt-2 flex gap-1.5">
                   <span className="typing-dot bg-sage/60" />
@@ -486,7 +493,7 @@ function AskPageContent() {
             </div>
           ) : null}
           {summary ? (
-            <div className="rounded-[24px] border border-sage/30 bg-[#EEF5F3] p-4 shadow-soft animate-in">
+            <div className="rounded-[24px] border border-sage/30 bg-health-soft p-4 shadow-soft animate-in">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-sage" />
                 <p className="text-sm font-semibold text-navy">Claw 整理的问题摘要</p>
@@ -594,7 +601,7 @@ function AskPageContent() {
         </div>
       ) : null}
 
-      <div className={`absolute inset-x-0 bottom-0 border-t border-line bg-[#F7E8D4]/96 px-4 pb-6 pt-3 backdrop-blur-sm transition ${voicePanelOpen || photoPanelOpen ? "pointer-events-none opacity-0" : ""}`}>
+      <div className={`absolute inset-x-0 bottom-0 border-t border-line bg-surface-nav/96 px-4 pb-6 pt-3 backdrop-blur-sm transition ${voicePanelOpen || photoPanelOpen ? "pointer-events-none opacity-0" : ""}`}>
         <div className="mb-3 flex gap-2">
           <button
             type="button"
@@ -650,8 +657,8 @@ function AskPageContent() {
 
 const todoStatusConfig: Record<string, { label: string; style: string }> = {
   pending: { label: "待处理", style: "bg-amber/15 text-amber border-amber/20" },
-  processing: { label: "处理中", style: "bg-[#E8F0EE] text-sage border-sage/20" },
-  done: { label: "已处理", style: "bg-[#DDEFE4] text-[#2F6C56] border-[#2F6C56]/20" },
+  processing: { label: "处理中", style: "bg-health-muted text-sage border-sage/20" },
+  done: { label: "已处理", style: "bg-health-success text-success border-success/20" },
   ignored: { label: "已忽略", style: "bg-navy/8 text-navy/50 border-navy/10" },
 };
 
@@ -666,7 +673,7 @@ function TodoNoticeCard({ todo }: { todo: DemoDoctorTodo }) {
   });
 
   return (
-    <div className="rounded-[22px] border border-sage/25 bg-[#EEF5F3] p-4 shadow-soft animate-in">
+    <div className="rounded-[22px] border border-sage/25 bg-health-soft p-4 shadow-soft animate-in">
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-navy">已为您生成家医团队提醒</p>
         <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${statusInfo.style}`}>

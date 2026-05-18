@@ -574,4 +574,7 @@ export type Database = {
   };
 };
 
+// The generated schema is currently incomplete, so DB helper functions use the
+// runtime Supabase client shape until the table types are regenerated end to end.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type TypedSupabaseClient = SupabaseClient<any>;

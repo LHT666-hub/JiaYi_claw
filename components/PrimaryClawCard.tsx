@@ -16,16 +16,18 @@ export function PrimaryClawCard({
   onQuickQuestion,
 }: PrimaryClawCardProps) {
   return (
-    <section className="rounded-[30px] bg-gradient-to-br from-navy to-navySoft px-5 py-5 text-white shadow-float">
+    <section className="relative overflow-hidden rounded-[32px] border border-white/45 bg-[linear-gradient(145deg,#12365A_0%,#102A43_58%,#0B2238_100%)] px-5 py-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.24)]">
+      <div className="pointer-events-none absolute -right-9 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-14 right-6 h-36 w-36 rounded-full bg-amber/18 blur-2xl" />
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-brand text-[1.55rem] font-semibold">有问题先问 Claw</p>
+          <p className="font-brand text-[1.62rem] font-semibold tracking-[-0.03em]">问 Claw</p>
           <p className="mt-2 text-sm leading-6 text-white/78">
-            配药、体检、随访、找医生，先帮您分清下一步。
+            健康问题先问问，家医分流更省心。
           </p>
         </div>
-        <div className="rounded-full border border-white/20 px-3 py-1 text-xs text-white/78">
-          今日主入口
+        <div className="rounded-full border border-white/22 bg-white/12 px-3 py-1 text-xs font-semibold text-white/82 backdrop-blur-sm">
+          AI
         </div>
       </div>
 
@@ -33,25 +35,27 @@ export function PrimaryClawCard({
         <button
           type="button"
           onClick={onVoice}
-          className="flex items-center justify-between rounded-[24px] bg-white px-4 py-4 text-left text-navy shadow-soft transition hover:-translate-y-0.5"
+          className="group flex items-center justify-between rounded-[26px] border border-white/60 bg-white/[0.94] px-4 py-4 text-left text-navy shadow-[0_14px_34px_rgba(16,42,67,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E7EEF6]">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface-tint text-navy transition group-hover:scale-105">
               <Mic className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-base font-semibold">语音问</p>
+              <p className="text-base font-bold">去咨询</p>
               <p className="text-xs text-navy/58">适合一句话直接问</p>
             </div>
           </div>
-          <span className="text-xs font-semibold tracking-[0.14em] text-navy/45">推荐</span>
+          <span className="rounded-full bg-surface-chip px-2.5 py-1 text-[11px] font-semibold text-navy/55">
+            推荐
+          </span>
         </button>
 
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={onPhoto}
-            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/10 px-4 py-4 text-left transition hover:bg-white/15"
+            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
           >
             <Camera className="h-5 w-5 shrink-0" />
             <div>
@@ -62,7 +66,7 @@ export function PrimaryClawCard({
           <button
             type="button"
             onClick={onText}
-            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/10 px-4 py-4 text-left transition hover:bg-white/15"
+            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
           >
             <Keyboard className="h-5 w-5 shrink-0" />
             <div>
@@ -79,7 +83,7 @@ export function PrimaryClawCard({
             key={question}
             type="button"
             onClick={() => onQuickQuestion(question)}
-            className="rounded-full border border-white/20 bg-white/8 px-3 py-2 text-sm transition hover:bg-white/14"
+            className="rounded-full border border-white/18 bg-white/10 px-3 py-2 text-sm text-white/88 transition hover:bg-white/16"
           >
             {question}
           </button>

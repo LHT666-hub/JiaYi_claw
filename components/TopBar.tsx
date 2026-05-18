@@ -20,23 +20,23 @@ export function TopBar({
   const name = currentUser?.name ?? "用户";
 
   return (
-    <div className="px-2 pt-6">
+    <div className="px-2 pt-7">
       <div className="grid grid-cols-[72px_1fr_72px] items-center gap-2">
         <Link
           href="/me"
           aria-label="进入我的"
           className="flex items-center gap-2"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-cream text-lg font-semibold text-navy shadow-soft">
+          <div className="ios-control flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-navy">
             {name.slice(0, 1)}
           </div>
         </Link>
 
         <div className="text-center">
-          <p className="font-brand text-[1.7rem] font-semibold leading-none text-navy">
+          <p className="font-brand text-[1.85rem] font-semibold leading-none tracking-[-0.03em] text-navy">
             家医 Claw
           </p>
-          <p className="mt-2 text-xs tracking-[0.12em] text-navy/55">
+          <p className="mt-2 text-xs font-medium tracking-[0.08em] text-navy/50">
             今日健康助手
           </p>
           <div className="mt-2 flex justify-center">
@@ -48,7 +48,7 @@ export function TopBar({
           <button
             type="button"
             onClick={onBellClick}
-            className="relative flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft transition active:scale-95"
+            className="ios-control relative flex h-11 w-11 items-center justify-center rounded-full text-navy transition active:scale-95"
             aria-label="查看提醒"
           >
             <Bell className="h-5 w-5" strokeWidth={2.1} />

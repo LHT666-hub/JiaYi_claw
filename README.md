@@ -25,6 +25,7 @@
 - 任务与积分管理
 - 体验反馈
 - 医生待办闭环
+- 演示中心 `/demo-center`（全页面入口、推荐演示路线、演示数据工具）
 - 第一阶段 Supabase 登录与 `profiles` 角色系统
 - 第二阶段 Supabase `tasks + task_records + points_ledger + exchanges`
 - 第三阶段 Supabase `faqs + ask_logs + doctor_todos`
@@ -107,10 +108,11 @@
 
 1. `safety` 紧急风险拦截
 2. `safety` 医疗安全边界拦截
-3. Supabase FAQ
-4. 本地 FAQ fallback
-5. 本地知识库 / Kimi 兜底
-6. fallback
+3. 问候语快速回复
+4. FAQ 命中后交由 Kimi 组织最终答复（`faq_kimi`）
+5. 知识库命中后由 Kimi 基于知识片段答复（`knowledge_kimi`）
+6. 其他问题直接由 Kimi 生成答复（`kimi`）
+7. Kimi 异常时 fallback
 
 其中医疗安全边界仍然始终最高优先级，不会被普通 FAQ 覆盖。
 
@@ -383,6 +385,14 @@ npm install
 npm run dev
 ```
 
+## 演示串讲建议（新版）
+
+可通过 `/demo-center` 快速完成整套演示：
+
+1. 进入“推荐演示路线”选择居民/家属/团队/后台场景。
+2. 如需回到干净状态，点击“一键重置演示数据”。
+3. 如需展示闭环，点击“生成高风险闭环案例”，再进入 `/doctor`、`/service-progress`、`/notifications` 观察联动。
+
 生产构建检查：
 
 ```bash
@@ -391,18 +401,23 @@ npm run build
 
 ## 环境变量
 
-项目当前使用以下 Supabase 环境变量：
+项目当前使用以下环境变量：
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+KIMI_API_KEY=
+KIMI_BASE_URL=https://api.moonshot.cn/v1
+KIMI_MODEL=moonshot-v1-8k
 ```
 
 说明：
 
 - 前两项用于前端与登录态读取
 - `SUPABASE_SERVICE_ROLE_KEY` 仅在后续需要服务端高权限能力时再补充
+- `KIMI_API_KEY` 用于 `/api/ask` 的 Kimi 生成（未配置时会自动走 fallback）
+- `KIMI_MODEL` 建议先用 `moonshot-v1-8k`，接口会在模型不可用时自动降级尝试
 - `.env.local` 与 `.env*.local` 不应提交
 - 不要在 README、截图或提交记录里暴露真实 Key
 

@@ -24,7 +24,7 @@ export async function getDoctorTodosForUser(
   supabase: TypedSupabaseClient,
 ) {
   try {
-    let query = supabase.from("doctor_todos").select(todoSelect).order("created_at", {
+    const query = supabase.from("doctor_todos").select(todoSelect).order("created_at", {
       ascending: false,
     });
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -223,7 +223,7 @@ export default function MatchLeaderPage() {
           <Users className="h-5 w-5 text-sage" />
         </header>
 
-        <div className="rounded-full bg-[#F3E4CD] p-1">
+        <div className="rounded-full bg-surface-chip p-1">
           <div
             className="h-2 rounded-full bg-sage transition-all duration-300"
             style={{ width: `${progress}%` }}
@@ -251,8 +251,8 @@ export default function MatchLeaderPage() {
                         }}
                         className={`flex w-full items-center justify-between rounded-[22px] border px-4 py-4 text-left transition active:scale-[0.98] ${
                           form.area === area
-                            ? "border-sage bg-[#EEF5F3] text-navy"
-                            : "border-line bg-[#FFF8ED] text-navy hover:bg-[#FAF0DD]"
+                            ? "border-sage bg-health-soft text-navy"
+                            : "border-line bg-surface-card text-navy hover:bg-surface-hover"
                         }`}
                       >
                         <span className="text-sm font-semibold">{area}</span>
@@ -265,7 +265,7 @@ export default function MatchLeaderPage() {
                         setForm((prev) => ({ ...prev, area: "" }));
                         goNext();
                       }}
-                      className="flex w-full items-center justify-between rounded-[22px] border border-line bg-[#FFF8ED] px-4 py-4 text-left text-sm font-semibold text-navy transition hover:bg-[#FAF0DD] active:scale-[0.98]"
+                      className="flex w-full items-center justify-between rounded-[22px] border border-line bg-surface-card px-4 py-4 text-left text-sm font-semibold text-navy transition hover:bg-surface-hover active:scale-[0.98]"
                     >
                       <span>不确定 / 跳过</span>
                       <ChevronRight className="h-4 w-4 text-navy/40" />
@@ -285,7 +285,7 @@ export default function MatchLeaderPage() {
                           className={`rounded-full px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
                             form.chronicTags.includes(tag)
                               ? "bg-sage text-white"
-                              : "border border-line bg-[#FFF8ED] text-navy"
+                              : "border border-line bg-surface-card text-navy"
                           }`}
                         >
                           {tag}
@@ -383,7 +383,7 @@ export default function MatchLeaderPage() {
               </button>
             </div>
 
-            <div className="rounded-[22px] border border-amber/25 bg-[#FFF8ED] px-4 py-3">
+            <div className="rounded-[22px] border border-amber/25 bg-surface-card px-4 py-3">
               <p className="text-xs leading-5 text-navy/55">
                 小组长提供邻里互助和健康提醒，不替代医生诊断与治疗建议。如有健康问题，请联系家医团队。
               </p>
@@ -464,7 +464,7 @@ function LeaderResultCard({
           {result.matchReasons.map((reason) => (
             <span
               key={reason}
-              className="rounded-full bg-[#EEF5F3] px-2.5 py-1 text-[11px] font-medium text-sage"
+              className="rounded-full bg-health-soft px-2.5 py-1 text-[11px] font-medium text-sage"
             >
               {reason}
             </span>
@@ -477,7 +477,7 @@ function LeaderResultCard({
           {result.leaderStrengths.map((strength) => (
             <span
               key={strength}
-              className="rounded-full bg-[#F3E4CD] px-2.5 py-1 text-[11px] font-medium text-navy/65"
+              className="rounded-full bg-surface-chip px-2.5 py-1 text-[11px] font-medium text-navy/65"
             >
               {strength}
             </span>

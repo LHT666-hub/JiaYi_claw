@@ -121,6 +121,7 @@ export type ContactItem = {
   group: ContactGroup;
   description: string;
   availableTime?: string;
+  phone?: string;
   avatarColor: string;
   avatarPath?: string;
 };

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { Check, LucideIcon } from "lucide-react";
@@ -51,7 +51,7 @@ export function TaskCard({
         style={{
           minHeight: 112,
           borderColor: "#E3D0B8",
-          backgroundColor: isPressed ? "#FDF3E6" : "#FFF9F0",
+          backgroundColor: isPressed ? "var(--surface-press)" : "var(--surface-input)",
           boxShadow: isPressed
             ? "0 4px 12px rgba(18, 50, 74, 0.03)"
             : "0 8px 20px rgba(18, 50, 74, 0.04)",
@@ -148,7 +148,7 @@ export function TaskCard({
         <div className="flex min-w-0 flex-1 gap-3">
           <div
             className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition ${
-              completed ? "bg-[#DDEFE4] text-[#2F6C56]" : "bg-[#F7E7D4] text-navy"
+              completed ? "bg-health-success text-success" : "bg-[#F7E7D4] text-navy"
             }`}
           >
             {completed ? (
@@ -172,7 +172,7 @@ export function TaskCard({
           disabled={completed}
           className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
             completed
-              ? `text-white ${didAnimate ? "animate-task-complete bg-[#2F6C56]" : "bg-[#3B7A61]"}`
+              ? `text-white ${didAnimate ? "animate-task-complete bg-success" : "bg-[#3B7A61]"}`
               : "bg-navy text-white shadow-soft active:scale-95"
           }`}
         >

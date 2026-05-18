@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import { Mic } from "lucide-react";
@@ -42,7 +42,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
             <span className="text-base font-semibold">×</span>
           </button>
         </div>
-        <div className="mt-4 rounded-[20px] bg-[#FFF8ED] px-4 py-5 text-center">
+        <div className="mt-4 rounded-[20px] bg-surface-card px-4 py-5 text-center">
           <p className="text-base leading-7 text-navy">
             当前浏览器暂不支持语音识别，请使用文字输入。
           </p>
@@ -71,7 +71,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
         </button>
       </div>
 
-      <div className="mt-4 rounded-[22px] bg-[#FFF8ED] px-5 py-6 text-center">
+      <div className="mt-4 rounded-[22px] bg-surface-card px-5 py-6 text-center">
         {state === "idle" ? (
           <p className="text-base leading-7 text-navy">
             请说出您想问的问题
@@ -122,7 +122,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
           <button
             type="button"
             onClick={reset}
-            className="w-full rounded-full border border-line bg-[#FFF8ED] px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
+            className="w-full rounded-full border border-line bg-surface-card px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
           >
             取消
           </button>
@@ -133,7 +133,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
             <button
               type="button"
               onClick={() => { reset(); start(); }}
-              className="rounded-full border border-line bg-[#FFF8ED] px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
+              className="rounded-full border border-line bg-surface-card px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
             >
               重新说
             </button>
@@ -152,7 +152,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
             <button
               type="button"
               onClick={() => { reset(); onClose(); }}
-              className="rounded-full border border-line bg-[#FFF8ED] px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
+              className="rounded-full border border-line bg-surface-card px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
             >
               取消
             </button>

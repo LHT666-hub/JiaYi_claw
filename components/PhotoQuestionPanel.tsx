@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
@@ -161,7 +161,7 @@ export function PhotoQuestionPanel({
       {step === "select" ? (
         <div className="mt-4 space-y-4">
           {error ? (
-            <div className="rounded-[18px] bg-[#FBF0ED] px-4 py-3 text-sm text-danger">
+            <div className="rounded-[18px] bg-risk-soft px-4 py-3 text-sm text-danger">
               {error}
             </div>
           ) : null}
@@ -169,7 +169,7 @@ export function PhotoQuestionPanel({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full items-center justify-center gap-3 rounded-[22px] border-2 border-dashed border-line/80 bg-[#FFF8ED] px-4 py-8 text-navy active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-3 rounded-[22px] border-2 border-dashed border-line/80 bg-surface-card px-4 py-8 text-navy active:scale-[0.98]"
           >
             <Camera className="h-6 w-6 text-navy/50" />
             <span className="text-base font-semibold">选择照片</span>
@@ -186,7 +186,7 @@ export function PhotoQuestionPanel({
           <button
             type="button"
             onClick={handleClose}
-            className="w-full rounded-full border border-line bg-[#FFF8ED] px-4 py-3.5 text-sm font-semibold text-navy active:scale-[0.98]"
+            className="w-full rounded-full border border-line bg-surface-card px-4 py-3.5 text-sm font-semibold text-navy active:scale-[0.98]"
           >
             取消
           </button>
@@ -197,7 +197,7 @@ export function PhotoQuestionPanel({
       {step === "preview" ? (
         <div className="mt-4 space-y-4">
           {previewUrl ? (
-            <div className="overflow-hidden rounded-[18px] border border-line/60 bg-[#FFF8ED]">
+            <div className="overflow-hidden rounded-[18px] border border-line/60 bg-surface-card">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
@@ -216,7 +216,7 @@ export function PhotoQuestionPanel({
                 key={option.id}
                 type="button"
                 onClick={() => handleCategorySelect(option.id)}
-                className="flex w-full items-center justify-between rounded-[20px] border border-line bg-[#FFF8ED] px-4 py-3.5 text-left transition active:scale-[0.98] active:bg-[#F7ECDA]"
+                className="flex w-full items-center justify-between rounded-[20px] border border-line bg-surface-card px-4 py-3.5 text-left transition active:scale-[0.98] active:bg-surface-press"
               >
                 <div>
                   <p className="text-sm font-semibold text-navy">
@@ -236,7 +236,7 @@ export function PhotoQuestionPanel({
               setPreviewUrl(null);
               setStep("select");
             }}
-            className="w-full rounded-full border border-line bg-[#FFF8ED] px-4 py-3 text-sm font-semibold text-navy active:scale-[0.98]"
+            className="w-full rounded-full border border-line bg-surface-card px-4 py-3 text-sm font-semibold text-navy active:scale-[0.98]"
           >
             重新选择
           </button>
@@ -247,7 +247,7 @@ export function PhotoQuestionPanel({
       {step === "confirm" && selectedOption ? (
         <div className="mt-4 space-y-4">
           {previewUrl ? (
-            <div className="overflow-hidden rounded-[18px] border border-line/60 bg-[#FFF8ED]">
+            <div className="overflow-hidden rounded-[18px] border border-line/60 bg-surface-card">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previewUrl}
@@ -257,7 +257,7 @@ export function PhotoQuestionPanel({
             </div>
           ) : null}
 
-          <div className="rounded-[18px] bg-[#EEF5F3] px-4 py-4">
+          <div className="rounded-[18px] bg-health-soft px-4 py-4">
             <p className="text-sm font-semibold text-sage">
               {selectedOption.label}
             </p>
@@ -273,7 +273,7 @@ export function PhotoQuestionPanel({
                 setSelectedCategory(null);
                 setStep("preview");
               }}
-              className="rounded-full border border-line bg-[#FFF8ED] px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
+              className="rounded-full border border-line bg-surface-card px-4 py-4 text-base font-semibold text-navy active:scale-[0.98]"
             >
               重新选择
             </button>

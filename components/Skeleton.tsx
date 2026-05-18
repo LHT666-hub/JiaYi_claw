@@ -1,4 +1,4 @@
-type SkeletonProps = {
+﻿type SkeletonProps = {
   className?: string;
 };
 
@@ -24,7 +24,7 @@ export function SkeletonCard() {
 
 export function SkeletonMetric() {
   return (
-    <div className="rounded-[22px] border border-line/50 bg-[#FFF8ED] px-4 py-4">
+    <div className="rounded-[22px] border border-line/50 bg-surface-card px-4 py-4">
       <Skeleton className="h-3 w-16" />
       <Skeleton className="mt-3 h-7 w-12" />
     </div>

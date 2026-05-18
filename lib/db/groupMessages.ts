@@ -1,5 +1,5 @@
 import { TypedSupabaseClient } from "@/lib/supabase/types";
-import { ChatMessage, RiskLevel } from "@/lib/types";
+import { ChatMessage } from "@/lib/types";
 
 type AddGroupMessageInput = {
   groupId: string;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { BackHeader } from "@/components/BackHeader";
@@ -65,7 +65,7 @@ export default function FeedbackPage() {
         <BackHeader title="体验反馈" subtitle="帮助我们把家医 Claw 做得更清楚、更好用。" />
 
         <SectionCard title="当前体验身份">
-          <div className="rounded-[24px] bg-[#FFF8ED] px-4 py-4 text-sm text-navy">
+          <div className="rounded-[24px] bg-surface-card px-4 py-4 text-sm text-navy">
             {identity}
           </div>
         </SectionCard>
@@ -77,7 +77,7 @@ export default function FeedbackPage() {
               <textarea
                 value={form.mostUseful}
                 onChange={(event) => updateField("mostUseful", event.target.value)}
-                className="min-h-24 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="min-h-24 w-full rounded-[18px] border border-line bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                 placeholder="比如：问 Claw、任务提醒、医生待办转入。"
               />
             </label>
@@ -87,7 +87,7 @@ export default function FeedbackPage() {
               <textarea
                 value={form.unclearPart}
                 onChange={(event) => updateField("unclearPart", event.target.value)}
-                className="min-h-24 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="min-h-24 w-full rounded-[18px] border border-line bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                 placeholder="告诉我们哪一步、哪一页、哪个词不容易理解。"
               />
             </label>
@@ -97,7 +97,7 @@ export default function FeedbackPage() {
               <textarea
                 value={form.elderFriendly}
                 onChange={(event) => updateField("elderFriendly", event.target.value)}
-                className="min-h-20 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="min-h-20 w-full rounded-[18px] border border-line bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                 placeholder="比如：按钮够不够大，文字够不够清楚。"
               />
             </label>
@@ -107,7 +107,7 @@ export default function FeedbackPage() {
               <textarea
                 value={form.wantedFeatures}
                 onChange={(event) => updateField("wantedFeatures", event.target.value)}
-                className="min-h-24 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="min-h-24 w-full rounded-[18px] border border-line bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                 placeholder="比如：语音播报、更清楚的流程说明、亲友代办等。"
               />
             </label>
@@ -117,7 +117,7 @@ export default function FeedbackPage() {
               <select
                 value={form.recommend}
                 onChange={(event) => updateField("recommend", event.target.value)}
-                className="h-12 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="h-12 w-full rounded-[18px] border border-line bg-surface-card px-4 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
               >
                 <option value="愿意推荐">愿意推荐</option>
                 <option value="看改进情况">看改进情况</option>
@@ -130,7 +130,7 @@ export default function FeedbackPage() {
               <textarea
                 value={form.otherSuggestion}
                 onChange={(event) => updateField("otherSuggestion", event.target.value)}
-                className="min-h-24 w-full rounded-[18px] border border-line bg-[#FFF8ED] px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
+                className="min-h-24 w-full rounded-[18px] border border-line bg-surface-card px-4 py-3 text-sm text-navy outline-none transition focus:border-sage focus:ring-1 focus:ring-sage/30"
                 placeholder="任何你希望我们知道的体验建议都可以写在这里。"
               />
             </label>

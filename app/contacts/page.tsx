@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { HeartPulse, Stethoscope, UserRoundPlus, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
-import { ContactAvatar } from "@/components/ContactAvatar";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { contacts as localContacts } from "@/data/contacts";
@@ -96,7 +96,7 @@ export default function ContactsPage() {
           subtitle="不知道找谁？从这里找到合适的人"
         />
 
-        <div className="rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+        <div className="rounded-[22px] bg-surface-tint px-4 py-3">
           <p className="text-sm leading-6 text-navy/70">
             下面是围绕您建立的支持网络。遇到问题时，可以根据说明选择合适的联系人。
           </p>
@@ -119,7 +119,7 @@ export default function ContactsPage() {
                   <ContactNetworkCard key={contact.id} contact={contact} />
                 ))}
                 {group.key === "community" && matchedLeader && (
-                  <div className="rounded-[22px] border border-sage/30 bg-[#EEF5F3] p-3">
+                  <div className="rounded-[22px] border border-sage/30 bg-health-soft p-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage/20 text-sm font-semibold text-sage">
                         {matchedLeader.leaderName.slice(0, 1)}
@@ -167,12 +167,14 @@ function ContactNetworkCard({ contact }: { contact: ContactItem }) {
       href={`/contacts/${contact.id}`}
       className="flex items-center gap-3 rounded-[22px] border border-line/60 bg-white/40 p-3 transition hover:-translate-y-0.5 hover:shadow-soft"
     >
-      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/60 bg-[#F6E9D7] shadow-soft">
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/60 bg-surface-avatar shadow-soft">
         {contact.avatarPath ? (
-          <img
+          <Image
             src={contact.avatarPath}
             alt={contact.name}
-            className="h-full w-full object-cover"
+            fill
+            sizes="56px"
+            className="object-cover"
           />
         ) : (
           <div
@@ -186,7 +188,7 @@ function ContactNetworkCard({ contact }: { contact: ContactItem }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="text-[15px] font-semibold text-navy">{contact.name}</p>
-          <span className="rounded-full bg-[#F3E4CD] px-2 py-0.5 text-[11px] font-medium text-navy/65">
+          <span className="rounded-full bg-surface-chip px-2 py-0.5 text-[11px] font-medium text-navy/65">
             {contact.role}
           </span>
         </div>

@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 import { ContactItem } from "@/lib/types";
 
@@ -12,7 +12,7 @@ export function ContactAvatar({ contact }: ContactAvatarProps) {
       href={`/contacts/${contact.id}`}
       className="flex flex-col items-center gap-2 rounded-[24px] px-2 py-2 transition hover:-translate-y-0.5"
     >
-      <div className="relative h-16 w-16 overflow-hidden rounded-full border border-white/60 bg-[#F6E9D7] shadow-soft">
+      <div className="relative h-16 w-16 overflow-hidden rounded-full border border-white/60 bg-surface-avatar shadow-soft">
         {contact.avatarPath ? (
           <Image
             src={contact.avatarPath}

@@ -1,11 +1,11 @@
-type EmptyStateProps = {
+﻿type EmptyStateProps = {
   title: string;
   description: string;
 };
 
 export function EmptyState({ title, description }: EmptyStateProps) {
   return (
-    <div className="rounded-[24px] border border-dashed border-line/80 bg-[#FFF8ED] px-5 py-8 text-center">
+    <div className="rounded-[24px] border border-dashed border-line/80 bg-surface-card px-5 py-8 text-center">
       <svg
         viewBox="0 0 160 100"
         className="mx-auto h-28 w-40 text-[#D8C2A3]"
@@ -34,7 +34,7 @@ export function EmptyState({ title, description }: EmptyStateProps) {
           width="44"
           height="54"
           rx="14"
-          fill="#F7E8D4"
+          fill="var(--surface-nav)"
           stroke="currentColor"
           strokeWidth="2.5"
         />

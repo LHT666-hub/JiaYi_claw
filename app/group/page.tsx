@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +12,7 @@ import { TypingBubble } from "@/components/TypingBubble";
 import { useToast } from "@/components/ToastProvider";
 import { getGroupMessages } from "@/lib/db/groupMessages";
 import { getClawReply } from "@/lib/faq";
-import { readMatchedLeader, STORAGE_CHANGE_EVENT } from "@/lib/storage";
+import { getTodayKey, readMatchedLeader, STORAGE_CHANGE_EVENT } from "@/lib/storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import { ChatMessage, ProfileRow, RiskLevel } from "@/lib/types";
@@ -313,17 +313,6 @@ export default function GroupPage() {
     showToast("已完成今日小组打卡，+5 分", "success");
   }
 
-  function handleVoiceConfirm(text: string) {
-    const trimmed = text.trim();
-
-    if (!trimmed) {
-      showToast("语音内容为空，请再试一次", "warning");
-      return;
-    }
-
-    void submitMessage(trimmed);
-  }
-
   function handleVoiceSend(durationSeconds: number) {
     const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
     const voiceMessage = buildLocalMessage(authorName, "user", `[[voice:${durationSeconds}]]`);
@@ -391,23 +380,28 @@ export default function GroupPage() {
     }
 
     const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
-    const imageLabel = `[图片] ${pendingImage.file.name}`;
-    const imageMessage = buildLocalMessage(authorName, "user", imageLabel);
+    const imageContent = `[[image:${pendingImage.previewUrl}:${pendingImage.file.name}]]`;
+    const imageMessage = buildLocalMessage(authorName, "user", imageContent);
 
     setMessages((current) => [...current, imageMessage]);
 
     if (!isRemoteMode) {
-      pushGroupMessage(authorName, "user", imageLabel);
+      pushGroupMessage(authorName, "user", imageContent);
     }
 
-    clearPendingImage();
-    showToast("图片已添加", "success");
+    setPendingImage(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
+    showToast("图片已发送", "success");
   }
 
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4" style={{ paddingBottom: composerHeight + 20 }}>
-        <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-[#F7E8D4]/95 px-5 pb-3 pt-6 text-center backdrop-blur-sm">
+        <header className="sticky top-0 z-20 -mx-4 border-b border-line/70 bg-surface-nav/95 px-5 pb-3 pt-6 text-center backdrop-blur-sm">
           <Link
             href="/"
             className="absolute left-5 top-6 flex h-11 w-11 items-center justify-center rounded-full border border-line bg-cream text-navy shadow-soft active:scale-95"
@@ -421,17 +415,17 @@ export default function GroupPage() {
               家医团队在群
             </span>
             <span>组长：{matchedLeaderName ?? "王阿姨"}</span>
-            <span className="font-semibold text-navy/75">今日 12 人已打卡</span>
+            <span className="font-semibold text-navy/75">今日 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人已打卡</span>
           </div>
         </header>
 
         <SectionCard>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="rounded-[22px] bg-[#FFF8ED] px-3 py-4">
+            <div className="rounded-[22px] bg-surface-card px-3 py-4">
               <p className="text-xs tracking-[0.14em] text-navy/55">家医团队</p>
               <p className="mt-2 text-sm font-semibold text-navy">在群提醒</p>
             </div>
-            <div className="rounded-[22px] bg-[#FFF8ED] px-3 py-4">
+            <div className="rounded-[22px] bg-surface-card px-3 py-4">
               <p className="text-xs tracking-[0.14em] text-navy/55">组长</p>
               <p className="mt-2 text-sm font-semibold text-navy">{matchedLeaderName ?? "王阿姨"}</p>
               {!matchedLeaderName ? (
@@ -444,9 +438,9 @@ export default function GroupPage() {
                 </a>
               ) : null}
             </div>
-            <div className="rounded-[22px] bg-[#FFF8ED] px-3 py-4">
+            <div className="rounded-[22px] bg-surface-card px-3 py-4">
               <p className="text-xs tracking-[0.14em] text-navy/55">今日打卡</p>
-              <p className="mt-2 text-sm font-semibold text-navy">12 人</p>
+              <p className="mt-2 text-sm font-semibold text-navy">{8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人</p>
             </div>
           </div>
         </SectionCard>
@@ -506,7 +500,7 @@ export default function GroupPage() {
                   key={question}
                   type="button"
                   onClick={() => void submitMessage(question)}
-                  className="rounded-full border border-line bg-[#FFF8ED] px-4 py-2 text-left text-sm text-navy"
+                  className="rounded-full border border-line bg-surface-card px-4 py-2 text-left text-sm text-navy"
                 >
                   {question}
                 </button>
@@ -518,6 +512,8 @@ export default function GroupPage() {
         {pendingImage ? (
           <div className="mb-3 rounded-[28px] border border-line bg-cream p-3 shadow-soft">
             <div className="flex items-start gap-3">
+              {/* Blob previews are local-only object URLs, so a plain img is appropriate here. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={pendingImage.previewUrl}
                 alt={pendingImage.file.name}
@@ -530,7 +526,7 @@ export default function GroupPage() {
                   <button
                     type="button"
                     onClick={clearPendingImage}
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-line bg-[#FFF8ED] px-4 text-sm font-semibold text-navy"
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-card px-4 text-sm font-semibold text-navy"
                   >
                     取消
                   </button>

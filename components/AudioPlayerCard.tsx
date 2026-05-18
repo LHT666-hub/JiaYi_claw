@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CourseItem } from "@/lib/types";
 import { formatPlaybackTime, parseDurationLabel } from "@/lib/format";
 
@@ -55,6 +55,20 @@ export function AudioPlayerCard({
 
   const progress = duration === 0 ? 0 : currentTime / duration;
   const canClaim = watched || currentTime >= duration;
+  const progressBarRef = useRef<HTMLDivElement | null>(null);
+
+  const handleProgressClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      const bar = progressBarRef.current;
+
+      if (!bar || duration === 0) return;
+
+      const rect = bar.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      setCurrentTime(Math.round(ratio * duration));
+    },
+    [duration],
+  );
 
   function seek(delta: number) {
     setCurrentTime((value) => {
@@ -80,7 +94,7 @@ export function AudioPlayerCard({
           </p>
           <h3 className="mt-3 text-lg font-semibold">{course.title}</h3>
           <p className="mt-2 text-sm leading-6 text-white/72">
-            真实播放器原型：播完后才可以领取课程积分。
+            模拟播放（演示模式）：播完后才可以领取课程积分。
           </p>
         </div>
         <div className="rounded-full border border-white/18 px-3 py-1 text-xs text-white/75">
@@ -99,7 +113,7 @@ export function AudioPlayerCard({
               className={`wave-bar ${isPlaying && active ? "wave-bar-live" : ""}`}
               style={{
                 height: `${height}px`,
-                backgroundColor: active ? "#F7E8D4" : "rgba(255,255,255,0.24)",
+                backgroundColor: active ? "rgba(243,221,194,0.9)" : "rgba(255,255,255,0.24)",
                 animationDelay: `${index * 60}ms`,
               }}
             />
@@ -108,7 +122,10 @@ export function AudioPlayerCard({
       </div>
 
       <div className="mt-4">
-        <div className="h-2 rounded-full bg-white/16">
+        <div
+          ref={progressBarRef}
+          onClick={handleProgressClick}
+          className="h-2 cursor-pointer rounded-full bg-white/16">
           <div
             className="h-2 rounded-full bg-[#F3DDC2] transition-all"
             style={{ width: `${progress * 100}%` }}

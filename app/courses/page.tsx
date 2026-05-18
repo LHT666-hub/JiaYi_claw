@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -131,7 +131,7 @@ function CoursesPageContent() {
         <BackHeader title="家医小课堂" subtitle="每天看一个小课，积少成多" />
 
         {/* Learning Progress */}
-        <div className="flex items-center justify-between rounded-[22px] bg-[#FAEEDB] px-4 py-3">
+        <div className="flex items-center justify-between rounded-[22px] bg-surface-tint px-4 py-3">
           <div className="flex items-center gap-4">
             <div>
               <p className="text-xs text-navy/55">已学习</p>
@@ -167,7 +167,7 @@ function CoursesPageContent() {
                 className={`rounded-full px-4 py-2.5 text-sm font-semibold transition active:scale-95 ${
                   activeCategory === category
                     ? "bg-navy text-white shadow-soft"
-                    : "border border-line/70 bg-[#FFF8ED] text-navy"
+                    : "border border-line/70 bg-surface-card text-navy"
                 }`}
               >
                 {category}
