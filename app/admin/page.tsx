@@ -203,6 +203,7 @@ export default function AdminPage() {
   const [breakpoints, setBreakpoints] = useState<BreakpointItem[]>(() => analyzeBreakpoints(readAskLogs()));
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [adminMode, setAdminMode] = useState<AdminMode>("local");
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   const isSupabaseAdmin = profile?.role === "admin";
   const isLocalAdmin = currentUser?.role === "admin";
@@ -213,6 +214,14 @@ export default function AdminPage() {
     setTaskItems(readMergedTasks());
     setFamilyBindingItems(readFamilyBindings());
     setFeedbacks(readFeedbacks());
+  }
+
+  function fillCurrentDeviceAdminData() {
+    setFaqItems(readMergedFaqs());
+    setMetrics(getDashboardMetrics());
+    setFamilyBindingItems(readFamilyBindings());
+    setFeedbacks(readFeedbacks());
+    setBreakpoints(analyzeBreakpoints(readAskLogs()));
   }
 
   useEffect(() => {
@@ -284,6 +293,20 @@ export default function AdminPage() {
     setFaqItems(payload.items ?? []);
   }
 
+  async function loadSupabaseFeedbacks() {
+    const response = await fetch("/api/feedback", { method: "GET", cache: "no-store" });
+    const payload = (await response.json().catch(() => ({}))) as {
+      message?: string;
+      feedbacks?: FeedbackItem[];
+    };
+
+    if (!response.ok) {
+      throw new Error(payload.message ?? "Failed to load feedbacks");
+    }
+
+    setFeedbacks(payload.feedbacks ?? []);
+  }
+
   async function loadSupabaseDashboard() {
     const response = await fetch("/api/admin/dashboard", { method: "GET", cache: "no-store" });
     const payload = (await response.json().catch(() => ({}))) as {
@@ -294,6 +317,10 @@ export default function AdminPage() {
       kimiCount?: number;
       fallbackCount?: number;
       doctorTodoCount?: number;
+      totalPointsAwarded?: number;
+      groupMessageCount?: number;
+      feedbackCount?: number;
+      matchLeaderCount?: number;
     };
 
     if (!response.ok) {
@@ -309,6 +336,10 @@ export default function AdminPage() {
       kimiCount: payload.kimiCount ?? localMetrics.kimiCount,
       fallbackCount: payload.fallbackCount ?? localMetrics.fallbackCount,
       doctorTodoCount: payload.doctorTodoCount ?? localMetrics.doctorTodoCount,
+      totalPointsAwarded: payload.totalPointsAwarded ?? localMetrics.totalPointsAwarded,
+      groupMessageCount: payload.groupMessageCount ?? localMetrics.groupMessageCount,
+      feedbackCount: payload.feedbackCount ?? localMetrics.feedbackCount,
+      matchLeaderCount: payload.matchLeaderCount ?? localMetrics.matchLeaderCount,
     });
   }
 
@@ -332,25 +363,26 @@ export default function AdminPage() {
     async function syncAdminData() {
       if (adminMode === "supabase" && isSupabaseAdmin) {
         try {
-          await Promise.all([loadSupabaseFaqs(), loadSupabaseDashboard(), loadSupabaseFamilyBindings()]);
+          await Promise.all([
+            loadSupabaseFaqs(),
+            loadSupabaseDashboard(),
+            loadSupabaseFamilyBindings(),
+            loadSupabaseFeedbacks(),
+          ]);
+          setRemoteError(null);
           return;
         } catch {
           if (!active) {
             return;
           }
-          setAdminMode("local");
-          setFaqItems(readMergedFaqs());
-          setMetrics(getDashboardMetrics());
-          setFamilyBindingItems(readFamilyBindings());
-          setBreakpoints(analyzeBreakpoints(readAskLogs()));
+          setRemoteError("当前真实后台数据暂时还没同步成功，以下先显示这台设备上的记录与配置。");
+          fillCurrentDeviceAdminData();
           return;
         }
       }
 
-      setFaqItems(readMergedFaqs());
-      setMetrics(getDashboardMetrics());
-      setFamilyBindingItems(readFamilyBindings());
-      setBreakpoints(analyzeBreakpoints(readAskLogs()));
+      setRemoteError(null);
+      fillCurrentDeviceAdminData();
     }
 
     void syncAdminData();
@@ -458,7 +490,7 @@ export default function AdminPage() {
         showToast("FAQ 已保存到 Supabase。", "success");
         return;
       } catch {
-        showToast("Supabase FAQ 保存失败，当前未改动本地 FAQ。", "warning");
+        showToast("FAQ 保存到数据库失败，这台设备上的 FAQ 配置没有改动。", "warning");
         return;
       }
     }
@@ -487,7 +519,12 @@ export default function AdminPage() {
 
     upsertCustomCourse(next);
     setCourseDraft(createManagedCourseDraft());
-    showToast("小课堂内容已保存，课程页会优先读取本地配置。", "success");
+    showToast(
+      adminMode === "supabase"
+        ? "小课堂预览配置已保存到当前设备，不会影响其他真实账号。"
+        : "小课堂内容已保存，课程页会优先读取当前设备上的这份配置。",
+      "success",
+    );
   }
 
   function saveTaskDraft() {
@@ -506,7 +543,12 @@ export default function AdminPage() {
 
     upsertCustomTask(next);
     setTaskDraft(createManagedTaskDraft());
-    showToast("任务配置已保存，任务页会优先读取本地配置。", "success");
+    showToast(
+      adminMode === "supabase"
+        ? "任务预览配置已保存到当前设备，不会影响其他真实账号。"
+        : "任务配置已保存，任务页会优先读取当前设备上的这份配置。",
+      "success",
+    );
   }
 
   async function saveFamilyBindingDraft() {
@@ -545,7 +587,7 @@ export default function AdminPage() {
         showToast("家属绑定已保存。", "success");
         return;
       } catch {
-        showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+        showToast("暂时保存失败，请稍后再试。", "warning");
         return;
       }
     }
@@ -583,7 +625,7 @@ export default function AdminPage() {
         showToast("绑定关系已停用。", "success");
         return;
       } catch {
-        showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+        showToast("暂时保存失败，请稍后再试。", "warning");
         return;
       }
     }
@@ -614,7 +656,7 @@ export default function AdminPage() {
         showToast(item.isActive ? "FAQ 已停用。" : "FAQ 已启用。", "success");
         return;
       } catch {
-        showToast("Supabase FAQ 状态更新失败。", "warning");
+        showToast("FAQ 状态同步到数据库失败，请稍后再试。", "warning");
         return;
       }
     }
@@ -660,7 +702,10 @@ export default function AdminPage() {
       {
         title: "积分发放总数",
         value: metrics.totalPointsAwarded,
-        description: "当前仍按本地演示积分统计，用于原型展示。",
+        description:
+          adminMode === "supabase"
+            ? "按真实积分流水累计的发放总数。"
+            : "当前按这台设备上的积分记录统计，方便继续体验和调试。",
       },
       {
         title: "医生待办数",
@@ -670,17 +715,26 @@ export default function AdminPage() {
       {
         title: "健康小组消息数",
         value: metrics.groupMessageCount,
-        description: "统计当前原型中的群消息总数。",
+        description:
+          adminMode === "supabase"
+            ? "统计数据库里的真实小组消息总数。"
+            : "统计这台设备上保存的群消息总数。",
       },
       {
         title: "体验反馈数",
         value: metrics.feedbackCount,
-        description: "统计当前已提交的体验反馈数量。",
+        description:
+          adminMode === "supabase"
+            ? "统计管理员收到的真实反馈数量。"
+            : "统计这台设备上保存的体验反馈数量。",
       },
       {
         title: "小组长匹配数",
         value: metrics.matchLeaderCount,
-        description: "统计居民完成小组长智能匹配的次数。",
+        description:
+          adminMode === "supabase"
+            ? "统计数据库里产生的小组长匹配记录数。"
+            : "统计这台设备上记录的小组长匹配次数。",
       },
     ];
 
@@ -723,12 +777,17 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={() => {
-                showToast("当前为本地模式，数据已存储在浏览器中", "info");
+                showToast(
+                  adminMode === "supabase"
+                    ? "当前页面会同时读取真实数据库和这台设备上的配置。"
+                    : "当前设备数据已保存，可继续导出备份。",
+                  "info",
+                );
               }}
               className="flex h-14 flex-col items-center justify-center rounded-[20px] border border-line/70 bg-surface-card text-navy active:scale-95"
             >
               <span className="text-sm font-semibold">存储状态</span>
-              <span className="text-[11px] text-navy/50">{adminMode === "supabase" ? "Supabase" : "localStorage"}</span>
+              <span className="text-[11px] text-navy/50">{adminMode === "supabase" ? "数据库 + 当前设备" : "当前设备"}</span>
             </button>
           </div>
         </SectionCard>
@@ -794,7 +853,7 @@ export default function AdminPage() {
             <SectionHint>
               {adminMode === "supabase"
                 ? "/ask 会优先读取 Supabase FAQ；安全拦截仍然始终最高优先级。"
-                : "/ask 会优先读取这里保存的本地 FAQ，再补充默认 FAQ；安全拦截仍然始终最高优先级。"}
+                : "/ask 会优先读取这台设备上保存的 FAQ，再补充默认 FAQ；安全拦截仍然始终最高优先级。"}
             </SectionHint>
 
             <div className="space-y-3">
@@ -811,7 +870,7 @@ export default function AdminPage() {
                       {adminMode === "supabase"
                         ? "数据库"
                         : customIds.has(item.id)
-                          ? "本地配置"
+                          ? "当前设备配置"
                           : "默认"}
                     </span>
                   </div>
@@ -922,7 +981,7 @@ export default function AdminPage() {
             {adminMode === "supabase" ? (
               <SectionHint>当前使用 Supabase FAQ。保存后，/ask 会优先命中新 FAQ。</SectionHint>
             ) : (
-              <SectionHint>当前使用本地 FAQ 演示模式。保存后无需刷新页面也能立即生效。</SectionHint>
+              <SectionHint>当前使用这台设备上的 FAQ 配置。保存后无需刷新页面也能立即生效。</SectionHint>
             )}
           </div>
         </SectionCard>
@@ -937,7 +996,11 @@ export default function AdminPage() {
       <div className="space-y-5">
         <SectionCard title="小课堂管理" action={<BookOpen className="h-4 w-4 text-sage" />}>
           <div className="space-y-3">
-            <SectionHint>/courses 继续优先读取这里保存的本地课程内容，再回退到默认课程。</SectionHint>
+            <SectionHint>
+              {adminMode === "supabase"
+                ? "这里的课程编辑目前只作用于当前设备，用于预览和演练，不会直接改动其他真实账号看到的课程内容。"
+                : "/courses 会优先读取这台设备上保存的课程内容，再回退到默认课程。"}
+            </SectionHint>
             {courseItems.map((item) => (
               <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
@@ -948,7 +1011,11 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
-                    {customIds.has(item.id) ? "本地配置" : "默认"}
+                    {customIds.has(item.id)
+                      ? adminMode === "supabase"
+                        ? "当前设备预览"
+                        : "当前设备配置"
+                      : "默认"}
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-navy/72">{item.summary}</p>
@@ -962,12 +1029,18 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       upsertCustomCourse({
                         ...item,
                         isActive: !item.isActive,
-                      })
-                    }
+                      });
+                      showToast(
+                        adminMode === "supabase"
+                          ? "当前设备上的课程预览状态已更新，不会影响其他真实账号。"
+                          : "当前设备上的课程状态已更新。",
+                        "success",
+                      );
+                    }}
                     className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
                   >
                     {item.isActive ? "停用" : "启用"}
@@ -980,6 +1053,11 @@ export default function AdminPage() {
 
         <SectionCard title="新增 / 编辑小课堂">
           <div className="space-y-4">
+            {adminMode === "supabase" ? (
+              <SectionHint>
+                当前真实后台还没有直接管理课程内容的线上写入链路。这里保存的是这台设备上的预览配置，方便先验证页面和交互。
+              </SectionHint>
+            ) : null}
             <FormInput
               label="标题"
               value={courseDraft.title}
@@ -1019,7 +1097,7 @@ export default function AdminPage() {
                 onClick={saveCourseDraft}
                 className="flex-1 rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
               >
-                保存小课堂
+                {adminMode === "supabase" ? "保存到当前设备" : "保存小课堂"}
               </button>
               <button
                 type="button"
@@ -1042,7 +1120,11 @@ export default function AdminPage() {
       <div className="space-y-5">
         <SectionCard title="任务与积分管理" action={<ClipboardList className="h-4 w-4 text-sage" />}>
           <div className="space-y-3">
-            <SectionHint>/tasks 继续保留数据库优先 + 本地 fallback，管理员本地配置仍用于演示模式。</SectionHint>
+            <SectionHint>
+              {adminMode === "supabase"
+                ? "/tasks 仍以数据库任务为主；这里的编辑只会保存到当前设备，方便补充预览任务，不会直接改动其他真实账号看到的任务。"
+                : "/tasks 继续保留数据库优先 + 当前设备补充配置，方便补充或调整当前任务内容。"}
+            </SectionHint>
             {taskItems.map((item) => (
               <div key={item.id} className="rounded-[22px] bg-surface-card px-4 py-4">
                 <div className="flex items-start justify-between gap-3">
@@ -1053,7 +1135,11 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
-                    {customIds.has(item.id) ? "本地配置" : "默认"}
+                    {customIds.has(item.id)
+                      ? adminMode === "supabase"
+                        ? "当前设备预览"
+                        : "当前设备配置"
+                      : "默认"}
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-navy/72">{item.description}</p>
@@ -1067,12 +1153,18 @@ export default function AdminPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       upsertCustomTask({
                         ...item,
                         isActive: !item.isActive,
-                      })
-                    }
+                      });
+                      showToast(
+                        adminMode === "supabase"
+                          ? "当前设备上的任务预览状态已更新，不会影响其他真实账号。"
+                          : "当前设备上的任务状态已更新。",
+                        "success",
+                      );
+                    }}
                     className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
                   >
                     {item.isActive ? "停用" : "启用"}
@@ -1085,6 +1177,11 @@ export default function AdminPage() {
 
         <SectionCard title="新增 / 编辑任务">
           <div className="space-y-4">
+            {adminMode === "supabase" ? (
+              <SectionHint>
+                当前真实后台还没有直接管理线上任务内容的写入链路。这里保存的是这台设备上的预览任务，方便先验证文案、积分和展示顺序。
+              </SectionHint>
+            ) : null}
             <FormInput
               label="任务名称"
               value={taskDraft.title}
@@ -1120,7 +1217,7 @@ export default function AdminPage() {
                 onClick={saveTaskDraft}
                 className="flex-1 rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
               >
-                保存任务
+                {adminMode === "supabase" ? "保存到当前设备" : "保存任务"}
               </button>
               <button
                 type="button"
@@ -1171,7 +1268,7 @@ export default function AdminPage() {
                       </p>
                     </div>
                     <span className="rounded-full bg-surface-chip px-3 py-1 text-xs font-semibold text-navy">
-                      {adminMode === "supabase" ? "数据库" : "演示"}
+                      {adminMode === "supabase" ? "数据库" : "当前设备"}
                     </span>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-navy/68">{item.note || "未填写说明"}</p>
@@ -1334,20 +1431,24 @@ export default function AdminPage() {
         <SectionCard title="体验反馈" action={<MessageSquareText className="h-4 w-4 text-sage" />}>
           <div className="mb-4 flex items-center justify-between gap-3 rounded-[22px] bg-surface-card px-4 py-3">
             <p className="text-sm text-navy/72">当前共收到 {feedbacks.length} 条反馈。</p>
-            <button
-              type="button"
-              onClick={() => {
-                if (!window.confirm("确认清空全部体验反馈吗？此操作仅清除本地演示数据。")) {
-                  return;
-                }
+            {adminMode === "local" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("确认清空全部体验反馈吗？此操作只会清除这台设备上的反馈记录。")) {
+                    return;
+                  }
 
-                clearFeedbacks();
-                showToast("体验反馈已清空。", "success");
-              }}
-              className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
-            >
-              清空反馈
-            </button>
+                  clearFeedbacks();
+                  showToast("体验反馈已清空。", "success");
+                }}
+                className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy"
+              >
+                清空反馈
+              </button>
+            ) : (
+              <span className="text-xs text-navy/52">当前显示真实账号提交的反馈</span>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -1365,7 +1466,11 @@ export default function AdminPage() {
             ) : (
               <EmptyState
                 title="还没有体验反馈"
-                description="居民或家属在反馈页提交后，这里会自动显示本地演示数据。"
+                description={
+                  adminMode === "supabase"
+                    ? "真实账号提交反馈后，这里会自动显示管理员收到的反馈记录。"
+                    : "居民或家属在反馈页提交后，这里会显示这台设备上保存的反馈记录。"
+                }
               />
             )}
           </div>
@@ -1387,10 +1492,21 @@ export default function AdminPage() {
           title="家医 Claw 管理后台"
           subtitle={
             adminMode === "supabase"
-              ? "当前为 Supabase 管理模式：FAQ 和问答运行数据优先读取数据库。"
-              : "当前为本地演示模式：FAQ、反馈和看板统计继续使用 localStorage。"
+              ? remoteError
+                ? "当前真实账号已登录，但后台数据同步暂时失败，以下先展示这台设备上的记录。"
+                : "当前为 Supabase 管理模式：FAQ 和问答运行数据优先读取数据库。"
+              : "当前为当前设备管理模式：FAQ、反馈和看板统计会读取这台设备上的配置与记录。"
           }
         />
+
+        {adminMode === "supabase" && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">后台同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
 
         <div className="flex flex-wrap gap-2 rounded-[22px] border border-line/60 bg-cream p-3">
           {tabs.map((tab) => (

@@ -27,6 +27,7 @@ export type DemoUser = {
 
 export type AskSource =
   | "safety"
+  | "agent"
   | "faq"
   | "knowledge_kimi"
   | "kimi"
@@ -254,6 +255,129 @@ export type ChatMessage = {
   reason?: AskFallbackReason;
 };
 
+export type AgentIntent =
+  | "doctor_schedule_query"
+  | "clinic_registration"
+  | "family_doctor_booking"
+  | "refill_request"
+  | "dispense_status_query"
+  | "followup_reminder";
+
+export type AgentCardStatus = "ready" | "queued" | "in_progress";
+export type AgentUrgency = "routine" | "soon" | "priority";
+export type AgentActionKind = "primary" | "secondary";
+export type AgentStepStatus = "done" | "current" | "pending";
+
+export type AgentAction = {
+  label: string;
+  href: string;
+  kind: AgentActionKind;
+};
+
+export type AgentWorkflowStep = {
+  title: string;
+  owner: string;
+  ownerRole?: AppRole;
+  status: AgentStepStatus;
+};
+
+export type AgentServiceFactTone = "neutral" | "positive" | "warning";
+
+export type AgentServiceFact = {
+  label: string;
+  value: string;
+  tone?: AgentServiceFactTone;
+};
+
+export type AgentDoctorOption = {
+  id: string;
+  name: string;
+  department: string;
+  clinicType: string;
+  schedule: string;
+  remainingSlots: number;
+  specialty: string;
+};
+
+export type AgentTaskCard = {
+  id: string;
+  intent: AgentIntent;
+  title: string;
+  summary: string;
+  status: AgentCardStatus;
+  urgency: AgentUrgency;
+  eta: string;
+  serviceWindow?: string;
+  recommendedTeam: string;
+  preparedMaterials: string[];
+  actions: AgentAction[];
+  steps: AgentWorkflowStep[];
+  serviceFacts?: AgentServiceFact[];
+  doctorOptions?: AgentDoctorOption[];
+};
+
+export type AgentResult = {
+  matched: boolean;
+  intent: AgentIntent;
+  label: string;
+  summary: string;
+  needsHumanReview: boolean;
+  cards: AgentTaskCard[];
+};
+
+export type PersistedServiceTask = {
+  label: string;
+  needsHumanReview: boolean;
+  task: AgentTaskCard;
+  serviceRequest?: ServiceRequestPayload | null;
+};
+
+export type RegistrationServiceRequest = {
+  kind: "registration";
+  symptom?: string;
+  department?: string;
+  preferredDate?: string;
+  preferredTime?: string;
+  preferredDoctor?: string;
+};
+
+export type RefillServiceRequest = {
+  kind: "refill";
+  medicineName?: string;
+  disease?: string;
+  deliveryMethod?: "pickup" | "mail" | "either";
+  stockLeft?: string;
+};
+
+export type FamilyDoctorServiceRequest = {
+  kind: "family_doctor";
+  serviceMode?: "clinic" | "phone" | "home_visit" | "either";
+  preferredDate?: string;
+  preferredTime?: string;
+  note?: string;
+};
+
+export type DispenseStatusServiceRequest = {
+  kind: "dispense_status";
+  medicineName?: string;
+  deliveryMethod?: "pickup" | "mail" | "either";
+  progressFocus?: "review" | "dispense" | "delivery" | "any";
+};
+
+export type FollowupServiceRequest = {
+  kind: "followup";
+  followupType?: "clinic_review" | "phone_followup" | "checkup" | "medication_reminder";
+  preferredDate?: string;
+  note?: string;
+};
+
+export type ServiceRequestPayload =
+  | RegistrationServiceRequest
+  | RefillServiceRequest
+  | FamilyDoctorServiceRequest
+  | DispenseStatusServiceRequest
+  | FollowupServiceRequest;
+
 export type AskReply = {
   answer: string;
   nextStep: string;
@@ -263,6 +387,7 @@ export type AskReply = {
   source: AskSource;
   reason?: AskFallbackReason;
   knowledgeIds?: string[];
+  agentResult?: AgentResult | null;
 };
 
 export type KnowledgeItem = {
@@ -377,6 +502,7 @@ export type DemoDoctorTodo = {
   clawAnswer?: string;
   summary?: string;
   preparedMaterials?: string[];
+  serviceTask?: PersistedServiceTask | null;
 };
 
 export type ResidentTodoProgressItem = {
@@ -396,6 +522,7 @@ export type ResidentTodoProgressItem = {
   createdAt: string;
   updatedAt: string;
   statusEvents: TodoStatusEvent[];
+  serviceTask?: PersistedServiceTask | null;
 };
 
 export type AskLogItem = {

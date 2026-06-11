@@ -2,6 +2,13 @@ import { courses as defaultCourses } from "@/data/courses";
 import { demoUsers } from "@/data/demoUsers";
 import { faqs as defaultFaqs } from "@/data/faqs";
 import { tasks as defaultTasks } from "@/data/tasks";
+import { buildAgentReply } from "@/lib/agent";
+import {
+  advanceServiceTask,
+  buildPersistedServiceTask,
+  getCurrentServiceOwnerRole,
+  updateServiceTaskFacts,
+} from "@/lib/agentTaskPayload";
 import {
   AskFallbackReason,
   AskLogItem,
@@ -24,7 +31,9 @@ import {
   MatchedLeaderRecord,
   MatchLogItem,
   NotificationType,
+  PersistedServiceTask,
   RiskLevel,
+  ServiceRequestPayload,
   TaskItem,
   TodoStatusEvent,
 } from "@/lib/types";
@@ -590,6 +599,7 @@ export function updateLocalDoctorTodoStatus(params: {
   actorId?: string | null;
   actorName?: string;
   note?: string;
+  serviceFactUpdates?: Array<{ label: string; value: string; tone?: "neutral" | "positive" | "warning" }>;
 }) {
   const current = readDoctorTodos();
   const target = current.find((item) => item.id === params.todoId);
@@ -598,9 +608,35 @@ export function updateLocalDoctorTodoStatus(params: {
     return target ?? null;
   }
 
-  const updated = current.map((item) =>
-    item.id === params.todoId ? { ...item, status: params.status } : item,
-  );
+  const updated: DemoDoctorTodo[] = current.map((item) => {
+    if (item.id !== params.todoId) {
+      return item;
+    }
+
+    const updatedServiceTask = updateServiceTaskFacts(item.serviceTask, params.serviceFactUpdates);
+
+    if (params.status === "done" && updatedServiceTask) {
+      const advanced = advanceServiceTask(updatedServiceTask);
+
+      if (advanced) {
+        const nextServiceTask = advanced.serviceTask;
+        return {
+          ...item,
+          status: advanced.completed ? ("done" as const) : ("processing" as const),
+          serviceTask: nextServiceTask,
+          recommendedRole: getCurrentServiceOwnerRole(nextServiceTask) ?? item.recommendedRole,
+        };
+      }
+    }
+
+    return {
+      ...item,
+      status: params.status as DemoDoctorTodo["status"],
+      serviceTask: updatedServiceTask,
+    };
+  });
+
+  const nextTodo = updated.find((item) => item.id === params.todoId) ?? null;
 
   writeDoctorTodos(updated);
   appendTodoStatusEvent({
@@ -609,12 +645,12 @@ export function updateLocalDoctorTodoStatus(params: {
     actorId: params.actorId ?? null,
     actorName: params.actorName ?? "",
     oldStatus: target.status,
-    newStatus: params.status,
+    newStatus: nextTodo?.status ?? params.status,
     note: params.note ?? getStatusEventNote(params.status),
     createdAt: createNow(),
   });
 
-  return updated.find((item) => item.id === params.todoId) ?? null;
+  return nextTodo;
 }
 
 export function readAskLogs() {
@@ -1329,6 +1365,243 @@ export function seedShowcaseScenario() {
       metadata: {
         todoId: todo.id,
       },
+    });
+  }
+
+  return todo;
+}
+
+type ServiceShowcaseScenarioKind = "registration" | "refill" | "family_doctor";
+
+function getDemoUserByIdOrRole(id: string, role: DemoUser["role"]) {
+  return demoUsers.find((item) => item.id === id) ?? demoUsers.find((item) => item.role === role) ?? null;
+}
+
+function buildAdvancedServiceTask(params: {
+  question: string;
+  serviceRequest: ServiceRequestPayload;
+  advanceCount?: number;
+  factUpdates?: Array<{ label: string; value: string; tone?: "positive" | "warning" | "neutral" }>;
+}) {
+  const reply = buildAgentReply(params.question, params.serviceRequest);
+  let serviceTask = buildPersistedServiceTask(reply?.agentResult, params.serviceRequest);
+
+  if (!serviceTask) {
+    return null;
+  }
+
+  if (params.factUpdates?.length) {
+    serviceTask = updateServiceTaskFacts(serviceTask, params.factUpdates);
+  }
+
+  for (let index = 0; index < (params.advanceCount ?? 0); index += 1) {
+    const advanced = advanceServiceTask(serviceTask);
+    if (!advanced?.serviceTask) {
+      break;
+    }
+    serviceTask = advanced.serviceTask;
+  }
+
+  return {
+    reply,
+    serviceTask,
+  };
+}
+
+export function seedServiceShowcaseScenario(kind: ServiceShowcaseScenarioKind) {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const resident = getDemoUserByIdOrRole("demo-resident-zhang", "resident");
+  const doctor = getDemoUserByIdOrRole("demo-doctor-li", "doctor");
+  const nurse = getDemoUserByIdOrRole("demo-nurse-wang", "nurse");
+  const pharmacist = getDemoUserByIdOrRole("demo-pharmacist-chen", "pharmacist");
+  const createdAt = createNow();
+  const residentName = resident?.name ?? "当前居民";
+
+  const scenarioMap: Record<
+    ServiceShowcaseScenarioKind,
+    {
+      question: string;
+      serviceRequest: ServiceRequestPayload;
+      riskLevel: RiskLevel;
+      recommendedRole: string;
+      recommendedRoleLabel: string;
+      recommendedReason: string;
+      summary: string;
+      preparedMaterials: string[];
+      advanceCount?: number;
+      factUpdates?: Array<{ label: string; value: string; tone?: "positive" | "warning" | "neutral" }>;
+      residentNotification: { title: string; content: string; linkUrl: string };
+      teamNotification: { userId?: string; title: string; content: string; linkUrl: string };
+    }
+  > = {
+    registration: {
+      question: "帮我预约明天下午看心脏病，推荐合适医生",
+      serviceRequest: {
+        kind: "registration",
+        symptom: "心慌、胸闷，想看心脏方面问题",
+        department: "心血管门诊",
+        preferredDate: "明天",
+        preferredTime: "下午",
+      },
+      riskLevel: "medium",
+      recommendedRole: "community",
+      recommendedRoleLabel: "导诊/社区前台",
+      recommendedReason: "需要先锁定合适号源，再协调候选医生和到诊时间。",
+      summary: "居民已发起挂号协助，Agent 正在匹配合适门诊、候选医生和可约时段。",
+      preparedMaterials: ["身份证", "医保卡", "既往心血管检查结果"],
+      advanceCount: 1,
+      factUpdates: [
+        { label: "号源确认", value: "已进入导诊锁号阶段，正在确认明天下午可约时段", tone: "positive" },
+        { label: "下一动作", value: "请留意候选医生和最终预约结果通知", tone: "neutral" },
+      ],
+      residentNotification: {
+        title: "挂号协助已发起",
+        content: "已为您生成挂号协助任务，可去服务进度查看当前候选医生和锁号情况。",
+        linkUrl: "/service-progress",
+      },
+      teamNotification: {
+        userId: doctor?.id,
+        title: "新挂号协助任务",
+        content: `${residentName}想预约明天下午的心血管门诊，请协助确认候选医生和号源。`,
+        linkUrl: "/doctor",
+      },
+    },
+    refill: {
+      question: "我药快吃完了，帮我续上次那个降压药",
+      serviceRequest: {
+        kind: "refill",
+        medicineName: "苯磺酸氨氯地平片",
+        disease: "高血压",
+        deliveryMethod: "mail",
+        stockLeft: "还剩3天",
+      },
+      riskLevel: "medium",
+      recommendedRole: "pharmacist",
+      recommendedRoleLabel: pharmacist?.name ?? "药师",
+      recommendedReason: "需要按续方流程核对既往处方、药房库存和交付方式。",
+      summary: "居民已发起续方申请，任务已进入医生审核后的药师审方环节。",
+      preparedMaterials: ["上次处方单", "药盒照片", "最近一周血压记录"],
+      advanceCount: 2,
+      factUpdates: [
+        { label: "可续方目录", value: "已初步判断属于常见可续方目录，待药师完成最终审方", tone: "positive" },
+        { label: "药房库存", value: "社区药房有常备库存，适合继续推进配药", tone: "positive" },
+        { label: "交付方式", value: "拟安排邮寄到家，待居民确认地址", tone: "neutral" },
+      ],
+      residentNotification: {
+        title: "续方配药申请已创建",
+        content: "您的续方申请已进入流转，当前正由药师继续审方，可去服务进度查看。",
+        linkUrl: "/service-progress",
+      },
+      teamNotification: {
+        userId: pharmacist?.id,
+        title: "新续方待审方",
+        content: `${residentName}的降压药续方已通过医生初审，请继续审方并确认库存。`,
+        linkUrl: "/doctor",
+      },
+    },
+    family_doctor: {
+      question: "帮我约一下家庭医生，明天下午电话回访也可以",
+      serviceRequest: {
+        kind: "family_doctor",
+        serviceMode: "phone",
+        preferredDate: "明天",
+        preferredTime: "下午",
+        note: "想先电话回访，必要时再安排面诊",
+      },
+      riskLevel: "low",
+      recommendedRole: "nurse",
+      recommendedRoleLabel: nurse?.name ?? "王护士",
+      recommendedReason: "需要家医团队先确认回访时段，再同步给居民。",
+      summary: "居民已发起家庭医生回访需求，任务正在等待家医团队确认明天下午时段。",
+      preparedMaterials: ["近期不适记录", "想咨询的问题清单", "最近一次用药情况"],
+      advanceCount: 1,
+      factUpdates: [
+        { label: "联系窗口", value: "家医团队将在明天下午前确认电话回访时段", tone: "positive" },
+        { label: "下一动作", value: "请保持电话畅通，必要时可改约面诊", tone: "neutral" },
+      ],
+      residentNotification: {
+        title: "家医回访需求已提交",
+        content: "家庭医生服务任务已建立，可在服务进度中查看回访时段确认情况。",
+        linkUrl: "/service-progress",
+      },
+      teamNotification: {
+        userId: nurse?.id,
+        title: "新家医回访安排",
+        content: `${residentName}希望明天下午电话回访，请协助确认最终时段。`,
+        linkUrl: "/doctor",
+      },
+    },
+  };
+
+  const scenario = scenarioMap[kind];
+  const built = buildAdvancedServiceTask({
+    question: scenario.question,
+    serviceRequest: scenario.serviceRequest,
+    advanceCount: scenario.advanceCount,
+    factUpdates: scenario.factUpdates,
+  });
+
+  if (!built?.reply || !built.serviceTask) {
+    return null;
+  }
+
+  const todoId = `demo-service-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const todo: DemoDoctorTodo = {
+    id: todoId,
+    residentId: resident?.id,
+    residentName,
+    question: scenario.question,
+    riskLevel: scenario.riskLevel,
+    status: "processing",
+    createdAt,
+    source: "demo_service_showcase",
+    recommendedRole: scenario.recommendedRole,
+    recommendedRoleLabel: scenario.recommendedRoleLabel,
+    recommendedReason: scenario.recommendedReason,
+    originalQuestion: scenario.question,
+    clawAnswer: built.reply.answer,
+    summary: scenario.summary,
+    preparedMaterials: scenario.preparedMaterials,
+    serviceTask: built.serviceTask as PersistedServiceTask,
+  };
+
+  appendAskLog({
+    id: `ask-service-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    question: scenario.question,
+    answer: built.reply.answer,
+    source: built.reply.source,
+    category: built.reply.category,
+    riskLevel: built.reply.riskLevel,
+    suggestDoctor: built.reply.suggestDoctor,
+    createdAt,
+  });
+
+  appendDoctorTodo(todo);
+
+  if (resident?.id) {
+    appendLocalNotification({
+      userId: resident.id,
+      actorId: scenario.teamNotification.userId ?? null,
+      type: "ask_todo_created",
+      title: scenario.residentNotification.title,
+      content: scenario.residentNotification.content,
+      linkUrl: scenario.residentNotification.linkUrl,
+      metadata: { todoId: todo.id, scenario: kind },
+    });
+  }
+
+  if (scenario.teamNotification.userId) {
+    appendLocalNotification({
+      userId: scenario.teamNotification.userId,
+      actorId: resident?.id ?? null,
+      type: "ask_todo_created",
+      title: scenario.teamNotification.title,
+      content: scenario.teamNotification.content,
+      linkUrl: scenario.teamNotification.linkUrl,
+      metadata: { todoId: todo.id, scenario: kind },
     });
   }
 

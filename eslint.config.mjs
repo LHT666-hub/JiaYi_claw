@@ -14,6 +14,7 @@ const eslintConfig = [
     ignores: [
       ".next/**",
       ".deploy-target/**",
+      ".venv-whisper-wu/**",
       "node_modules/**",
       "next-env.d.ts",
       "tsconfig.tsbuildinfo",

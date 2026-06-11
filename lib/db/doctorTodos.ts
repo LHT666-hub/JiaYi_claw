@@ -128,14 +128,23 @@ export async function updateDoctorTodoStatus(
   status: DoctorTodoRow["status"],
   supabase: TypedSupabaseClient,
   assignedTo?: string | null,
+  description?: string | null,
 ) {
   try {
-    const updatePayload: { status: DoctorTodoRow["status"]; assigned_to?: string | null } = {
+    const updatePayload: {
+      status: DoctorTodoRow["status"];
+      assigned_to?: string | null;
+      description?: string | null;
+    } = {
       status,
     };
 
     if (assignedTo !== undefined) {
       updatePayload.assigned_to = assignedTo;
+    }
+
+    if (description !== undefined) {
+      updatePayload.description = description;
     }
 
     const { data, error } = await supabase

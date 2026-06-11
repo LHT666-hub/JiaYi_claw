@@ -163,34 +163,40 @@ export default function MatchLeaderPage() {
   }
 
   async function handleSelectLeader(result: UnifiedResult) {
-    writeMatchedLeader({
-      leaderId: result.leaderId,
-      leaderName: result.leaderName,
-      matchPercent: result.matchPercent,
-      matchReasons: result.matchReasons,
-      matchedAt: new Date().toISOString(),
-    });
-
-    appendMatchLog({
-      id: `match-${Date.now()}`,
-      residentName: currentUser?.name ?? "当前居民",
-      leaderId: result.leaderId,
-      leaderName: result.leaderName,
-      matchPercent: result.matchPercent,
-      createdAt: new Date().toISOString(),
-    });
-
     if (result.matchId) {
       try {
-        await fetch("/api/leaders/select", {
+        const response = await fetch("/api/leaders/select", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ matchId: result.matchId }),
         });
+
+        if (!response.ok) {
+          showToast("小组长选择暂时保存失败，请稍后再试。", "warning");
+          return;
+        }
       } catch {
-        // Best effort; local fallback has already been written.
+        showToast("小组长选择暂时保存失败，请稍后再试。", "warning");
+        return;
       }
     } else {
+      writeMatchedLeader({
+        leaderId: result.leaderId,
+        leaderName: result.leaderName,
+        matchPercent: result.matchPercent,
+        matchReasons: result.matchReasons,
+        matchedAt: new Date().toISOString(),
+      });
+
+      appendMatchLog({
+        id: `match-${Date.now()}`,
+        residentName: currentUser?.name ?? "当前居民",
+        leaderId: result.leaderId,
+        leaderName: result.leaderName,
+        matchPercent: result.matchPercent,
+        createdAt: new Date().toISOString(),
+      });
+
       appendLocalNotification({
         type: "leader_matched",
         title: `已匹配小组长：${result.leaderName}`,

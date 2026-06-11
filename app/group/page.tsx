@@ -24,6 +24,10 @@ type PendingImage = {
   previewUrl: string;
 };
 
+type GroupSummary = {
+  groupCheckInCountToday: number;
+};
+
 const GROUP_ID = "hypertension-haiwan";
 const commonQuestions = [
   "血压高了怎么办",
@@ -125,11 +129,19 @@ export default function GroupPage() {
   const { state, completeGroupCheckIn, pushGroupMessage } = useClawState();
   const { showToast } = useToast();
   const [matchedLeaderName, setMatchedLeaderName] = useState<string | null>(null);
+  const [remoteSummary, setRemoteSummary] = useState<GroupSummary | null>(null);
+  const [hasRemoteMessages, setHasRemoteMessages] = useState(false);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [composerHeight, setComposerHeight] = useState(0);
+  const usingAccount = Boolean(profile);
 
   useEffect(() => {
+    if (usingAccount) {
+      setMatchedLeaderName(null);
+      return;
+    }
+
     function refresh() {
       setMatchedLeaderName(readMatchedLeader()?.leaderName ?? null);
     }
@@ -140,7 +152,7 @@ export default function GroupPage() {
       window.removeEventListener(STORAGE_CHANGE_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, []);
+  }, [usingAccount]);
 
   useEffect(() => {
     if (!isRemoteMode) {
@@ -163,14 +175,32 @@ export default function GroupPage() {
       }
 
       setProfile(currentProfile);
-      const remoteMessages = await getGroupMessages(GROUP_ID, supabase);
+      setIsRemoteMode(true);
+      const [remoteMessages, leaderResponse, summaryResponse] = await Promise.all([
+        getGroupMessages(GROUP_ID, supabase),
+        fetch("/api/leaders/selected", { method: "GET", cache: "no-store" }),
+        fetch("/api/home/summary", { method: "GET", cache: "no-store" }),
+      ]);
+      const leaderPayload = (await leaderResponse.json().catch(() => ({}))) as {
+        leader?: { name?: string | null } | null;
+      };
+      const summaryPayload = (await summaryResponse.json().catch(() => ({}))) as {
+        summary?: GroupSummary | null;
+      };
 
-      if (!active || !remoteMessages.length) {
+      if (!active) {
         return;
       }
 
-      setMessages(remoteMessages);
-      setIsRemoteMode(true);
+      setMatchedLeaderName(leaderPayload.leader?.name ?? null);
+      setRemoteSummary(summaryResponse.ok ? summaryPayload.summary ?? null : null);
+      setHasRemoteMessages(remoteMessages.length > 0);
+
+      if (remoteMessages.length) {
+        setMessages(remoteMessages);
+      } else {
+        setMessages([]);
+      }
     }
 
     void loadRemoteMessages();
@@ -221,7 +251,7 @@ export default function GroupPage() {
     [pendingImage],
   );
 
-  async function persistUserMessage(content: string) {
+  async function persistUserMessage(content: string, messageType = "text") {
     const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
 
     if (!isRemoteMode || !profile) {
@@ -241,6 +271,7 @@ export default function GroupPage() {
         content,
         senderName: authorName,
         senderRole: profile.role,
+        messageType,
       }),
     });
 
@@ -301,6 +332,41 @@ export default function GroupPage() {
   }
 
   async function handleCheckIn() {
+    if (isRemoteMode && profile?.role === "resident") {
+      await persistUserMessage("我来打卡了，今天量了血压。");
+      appendAssistantReply("已完成今日小组打卡。记录只用于日常健康管理参考，不能替代医生判断。", "low");
+
+      try {
+        const response = await fetch("/api/tasks/complete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            taskId: "task-group-reply",
+            note: "群内打卡",
+          }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as {
+          ok?: boolean;
+          alreadyCompleted?: boolean;
+        };
+
+        if (response.ok && payload.ok) {
+          showToast(
+            payload.alreadyCompleted ? "今天已经打过卡了" : "已完成今日小组打卡，积分已同步到当前账号",
+            payload.alreadyCompleted ? "warning" : "success",
+          );
+          return;
+        }
+      } catch {
+        // Fall through to a softer success notice for the message itself.
+      }
+
+      showToast("打卡消息已发出，积分同步稍后可在任务页确认。", "info");
+      return;
+    }
+
     const changed = completeGroupCheckIn();
 
     if (!changed) {
@@ -313,14 +379,16 @@ export default function GroupPage() {
     showToast("已完成今日小组打卡，+5 分", "success");
   }
 
-  function handleVoiceSend(durationSeconds: number) {
+  async function handleVoiceSend(durationSeconds: number) {
     const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
-    const voiceMessage = buildLocalMessage(authorName, "user", `[[voice:${durationSeconds}]]`);
+    const voiceContent = `[[voice:${durationSeconds}]]`;
 
-    setMessages((current) => [...current, voiceMessage]);
-
-    if (!isRemoteMode) {
-      pushGroupMessage(authorName, "user", `[[voice:${durationSeconds}]]`);
+    if (isRemoteMode) {
+      await persistUserMessage(voiceContent, "voice");
+    } else {
+      const voiceMessage = buildLocalMessage(authorName, "user", voiceContent);
+      setMessages((current) => [...current, voiceMessage]);
+      pushGroupMessage(authorName, "user", voiceContent);
     }
 
     setVoicePanelOpen(false);
@@ -374,18 +442,19 @@ export default function GroupPage() {
     });
   }
 
-  function handleImageSend() {
+  async function handleImageSend() {
     if (!pendingImage) {
       return;
     }
 
     const authorName = profile?.display_name ?? currentUser?.name ?? "当前用户";
     const imageContent = `[[image:${pendingImage.previewUrl}:${pendingImage.file.name}]]`;
-    const imageMessage = buildLocalMessage(authorName, "user", imageContent);
 
-    setMessages((current) => [...current, imageMessage]);
-
-    if (!isRemoteMode) {
+    if (isRemoteMode) {
+      await persistUserMessage(imageContent, "image");
+    } else {
+      const imageMessage = buildLocalMessage(authorName, "user", imageContent);
+      setMessages((current) => [...current, imageMessage]);
       pushGroupMessage(authorName, "user", imageContent);
     }
 
@@ -397,6 +466,10 @@ export default function GroupPage() {
 
     showToast("图片已发送", "success");
   }
+
+  const groupCheckInCount = isRemoteMode
+    ? remoteSummary?.groupCheckInCountToday ?? 0
+    : 8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0);
 
   return (
     <PhoneShell showBottomNav>
@@ -415,7 +488,7 @@ export default function GroupPage() {
               家医团队在群
             </span>
             <span>组长：{matchedLeaderName ?? "王阿姨"}</span>
-            <span className="font-semibold text-navy/75">今日 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人已打卡</span>
+            <span className="font-semibold text-navy/75">今日 {groupCheckInCount} 人已打卡</span>
           </div>
         </header>
 
@@ -440,7 +513,7 @@ export default function GroupPage() {
             </div>
             <div className="rounded-[22px] bg-surface-card px-3 py-4">
               <p className="text-xs tracking-[0.14em] text-navy/55">今日打卡</p>
-              <p className="mt-2 text-sm font-semibold text-navy">{8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人</p>
+              <p className="mt-2 text-sm font-semibold text-navy">{groupCheckInCount} 人</p>
             </div>
           </div>
         </SectionCard>
@@ -450,18 +523,31 @@ export default function GroupPage() {
         </SafetyNotice>
 
         <SectionCard title="群消息">
-          <div className="space-y-3">
-            {messages.map((message) => (
-              <ChatBubble key={message.id} message={message} />
-            ))}
-            {isThinking ? <TypingBubble author="Claw 群助手" /> : null}
-            <div ref={messagesEndRef} />
-          </div>
+          {isRemoteMode && !hasRemoteMessages ? (
+            <div className="rounded-[22px] border border-line/60 bg-surface-card px-4 py-4 text-sm leading-6 text-navy/66">
+              <p className="font-semibold text-navy">当前群里还没有新的消息</p>
+              <p className="mt-2">
+                您可以先发一句问候、问问题，或者直接在这里打卡。后续家医团队和组长的真实消息都会显示在这个群里。
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((message) => (
+                <ChatBubble key={message.id} message={message} />
+              ))}
+              {isThinking ? <TypingBubble author="Claw 群助手" /> : null}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
         </SectionCard>
 
         {!isRemoteMode ? (
           <p className="px-1 text-xs leading-5 text-navy/52">
-            当前为演示消息，正式试用时会显示真实小组内容。
+            当前显示本机消息记录，便于先体验群内互助流程。
+          </p>
+        ) : usingAccount && !hasRemoteMessages ? (
+          <p className="px-1 text-xs leading-5 text-navy/52">
+            群消息会在有新动态时直接显示，您也可以先主动发消息或完成打卡。
           </p>
         ) : null}
       </div>

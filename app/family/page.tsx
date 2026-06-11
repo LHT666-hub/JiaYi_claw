@@ -20,7 +20,7 @@ import { contacts } from "@/data/contacts";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { mapLocalTodoToProgress } from "@/lib/serviceProgress";
 import { DemoUser, FamilyBindingView, ResidentTodoProgressItem } from "@/lib/types";
-import { resolveInitialUser } from "@/lib/onboarding";
+import { isAccountUser, resolveInitialUser } from "@/lib/onboarding";
 import {
   STORAGE_CHANGE_EVENT,
   getFamilyBindingsForFamily,
@@ -33,6 +33,16 @@ import {
 } from "@/lib/storage";
 
 const quickContactIds = ["li-doctor", "wang-nurse", "chen-pharmacist", "lou-leader"];
+type FamilyResidentSummary = {
+  residentId: string;
+  residentName: string;
+  totalPoints: number;
+  completedTaskCountToday: number;
+  pendingTodoCount: number;
+  groupCheckInCountToday: number;
+  followupConfirmed: boolean;
+  followupResponse: string | null;
+};
 
 export default function FamilyPage() {
   const router = useRouter();
@@ -41,6 +51,10 @@ export default function FamilyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [bindings, setBindings] = useState<FamilyBindingView[]>([]);
   const [progressItems, setProgressItems] = useState<ResidentTodoProgressItem[]>([]);
+  const [remoteLeaderName, setRemoteLeaderName] = useState<string | null>(null);
+  const [residentSummaries, setResidentSummaries] = useState<Record<string, FamilyResidentSummary>>({});
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const usingAccount = isAccountUser(currentUser);
 
   useEffect(() => {
     let active = true;
@@ -75,25 +89,54 @@ export default function FamilyPage() {
     let active = true;
 
     async function loadBindings() {
-      const fallback = getFamilyBindingsForFamily(familyUser.id);
-      setBindings(fallback);
-      const todos = readDoctorTodos();
-      setProgressItems(
-        todos.map((todo) =>
-          mapLocalTodoToProgress({
-            todo,
-            statusEvents: getTodoStatusEvents(todo.id),
-          }),
-        ),
-      );
+      if (!usingAccount) {
+        const fallback = getFamilyBindingsForFamily(familyUser.id);
+        setBindings(fallback);
+        setResidentSummaries({});
+        const todos = readDoctorTodos();
+        setProgressItems(
+          todos.map((todo) =>
+            mapLocalTodoToProgress({
+              todo,
+              statusEvents: getTodoStatusEvents(todo.id),
+            }),
+          ),
+        );
+      } else {
+        setBindings([]);
+        setProgressItems([]);
+        setResidentSummaries({});
+        setRemoteError(null);
+      }
 
       try {
+        const leaderResponse = await fetch("/api/leaders/selected", { method: "GET", cache: "no-store" });
+        const leaderPayload = (await leaderResponse.json().catch(() => ({}))) as {
+          leader?: { name?: string | null } | null;
+        };
+        if (active && leaderResponse.ok) {
+          setRemoteLeaderName(leaderPayload.leader?.name ?? null);
+        }
+
         const response = await fetch("/api/family/bindings", { method: "GET", cache: "no-store" });
         const payload = (await response.json().catch(() => ({}))) as {
           bindings?: FamilyBindingView[];
         };
         if (active && response.ok && payload.bindings?.length) {
           setBindings(payload.bindings);
+        }
+
+        const summaryResponse = await fetch("/api/home/summary", { method: "GET", cache: "no-store" });
+        const summaryPayload = (await summaryResponse.json().catch(() => ({}))) as {
+          summaries?: FamilyResidentSummary[];
+        };
+        if (active && summaryResponse.ok) {
+          setResidentSummaries(
+            Object.fromEntries(
+              (summaryPayload.summaries ?? []).map((item) => [item.residentId, item]),
+            ) as Record<string, FamilyResidentSummary>,
+          );
+          setRemoteError(null);
         }
 
         const todoResponse = await fetch("/api/resident/todos", { method: "GET", cache: "no-store" });
@@ -104,11 +147,19 @@ export default function FamilyPage() {
           setProgressItems(todoPayload.todos ?? []);
         }
       } catch {
-        // 本地绑定关系会继续显示。
+        if (active && usingAccount) {
+          setRemoteError("当前账号的家属绑定和老人健康汇总暂时还没同步成功，请稍后刷新再试。");
+        }
       }
     }
 
     void loadBindings();
+
+    if (usingAccount) {
+      return () => {
+        active = false;
+      };
+    }
 
     function handleStorageChange() {
       setBindings(getFamilyBindingsForFamily(familyUser.id));
@@ -131,12 +182,16 @@ export default function FamilyPage() {
       window.removeEventListener(STORAGE_CHANGE_EVENT, handleStorageChange);
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, [currentUser]);
+  }, [currentUser, usingAccount]);
 
-  const state = readState();
+  const state = usingAccount ? null : readState();
   const taskTotal = readMergedTasks().length;
-  const pointSummary = readPointsSummary();
-  const matchedLeader = readMatchedLeader();
+  const pointSummary = usingAccount ? null : readPointsSummary();
+  const matchedLeader = usingAccount
+    ? remoteLeaderName
+      ? { leaderName: remoteLeaderName }
+      : null
+    : readMatchedLeader();
   const quickContacts = contacts.filter((contact) => quickContactIds.includes(contact.id));
 
   function getResidentStats(binding: FamilyBindingView) {
@@ -149,10 +204,28 @@ export default function FamilyPage() {
     const latestTodo = todos[0];
 
     return {
-      completedText: `${state.completedTaskIds.length}/${taskTotal}`,
-      points: pointSummary.current,
-      pendingCount: pendingTodos.length,
-      latestStatus: latestTodo
+      completedText: usingAccount
+        ? `${residentSummaries[binding.residentId]?.completedTaskCountToday ?? 0}/${taskTotal}`
+        : `${state?.completedTaskIds.length ?? 0}/${taskTotal}`,
+      pointsText: usingAccount
+        ? `${residentSummaries[binding.residentId]?.totalPoints ?? 0} 分`
+        : `${pointSummary?.current ?? 0} 分`,
+      pendingCount: usingAccount
+        ? residentSummaries[binding.residentId]?.pendingTodoCount ?? pendingTodos.length
+        : pendingTodos.length,
+      latestStatus: usingAccount
+        ? residentSummaries[binding.residentId]?.followupConfirmed
+          ? `已回复随访：${residentSummaries[binding.residentId]?.followupResponse ?? "可以按时参加"}`
+          : latestTodo
+            ? latestTodo.status === "done"
+              ? "家医团队已更新处理状态"
+              : latestTodo.status === "processing"
+                ? "家医团队正在处理"
+                : latestTodo.status === "ignored"
+                  ? "最近一条服务已关闭"
+                  : "已提交给家医团队"
+            : "目前没有需要家医团队处理的问题。"
+        : latestTodo
         ? latestTodo.status === "done"
           ? "家医团队已更新处理状态"
           : latestTodo.status === "processing"
@@ -217,6 +290,15 @@ export default function FamilyPage() {
       <div className="space-y-5 px-4 pb-8">
         <BackHeader title="家属协助" subtitle={`${currentUser.name} / ${currentUser.roleLabel}`} />
 
+        {usingAccount && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
+
         <SectionCard>
           <div className="rounded-[24px] bg-surface-card p-5">
             <div className="flex items-start gap-4">
@@ -259,7 +341,7 @@ export default function FamilyPage() {
                       <div className="rounded-[18px] bg-cream px-3 py-3">
                         <Award className="mb-2 h-4 w-4 text-amber" />
                         <p className="text-xs text-navy/54">当前积分</p>
-                        <p className="mt-1 text-sm font-semibold text-navy">{stats.points} 分</p>
+                        <p className="mt-1 text-sm font-semibold text-navy">{stats.pointsText}</p>
                       </div>
                       <div className="rounded-[18px] bg-cream px-3 py-3">
                         <AlertTriangle className="mb-2 h-4 w-4 text-amber" />

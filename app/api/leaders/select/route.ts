@@ -8,23 +8,26 @@ export async function POST(request: NextRequest) {
 
   if (!supabase || !user || !profile) {
     return NextResponse.json(
-      { message: "当前未登录或 Supabase 未配置" },
+      { message: "当前未登录，或账号服务暂时不可用。" },
       { status: 401 },
     );
   }
 
-  const body = (await request.json()) as {
+  const body = (await request.json().catch(() => ({}))) as {
     matchId?: string;
   };
 
   if (!body.matchId) {
-    return NextResponse.json({ message: "缺少匹配记录 ID" }, { status: 400 });
+    return NextResponse.json({ message: "缺少匹配记录 ID。" }, { status: 400 });
   }
 
   const result = await selectLeader(profile.id, body.matchId, supabase);
 
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: 500 });
+    return NextResponse.json(
+      { message: result.message ?? "选择小组长失败，请稍后再试。" },
+      { status: 500 },
+    );
   }
 
   try {
@@ -87,7 +90,7 @@ export async function POST(request: NextRequest) {
         userId: profile.id,
         type: "leader_matched",
         title: `已匹配小组长：${leaderName}`,
-        content: "您可以在群聊中和小组长互动了。",
+        content: "您可以前往群聊，与小组长和邻里成员继续互动。",
         linkUrl: "/group",
       },
       supabase,

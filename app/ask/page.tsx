@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Camera, ClipboardList, Mic, Send, Sparkles } from "lucide-react";
+import {
+  Camera,
+  ClipboardList,
+  Mic,
+  Pill,
+  Send,
+  Sparkles,
+  Stethoscope,
+  UserRoundPlus,
+} from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { ChatBubble } from "@/components/ChatBubble";
 import { PhoneShell } from "@/components/PhoneShell";
@@ -11,6 +20,12 @@ import { SafetyNotice } from "@/components/SafetyNotice";
 import { useToast } from "@/components/ToastProvider";
 import { VoiceInputPanel } from "@/components/VoiceInputPanel";
 import { PhotoQuestionPanel } from "@/components/PhotoQuestionPanel";
+import {
+  buildPersistedServiceTask,
+  buildServiceTaskTitle,
+  encodeDescriptionWithServiceTask,
+} from "@/lib/agentTaskPayload";
+import { inferServiceRequestFromQuestion } from "@/lib/agent";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile } from "@/lib/supabase/mvp";
 import { getLocalAskReply } from "@/lib/faq";
@@ -22,7 +37,15 @@ import {
   readDoctorTodos,
   readMergedFaqs,
 } from "@/lib/storage";
-import { AskReply, DemoDoctorTodo, ManagedFaqItem, ProfileRow } from "@/lib/types";
+import {
+  AgentResult,
+  AgentTaskCard,
+  AskReply,
+  DemoDoctorTodo,
+  ManagedFaqItem,
+  ProfileRow,
+  ServiceRequestPayload,
+} from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 import { useDemoUser } from "@/lib/useDemoUser";
 
@@ -43,9 +66,94 @@ type AskApiResponse = AskReply & {
     residentName?: string;
   };
   serviceTodo?: DemoDoctorTodo | null;
+  agentResult?: AgentResult | null;
 };
 
 type AskMode = "local" | "supabase";
+
+function buildServiceRequestFromSearchParams(searchParams: URLSearchParams): ServiceRequestPayload | null {
+  const serviceType = searchParams.get("serviceType");
+
+  if (serviceType === "registration") {
+    return {
+      kind: "registration",
+      symptom: searchParams.get("symptom") ?? "",
+      department: searchParams.get("department") ?? "",
+      preferredDate: searchParams.get("preferredDate") ?? "",
+      preferredTime: searchParams.get("preferredTime") ?? "",
+      preferredDoctor: searchParams.get("preferredDoctor") ?? "",
+    };
+  }
+
+  if (serviceType === "refill") {
+    const deliveryMethod = searchParams.get("deliveryMethod");
+    return {
+      kind: "refill",
+      medicineName: searchParams.get("medicineName") ?? "",
+      disease: searchParams.get("disease") ?? "",
+      stockLeft: searchParams.get("stockLeft") ?? "",
+      deliveryMethod:
+        deliveryMethod === "pickup" || deliveryMethod === "mail" || deliveryMethod === "either"
+          ? deliveryMethod
+          : "either",
+    };
+  }
+
+  if (serviceType === "familyDoctor") {
+    const serviceMode = searchParams.get("serviceMode");
+    return {
+      kind: "family_doctor",
+      serviceMode:
+        serviceMode === "clinic" ||
+        serviceMode === "phone" ||
+        serviceMode === "home_visit" ||
+        serviceMode === "either"
+          ? serviceMode
+          : "either",
+      preferredDate: searchParams.get("preferredDate") ?? "",
+      preferredTime: searchParams.get("preferredTime") ?? "",
+      note: searchParams.get("note") ?? "",
+    };
+  }
+
+  if (serviceType === "dispenseStatus") {
+    const deliveryMethod = searchParams.get("deliveryMethod");
+    const progressFocus = searchParams.get("progressFocus");
+    return {
+      kind: "dispense_status",
+      medicineName: searchParams.get("medicineName") ?? "",
+      deliveryMethod:
+        deliveryMethod === "pickup" || deliveryMethod === "mail" || deliveryMethod === "either"
+          ? deliveryMethod
+          : "either",
+      progressFocus:
+        progressFocus === "review" ||
+        progressFocus === "dispense" ||
+        progressFocus === "delivery" ||
+        progressFocus === "any"
+          ? progressFocus
+          : "any",
+    };
+  }
+
+  if (serviceType === "followup") {
+    const followupType = searchParams.get("followupType");
+    return {
+      kind: "followup",
+      followupType:
+        followupType === "clinic_review" ||
+        followupType === "phone_followup" ||
+        followupType === "checkup" ||
+        followupType === "medication_reminder"
+          ? followupType
+          : "clinic_review",
+      preferredDate: searchParams.get("preferredDate") ?? "",
+      note: searchParams.get("note") ?? "",
+    };
+  }
+
+  return null;
+}
 
 function getAskTimeoutMs() {
   const rawValue = process.env.NEXT_PUBLIC_ASK_TIMEOUT_MS;
@@ -74,6 +182,7 @@ function AskPageContent() {
   const [summary, setSummary] = useState<ClawSummary | null>(null);
   const [voicePanelOpen, setVoicePanelOpen] = useState(false);
   const [photoPanelOpen, setPhotoPanelOpen] = useState(false);
+  const [agentResults, setAgentResults] = useState<AgentResult[]>([]);
   const lastExchangeRef = useRef<{ question: string; reply: AskReply } | null>(null);
   const sessionTodoIdsRef = useRef<Set<string>>(new Set());
   const [todoNotices, setTodoNotices] = useState<DemoDoctorTodo[]>([]);
@@ -82,6 +191,10 @@ function AskPageContent() {
   const { currentUser } = useDemoUser();
   const mode = searchParams.get("mode");
   const quickQuestion = searchParams.get("q") ?? searchParams.get("question");
+  const initialServiceRequest = useMemo(
+    () => buildServiceRequestFromSearchParams(searchParams),
+    [searchParams],
+  );
 
   useEffect(() => {
     setFaqItems(readMergedFaqs());
@@ -165,7 +278,7 @@ function AskPageContent() {
     mountedRef.current = true;
   }, []);
 
-  async function fetchAskReply(question: string) {
+  const fetchAskReply = useCallback(async (question: string, serviceRequest?: ServiceRequestPayload | null) => {
     const controller = new AbortController();
     const askTimeoutMs = getAskTimeoutMs();
     const abortTimer = window.setTimeout(() => {
@@ -180,7 +293,7 @@ function AskPageContent() {
           "Content-Type": "application/json",
         },
         signal: controller.signal,
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, serviceRequest: serviceRequest ?? null }),
       });
 
       if (!response.ok) {
@@ -192,9 +305,14 @@ function AskPageContent() {
       window.clearTimeout(abortTimer);
       timeoutRef.current = timeoutRef.current.filter((timer) => timer !== abortTimer);
     }
-  }
+  }, []);
 
-  function appendLocalDoctorTodo(question: string, reply: AskReply, residentName?: string) {
+  const appendLocalDoctorTodo = useCallback((
+    question: string,
+    reply: AskReply,
+    residentName?: string,
+    serviceRequest?: ServiceRequestPayload | null,
+  ) => {
     if (!reply.suggestDoctor && reply.riskLevel !== "high" && reply.riskLevel !== "emergency") {
       return;
     }
@@ -205,6 +323,7 @@ function AskPageContent() {
         : currentUser?.name ?? profile?.display_name ?? residentName ?? "当前居民";
 
     const summaryData = generateClawSummary(question, reply);
+    const serviceTask = buildPersistedServiceTask(reply.agentResult, serviceRequest);
 
     const todo: DemoDoctorTodo = {
       id: `todo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -225,14 +344,78 @@ function AskPageContent() {
       recommendedReason: summaryData.recommendedRole.reason,
       originalQuestion: question,
       clawAnswer: summaryData.clawResponse,
+      summary: summaryData.doctorSummary,
+      preparedMaterials: summaryData.prepareItems,
+      serviceTask,
     };
 
     appendDoctorTodo(todo);
     sessionTodoIdsRef.current.add(todo.id);
     setTodoNotices((prev) => [...prev, todo]);
-  }
+  }, [currentUser?.id, currentUser?.name, currentUser?.profile?.residentId, currentUser?.residentName, currentUser?.role, profile?.display_name]);
 
-  function appendLocalAskHistory(question: string, reply: AskReply) {
+  const createRemoteDoctorTodo = useCallback(async (question: string, reply: AskReply, generatedSummary: ClawSummary) => {
+    const serviceTask = buildPersistedServiceTask(reply.agentResult);
+    const response = await fetch("/api/doctor/todos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        residentId: profile?.role === "resident" ? profile.id : null,
+        type: serviceTask ? `service_${serviceTask.task.intent}` : "claw_summary",
+        title: serviceTask
+          ? buildServiceTaskTitle(serviceTask.task)
+          : `[Claw 整理] ${generatedSummary.residentQuestion}`.slice(0, 36),
+        description: encodeDescriptionWithServiceTask(generatedSummary.doctorSummary, serviceTask),
+        originalQuestion: generatedSummary.residentQuestion,
+        clawAnswer: generatedSummary.clawResponse,
+        riskLevel: reply.riskLevel,
+        source: serviceTask ? "agent" : "claw_summary",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("remote_todo_create_failed");
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as {
+      todo?: {
+        id: string;
+        resident_id?: string | null;
+        status: DemoDoctorTodo["status"];
+        created_at: string;
+      };
+    };
+
+    if (!payload.todo) {
+      throw new Error("remote_todo_missing");
+    }
+
+    const remoteTodo: DemoDoctorTodo = {
+      id: payload.todo.id,
+      residentId: payload.todo.resident_id ?? (profile?.role === "resident" ? profile.id : undefined),
+      residentName: profile?.display_name ?? currentUser?.name ?? "当前居民",
+      question: `[Claw 整理] ${generatedSummary.residentQuestion}`,
+      riskLevel: reply.riskLevel,
+      status: payload.todo.status,
+      createdAt: payload.todo.created_at,
+      source: "claw_summary",
+      recommendedRole: generatedSummary.recommendedRole.role,
+      recommendedRoleLabel: generatedSummary.recommendedRole.displayLabel,
+      recommendedReason: generatedSummary.recommendedRole.reason,
+      originalQuestion: generatedSummary.residentQuestion,
+      clawAnswer: generatedSummary.clawResponse,
+      summary: generatedSummary.doctorSummary,
+      preparedMaterials: generatedSummary.prepareItems,
+      serviceTask,
+    };
+
+    sessionTodoIdsRef.current.add(remoteTodo.id);
+    setTodoNotices((prev) => [...prev, remoteTodo]);
+  }, [currentUser?.name, profile]);
+
+  const appendLocalAskHistory = useCallback((question: string, reply: AskReply) => {
     appendAskLog({
       id: `ask-log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       question,
@@ -244,10 +427,16 @@ function AskPageContent() {
       reason: reply.reason,
       createdAt: new Date().toISOString(),
     });
-  }
+  }, []);
 
-  async function getReply(question: string) {
+  const getReply = useCallback(async (question: string, serviceRequest?: ServiceRequestPayload | null) => {
+    const inferredServiceRequest = serviceRequest ?? inferServiceRequestFromQuestion(question);
+
     if (askMode === "local") {
+      if (inferredServiceRequest) {
+        return fetchAskReply(question, inferredServiceRequest);
+      }
+
       const localReply = getLocalAskReply(question, faqItems);
       if (localReply) {
         return {
@@ -261,10 +450,24 @@ function AskPageContent() {
       }
     }
 
-    return fetchAskReply(question);
-  }
+    return fetchAskReply(question, inferredServiceRequest);
+  }, [askMode, faqItems, fetchAskReply, profile?.display_name, currentUser?.name]);
 
-  async function scheduleClawReply(question: string) {
+  const messageEntries = useMemo(() => {
+    let agentIndex = 0;
+
+    return state.askMessages.map((message) => {
+      if (message.role === "assistant" && message.source === "agent") {
+        const agentResult = agentResults[agentIndex] ?? null;
+        agentIndex += 1;
+        return { message, agentResult };
+      }
+
+      return { message, agentResult: null };
+    });
+  }, [agentResults, state.askMessages]);
+
+  const scheduleClawReply = useCallback(async (question: string, serviceRequest?: ServiceRequestPayload | null) => {
     const trimmed = question.trim();
 
     if (!trimmed || requestInFlightRef.current) {
@@ -279,7 +482,7 @@ function AskPageContent() {
     try {
       const minDelay = 800 + Math.floor(Math.random() * 401);
       const [reply] = await Promise.all([
-        getReply(trimmed),
+        getReply(trimmed, serviceRequest),
         new Promise((resolve) => {
           const timer = window.setTimeout(resolve, minDelay);
           timeoutRef.current.push(timer);
@@ -294,7 +497,7 @@ function AskPageContent() {
         reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
 
       if (reply.clientFallbacks?.doctorTodoToLocal) {
-        appendLocalDoctorTodo(trimmed, reply, reply.clientFallbacks.residentName);
+        appendLocalDoctorTodo(trimmed, reply, reply.clientFallbacks.residentName, serviceRequest);
       } else if (reply.serviceTodo) {
         sessionTodoIdsRef.current.add(reply.serviceTodo.id);
         setTodoNotices((prev) => [reply.serviceTodo as DemoDoctorTodo, ...prev]);
@@ -302,6 +505,10 @@ function AskPageContent() {
 
       if (reply.clientFallbacks?.askLogToLocal) {
         appendLocalAskHistory(trimmed, reply);
+      }
+
+      if (reply.agentResult) {
+        setAgentResults((prev) => [...prev, reply.agentResult as AgentResult]);
       }
 
       pushAskMessage(
@@ -351,10 +558,18 @@ function AskPageContent() {
         setIsLoading(false);
       }
     }
-  }
+  }, [
+    addAskAssistantMessage,
+    appendLocalAskHistory,
+    appendLocalDoctorTodo,
+    currentUser?.name,
+    getReply,
+    profile?.display_name,
+    pushAskMessage,
+  ]);
 
   useEffect(() => {
-    const signature = `${mode ?? ""}::${quickQuestion ?? ""}`;
+    const signature = `${mode ?? ""}::${quickQuestion ?? ""}::${JSON.stringify(initialServiceRequest ?? {})}`;
 
     if (handledInitial.current === signature) {
       return;
@@ -371,9 +586,9 @@ function AskPageContent() {
     }
 
     if (quickQuestion) {
-      void scheduleClawReply(quickQuestion);
+      void scheduleClawReply(quickQuestion, initialServiceRequest);
     }
-  }, [addAskAssistantMessage, mode, quickQuestion]);
+  }, [initialServiceRequest, mode, quickQuestion, scheduleClawReply]);
 
   const handleSummaryRequest = useCallback(() => {
     if (!lastExchangeRef.current) {
@@ -401,7 +616,7 @@ function AskPageContent() {
     const fallbackResidentName =
       currentUser?.name ?? profile?.display_name ?? "当前居民";
 
-    const todo: DemoDoctorTodo = {
+    const localTodo: DemoDoctorTodo = {
       id: `todo-summary-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       residentName: fallbackResidentName,
       question: `[Claw 整理] ${summary.residentQuestion}`,
@@ -418,17 +633,38 @@ function AskPageContent() {
       preparedMaterials: summary.prepareItems,
     };
 
-    appendDoctorTodo(todo);
-    sessionTodoIdsRef.current.add(todo.id);
-    setTodoNotices((prev) => [...prev, todo]);
+    const summarySnapshot = summary;
 
-    showToast("已生成家医团队待办", "success");
-    setSummary(null);
+    void (async () => {
+      try {
+        if (askMode === "supabase" && profile) {
+          await createRemoteDoctorTodo(summarySnapshot.residentQuestion, reply, summarySnapshot);
+        } else {
+          appendDoctorTodo(localTodo);
+          sessionTodoIdsRef.current.add(localTodo.id);
+          setTodoNotices((prev) => [...prev, localTodo]);
+        }
+
+        showToast("已生成家医团队待办", "success");
+        setSummary(null);
+      } catch {
+        if (askMode === "supabase" && profile) {
+          showToast("家医团队待办暂时还没同步成功，请稍后再试。", "warning");
+          return;
+        }
+
+        appendDoctorTodo(localTodo);
+        sessionTodoIdsRef.current.add(localTodo.id);
+        setTodoNotices((prev) => [...prev, localTodo]);
+        showToast("已先记录到当前设备，方便继续演示。", "warning");
+        setSummary(null);
+      }
+    })();
   }
 
-  function submitQuestion(question: string) {
+  function submitQuestion(question: string, serviceRequest?: ServiceRequestPayload | null) {
     setSummary(null);
-    void scheduleClawReply(question);
+    void scheduleClawReply(question, serviceRequest);
   }
 
   return (
@@ -467,16 +703,18 @@ function AskPageContent() {
         </div>
 
         <section className="space-y-4">
-          {state.askMessages.map((message) => {
+          {messageEntries.map(({ message, agentResult }) => {
             const isHighRisk =
               message.role !== "user" &&
               (message.riskLevel === "high" || message.riskLevel === "emergency" || message.source === "safety");
             return (
-              <ChatBubble
-                key={message.id}
-                message={message}
-                onSummaryRequest={isHighRisk ? handleSummaryRequest : undefined}
-              />
+              <div key={message.id} className="space-y-3">
+                <ChatBubble
+                  message={message}
+                  onSummaryRequest={isHighRisk ? handleSummaryRequest : undefined}
+                />
+                {agentResult ? <AgentResultPanel result={agentResult} /> : null}
+              </div>
             );
           })}
           {isLoading ? (
@@ -661,6 +899,263 @@ const todoStatusConfig: Record<string, { label: string; style: string }> = {
   done: { label: "已处理", style: "bg-health-success text-success border-success/20" },
   ignored: { label: "已忽略", style: "bg-navy/8 text-navy/50 border-navy/10" },
 };
+
+const agentStatusLabelMap: Record<AgentTaskCard["status"], string> = {
+  ready: "可继续",
+  queued: "待团队确认",
+  in_progress: "推进中",
+};
+
+const agentUrgencyLabelMap: Record<AgentTaskCard["urgency"], string> = {
+  routine: "常规",
+  soon: "建议尽快",
+  priority: "优先处理",
+};
+
+function getAgentIcon(intent: AgentTaskCard["intent"]) {
+  if (intent === "refill_request") {
+    return Pill;
+  }
+
+  if (intent === "followup_reminder") {
+    return ClipboardList;
+  }
+
+  if (intent === "family_doctor_booking") {
+    return UserRoundPlus;
+  }
+
+  if (intent === "clinic_registration") {
+    return Sparkles;
+  }
+
+  return Stethoscope;
+}
+
+function getServiceFactValue(card: AgentTaskCard, label: string) {
+  return card.serviceFacts?.find((fact) => fact.label === label)?.value ?? "";
+}
+
+function buildDoctorRegistrationHref(
+  card: AgentTaskCard,
+  doctor: NonNullable<AgentTaskCard["doctorOptions"]>[number],
+) {
+  const preferredSlot = getServiceFactValue(card, "期望时段") || "明天下午";
+  const symptomOrTarget =
+    getServiceFactValue(card, "预约目标") ||
+    doctor.clinicType ||
+    doctor.department;
+  const prompt = `帮我预约${preferredSlot}看${doctor.department}，优先${doctor.name}，主要想看${symptomOrTarget}`;
+
+  return `/ask?q=${encodeURIComponent(prompt)}&serviceType=registration&symptom=${encodeURIComponent(
+    symptomOrTarget,
+  )}&department=${encodeURIComponent(doctor.department)}&preferredDate=${encodeURIComponent(
+    preferredSlot.replace("上午", "").replace("下午", "").replace("晚上", "").replace("全天", "").trim() || "明天",
+  )}&preferredTime=${encodeURIComponent(
+    preferredSlot.includes("上午")
+      ? "上午"
+      : preferredSlot.includes("晚上")
+        ? "晚上"
+        : preferredSlot.includes("全天")
+          ? "全天"
+          : "下午",
+  )}&preferredDoctor=${encodeURIComponent(doctor.name)}`;
+}
+
+function AgentResultPanel({ result }: { result: AgentResult }) {
+  return (
+    <div className="space-y-3">
+      {result.cards.map((card) => (
+        <AgentFlowCard key={card.id} card={card} result={result} />
+      ))}
+    </div>
+  );
+}
+
+function AgentFlowCard({ card, result }: { card: AgentTaskCard; result: AgentResult }) {
+  const Icon = getAgentIcon(card.intent);
+  const normalizedCard =
+    buildPersistedServiceTask({
+      matched: result.matched,
+      intent: result.intent,
+      label: result.label,
+      summary: result.summary,
+      needsHumanReview: result.needsHumanReview,
+      cards: [card],
+    })?.task ?? card;
+  const currentStep = normalizedCard.steps.find((step) => step.status === "current");
+
+  return (
+    <div className="rounded-[24px] border border-sage/25 bg-[#EEF4EF] p-4 shadow-soft animate-in">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/75 text-sage shadow-soft">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-navy">{normalizedCard.title}</p>
+            <p className="text-xs text-navy/50">{result.label}</p>
+          </div>
+        </div>
+        <span className="rounded-full border border-sage/20 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-sage">
+          {agentStatusLabelMap[card.status]}
+        </span>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-navy/75">{normalizedCard.summary}</p>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-navy/65">
+        <div className="rounded-[16px] border border-white/70 bg-white/70 px-3 py-2">
+          <p className="text-[11px] text-navy/45">建议团队</p>
+          <p className="mt-1 font-semibold text-navy">{normalizedCard.recommendedTeam}</p>
+        </div>
+        <div className="rounded-[16px] border border-white/70 bg-white/70 px-3 py-2">
+          <p className="text-[11px] text-navy/45">时效</p>
+          <p className="mt-1 font-semibold text-navy">{normalizedCard.eta}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border border-amber/20 bg-[#FFF3DF] px-2.5 py-1 text-[11px] font-semibold text-amber">
+          {agentUrgencyLabelMap[normalizedCard.urgency]}
+        </span>
+        {result.needsHumanReview ? (
+          <span className="rounded-full border border-sage/20 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-sage">
+            需要人工协同
+          </span>
+        ) : (
+          <span className="rounded-full border border-sage/20 bg-white/80 px-2.5 py-1 text-[11px] font-semibold text-sage">
+            可先自助推进
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {normalizedCard.steps.map((step) => (
+          <div key={step.title} className="flex items-center gap-2 rounded-[14px] bg-white/70 px-3 py-2">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                step.status === "done"
+                  ? "bg-success"
+                  : step.status === "current"
+                    ? "bg-sage"
+                    : "bg-navy/20"
+              }`}
+            />
+            <p className="flex-1 text-xs font-medium text-navy">{step.title}</p>
+            <span className="text-[11px] text-navy/45">{step.owner}</span>
+          </div>
+        ))}
+      </div>
+
+      {normalizedCard.serviceFacts?.length ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-navy/50">服务判断</p>
+          <div className="mt-2 grid grid-cols-1 gap-2">
+            {normalizedCard.serviceFacts.map((fact) => (
+              <div
+                key={`${normalizedCard.id}-${fact.label}`}
+                className={`rounded-[14px] border px-3 py-2 ${
+                  fact.tone === "positive"
+                    ? "border-sage/20 bg-white/80"
+                    : fact.tone === "warning"
+                      ? "border-amber/20 bg-[#FFF6EA]"
+                      : "border-white/70 bg-white/70"
+                }`}
+              >
+                <p className="text-[11px] text-navy/45">{fact.label}</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-navy">{fact.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {currentStep ? (
+        <div className="mt-4 rounded-[16px] border border-sage/20 bg-white/80 px-3 py-3">
+          <p className="text-[11px] text-navy/45">当前处理节点</p>
+          <p className="mt-1 text-sm font-semibold text-navy">{currentStep.title}</p>
+          <p className="mt-1 text-xs text-navy/58">当前由 {currentStep.owner} 跟进处理</p>
+        </div>
+      ) : null}
+
+      {normalizedCard.doctorOptions?.length ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-navy/50">推荐排班与候选医生</p>
+          <div className="mt-2 space-y-2">
+            {normalizedCard.doctorOptions.map((doctor) => (
+              <div key={doctor.id} className="rounded-[16px] border border-white/70 bg-white/80 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-navy">{doctor.name}</p>
+                    <p className="mt-0.5 text-xs text-navy/55">
+                      {doctor.department} · {doctor.clinicType}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-amber/20 bg-[#FFF3DF] px-2.5 py-0.5 text-[11px] font-semibold text-amber">
+                    余号 {doctor.remainingSlots}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-navy/68">{doctor.schedule}</p>
+                <p className="mt-1 text-xs leading-5 text-navy/55">擅长：{doctor.specialty}</p>
+                <div className="mt-3 flex gap-2">
+                  <Link
+                    href={buildDoctorRegistrationHref(normalizedCard, doctor)}
+                    className="rounded-full bg-navy px-3 py-1.5 text-[11px] font-semibold text-white"
+                  >
+                    立即预约
+                  </Link>
+                  <Link
+                    href="/contacts"
+                    className="rounded-full border border-line bg-cream px-3 py-1.5 text-[11px] font-semibold text-navy"
+                  >
+                    联系团队
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {normalizedCard.preparedMaterials.length ? (
+        <div className="mt-4">
+          <p className="text-xs font-semibold text-navy/50">建议先准备</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {normalizedCard.preparedMaterials.map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-line/70 bg-cream px-3 py-1 text-[11px] font-semibold text-navy/70"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {normalizedCard.serviceWindow ? (
+        <p className="mt-3 text-[11px] leading-5 text-navy/45">{normalizedCard.serviceWindow}</p>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {normalizedCard.actions.map((action) => (
+          <Link
+            key={`${normalizedCard.id}-${action.label}`}
+            href={action.href}
+            className={
+              action.kind === "primary"
+                ? "rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white"
+                : "rounded-full border border-line bg-cream px-4 py-2 text-xs font-semibold text-navy"
+            }
+          >
+            {action.label}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function TodoNoticeCard({ todo }: { todo: DemoDoctorTodo }) {
   const statusInfo = todoStatusConfig[todo.status] ?? todoStatusConfig.pending;

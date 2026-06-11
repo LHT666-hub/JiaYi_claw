@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录。" }, { status: 401 });
   }
 
   const url = new URL(request.url);
@@ -36,7 +36,7 @@ export async function PATCH(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录。" }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (!body.id) {
-    return NextResponse.json({ message: "缺少通知 ID" }, { status: 400 });
+    return NextResponse.json({ message: "缺少通知 ID。" }, { status: 400 });
   }
 
   const result = await markNotificationRead(body.id, profile.id, supabase);
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
   const { supabase, user, profile } = await getServerAuthContext();
 
   if (!supabase || !user || !profile) {
-    return NextResponse.json({ message: "当前未登录" }, { status: 401 });
+    return NextResponse.json({ message: "当前未登录。" }, { status: 401 });
   }
 
   const body = (await request.json().catch(() => ({}))) as {
@@ -74,13 +74,13 @@ export async function POST(request: NextRequest) {
 
   if (body.type !== "system") {
     return NextResponse.json(
-      { message: "当前仅支持创建系统提醒" },
+      { message: "当前仅支持创建系统提醒。" },
       { status: 403 },
     );
   }
 
   if (!body.title?.trim() || !body.content?.trim()) {
-    return NextResponse.json({ message: "缺少标题或内容" }, { status: 400 });
+    return NextResponse.json({ message: "缺少标题或内容。" }, { status: 400 });
   }
 
   const result = await createNotification(

@@ -8,6 +8,7 @@ type AudioPlayerCardProps = {
   course: CourseItem;
   mode: "play" | "listen";
   watched: boolean;
+  remoteMode?: boolean;
   onClaim: () => void;
 };
 
@@ -17,6 +18,7 @@ export function AudioPlayerCard({
   course,
   mode,
   watched,
+  remoteMode = false,
   onClaim,
 }: AudioPlayerCardProps) {
   const duration = useMemo(() => parseDurationLabel(course.duration), [course.duration]);
@@ -94,7 +96,9 @@ export function AudioPlayerCard({
           </p>
           <h3 className="mt-3 text-lg font-semibold">{course.title}</h3>
           <p className="mt-2 text-sm leading-6 text-white/72">
-            模拟播放（演示模式）：播完后才可以领取课程积分。
+            {remoteMode
+              ? "播放完成后即可领取课程积分，学习记录会同步到当前账号。"
+              : "播放完成后即可领取课程积分。当前设备上的学习记录只会保存在本机。"}
           </p>
         </div>
         <div className="rounded-full border border-white/18 px-3 py-1 text-xs text-white/75">

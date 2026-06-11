@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ClipboardList, House, MessageCircleMore, Settings, Users } from "lucide-react";
+import { Bell, ClipboardList, House, MessageCircleMore, Settings, Sparkles, Users } from "lucide-react";
 import { useDemoUser } from "@/lib/useDemoUser";
 
 const residentNavItems = [
-  { href: "/tasks", label: "任务", icon: ClipboardList },
+  { href: "/services", label: "服务", icon: Sparkles },
   { href: "/", label: "首页", icon: House },
   { href: "/group", label: "群聊", icon: MessageCircleMore },
 ];
@@ -19,7 +19,7 @@ export function BottomNav() {
     role === "family"
       ? [
           { href: "/family", label: "老人提醒", icon: Bell },
-          { href: "/", label: "首页", icon: House },
+          { href: "/services", label: "服务", icon: Sparkles },
           { href: "/contacts", label: "一键找人", icon: Users },
         ]
       : role === "admin"

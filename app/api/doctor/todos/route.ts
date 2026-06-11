@@ -1,4 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  advanceServiceTask,
+  buildResidentServiceUpdateCopy,
+  encodeDescriptionWithServiceTask,
+  normalizeAssignableRole,
+  parseDescriptionWithServiceTask,
+  updateServiceTaskFacts,
+} from "@/lib/agentTaskPayload";
 import { writeAuditLog } from "@/lib/db/audit";
 import {
   createDoctorTodo,
@@ -9,7 +17,7 @@ import { getActiveFamilyBindingsForResident } from "@/lib/db/familyBindings";
 import { createNotification } from "@/lib/db/notifications";
 import { createTodoStatusEvent } from "@/lib/db/todoStatusEvents";
 import { canAccessWorkbench, getServerAuthContext } from "@/lib/supabase/server-auth";
-import type { DoctorTodoRow } from "@/lib/types";
+import type { AppRole, DoctorTodoRow } from "@/lib/types";
 
 const allowedStatuses = new Set<DoctorTodoRow["status"]>([
   "pending",
@@ -17,6 +25,20 @@ const allowedStatuses = new Set<DoctorTodoRow["status"]>([
   "done",
   "ignored",
 ]);
+
+async function findAssignableUserId(
+  role: Exclude<AppRole, "resident" | "family" | "admin">,
+  supabase: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>["supabase"]>,
+) {
+  const { data } = (await supabase
+    .from("profiles")
+    .select("id")
+    .eq("role", role)
+    .limit(1)
+    .maybeSingle()) as { data: { id: string } | null };
+
+  return data?.id ?? null;
+}
 
 export async function GET() {
   const { supabase, user, profile } = await getServerAuthContext();
@@ -109,11 +131,13 @@ export async function PATCH(request: NextRequest) {
     todoId?: string;
     status?: DoctorTodoRow["status"];
     note?: string;
+    serviceFactUpdates?: Array<{ label: string; value: string; tone?: "neutral" | "positive" | "warning" }>;
   };
 
   const todoId = typeof body.todoId === "string" ? body.todoId : "";
   const status = body.status;
   const note = typeof body.note === "string" ? body.note.trim() : "";
+  const serviceFactUpdates = Array.isArray(body.serviceFactUpdates) ? body.serviceFactUpdates : [];
 
   if (!todoId || !status || !allowedStatuses.has(status)) {
     return NextResponse.json({ message: "待办状态参数不合法" }, { status: 400 });
@@ -121,10 +145,16 @@ export async function PATCH(request: NextRequest) {
 
   const todoQuery = (await supabase
     .from("doctor_todos")
-    .select("id, assigned_to, status")
+    .select("id, resident_id, assigned_to, status, description")
     .eq("id", todoId)
     .maybeSingle()) as {
-    data: { id: string; assigned_to: string | null; status: DoctorTodoRow["status"] } | null;
+    data: {
+      id: string;
+      resident_id: string | null;
+      assigned_to: string | null;
+      status: DoctorTodoRow["status"];
+      description: string | null;
+    } | null;
   };
   const todo = todoQuery.data;
 
@@ -136,11 +166,56 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: "您不能修改这条待办" }, { status: 403 });
   }
 
+  const descriptionPayload = parseDescriptionWithServiceTask(todo.description);
+  const serviceTaskWithFactUpdates = updateServiceTaskFacts(
+    descriptionPayload.serviceTask,
+    serviceFactUpdates,
+  );
+  let nextStatus = status;
+  let nextAssignedTo: string | null | undefined =
+    profile.role === "admin" ? undefined : (todo.assigned_to ?? profile.id);
+  let nextDescription: string | null | undefined =
+    serviceTaskWithFactUpdates
+      ? encodeDescriptionWithServiceTask(descriptionPayload.plainDescription, serviceTaskWithFactUpdates)
+      : undefined;
+  let statusNote =
+    note ||
+    (status === "processing"
+      ? "家医团队已开始处理。"
+      : status === "done"
+        ? "家医团队已更新处理结果。"
+        : status === "ignored"
+          ? "这条服务提醒已关闭。"
+          : "这条服务提醒已重新标记为待处理。");
+
+  if (status === "done" && serviceTaskWithFactUpdates) {
+    const advanced = advanceServiceTask(serviceTaskWithFactUpdates);
+
+    if (advanced) {
+      nextDescription = encodeDescriptionWithServiceTask(
+        descriptionPayload.plainDescription,
+        advanced.serviceTask,
+      );
+
+      if (advanced.completed) {
+        nextStatus = "done";
+        statusNote = note || "当前节点已完成，整条服务流程已处理完成。";
+      } else {
+        nextStatus = "processing";
+        const nextRole = normalizeAssignableRole(advanced.nextOwnerRole);
+        nextAssignedTo = nextRole ? await findAssignableUserId(nextRole, supabase) : null;
+        statusNote =
+          note || `当前节点已完成，已流转至「${advanced.currentStepTitle ?? "下一处理节点"}」。`;
+      }
+    }
+  }
+
   const result = await updateDoctorTodoStatus(
     todoId,
-    status,
+    nextStatus,
     supabase,
-    profile.role === "admin" ? undefined : (todo.assigned_to ?? profile.id),
+    nextAssignedTo,
+    nextDescription,
   );
 
   if (!result.ok || !result.todo) {
@@ -151,16 +226,8 @@ export async function PATCH(request: NextRequest) {
     todoId,
     actorId: profile.id,
     oldStatus: todo.status,
-    newStatus: status,
-    note:
-      note ||
-      (status === "processing"
-        ? "家医团队已开始处理。"
-        : status === "done"
-          ? "家医团队已更新处理结果。"
-          : status === "ignored"
-            ? "该提醒已关闭。"
-            : "该提醒已重新标记为待处理。"),
+    newStatus: nextStatus,
+    note: statusNote,
     supabase,
   });
 
@@ -170,32 +237,35 @@ export async function PATCH(request: NextRequest) {
     targetTable: "doctor_todos",
     targetId: result.todo.id,
     detail: {
-      status,
+      status: nextStatus,
       assignedTo: result.todo.assigned_to,
     },
     supabase,
   });
 
-  if ((status === "done" || status === "processing") && result.todo.resident_id) {
+  if ((nextStatus === "done" || nextStatus === "processing") && result.todo.resident_id) {
+    const latestDescriptionPayload = parseDescriptionWithServiceTask(result.todo.description);
+    const residentCopy = buildResidentServiceUpdateCopy(
+      latestDescriptionPayload.serviceTask,
+      nextStatus,
+      nextStatus === "processing"
+        ? statusNote
+        : "您的服务任务已完成，可以前往服务进度查看。",
+    );
+
     try {
       await createNotification(
         {
           userId: result.todo.resident_id,
           actorId: profile.id,
           type: "todo_status_changed",
-          title:
-            status === "processing"
-              ? "家医团队正在处理"
-              : "家医团队已更新处理状态",
-          content:
-            status === "processing"
-              ? "您的问题当前状态已更新为“处理中”。"
-              : "您的问题当前状态已更新为“已处理”，可前往服务进度查看。",
+          title: residentCopy.title,
+          content: residentCopy.content,
           linkUrl: "/service-progress",
           metadata: {
             todoId: result.todo.id,
             residentId: result.todo.resident_id,
-            status,
+            status: nextStatus,
           },
         },
         supabase,
@@ -212,18 +282,41 @@ export async function PATCH(request: NextRequest) {
             userId: binding.familyId,
             actorId: profile.id,
             type: "todo_status_changed",
-            title: "老人服务进度已更新",
-            content: "绑定老人的一条家医团队提醒已有新的处理进度。",
+            title: "老人服务任务有新进展",
+            content: statusNote,
             linkUrl: "/family",
             metadata: {
               todoId: result.todo.id,
               residentId: result.todo.resident_id,
-              status,
+              status: nextStatus,
             },
           },
           supabase,
         );
       }
+    } catch {
+      // best effort
+    }
+  }
+
+  if (nextStatus === "processing" && result.todo.assigned_to && result.todo.assigned_to !== profile.id) {
+    try {
+      await createNotification(
+        {
+          userId: result.todo.assigned_to,
+          actorId: profile.id,
+          type: "ask_todo_created",
+          title: "收到新的服务流转任务",
+          content: statusNote,
+          linkUrl: "/doctor",
+          metadata: {
+            todoId: result.todo.id,
+            residentId: result.todo.resident_id,
+            status: nextStatus,
+          },
+        },
+        supabase,
+      );
     } catch {
       // best effort
     }

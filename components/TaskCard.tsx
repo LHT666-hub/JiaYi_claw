@@ -12,6 +12,8 @@ type TaskCardProps = {
   completed?: boolean;
   onComplete?: () => void;
   variant?: "default" | "plan";
+  actionLabel?: string;
+  actionDisabled?: boolean;
 };
 
 export function TaskCard({
@@ -22,6 +24,8 @@ export function TaskCard({
   completed = false,
   onComplete,
   variant = "default",
+  actionLabel,
+  actionDisabled = false,
 }: TaskCardProps) {
   const hasMounted = useRef(false);
   const [didAnimate, setDidAnimate] = useState(false);
@@ -39,6 +43,9 @@ export function TaskCard({
       return () => window.clearTimeout(timer);
     }
   }, [completed]);
+
+  const isActionDisabled = completed || actionDisabled || !onComplete;
+  const buttonLabel = completed ? "已完成" : actionLabel ?? "完成";
 
   if (variant === "plan") {
     return (
@@ -108,33 +115,53 @@ export function TaskCard({
             <button
               type="button"
               onClick={onComplete}
-              disabled={completed}
+              disabled={isActionDisabled}
               className="inline-flex h-[34px] min-w-[68px] items-center justify-center whitespace-nowrap rounded-full px-[14px] text-[14px] font-semibold transition duration-120"
               style={{
-                backgroundColor: completed ? "#E7EFE9" : "#12324A",
-                color: completed ? "#4E7D65" : "#FFF8EE",
+                backgroundColor: isActionDisabled
+                  ? completed
+                    ? "#E7EFE9"
+                    : "#EDE5DA"
+                  : "#12324A",
+                color: isActionDisabled
+                  ? completed
+                    ? "#4E7D65"
+                    : "#7E7569"
+                  : "#FFF8EE",
                 transform: "scale(1)",
               }}
               onPointerDown={(event) => {
                 event.currentTarget.style.transform = "scale(0.98)";
-                if (!completed) {
+                if (!isActionDisabled) {
                   event.currentTarget.style.backgroundColor = "#0B2238";
                 }
               }}
               onPointerUp={(event) => {
                 event.currentTarget.style.transform = "scale(1)";
-                event.currentTarget.style.backgroundColor = completed ? "#E7EFE9" : "#12324A";
+                event.currentTarget.style.backgroundColor = isActionDisabled
+                  ? completed
+                    ? "#E7EFE9"
+                    : "#EDE5DA"
+                  : "#12324A";
               }}
               onPointerLeave={(event) => {
                 event.currentTarget.style.transform = "scale(1)";
-                event.currentTarget.style.backgroundColor = completed ? "#E7EFE9" : "#12324A";
+                event.currentTarget.style.backgroundColor = isActionDisabled
+                  ? completed
+                    ? "#E7EFE9"
+                    : "#EDE5DA"
+                  : "#12324A";
               }}
               onPointerCancel={(event) => {
                 event.currentTarget.style.transform = "scale(1)";
-                event.currentTarget.style.backgroundColor = completed ? "#E7EFE9" : "#12324A";
+                event.currentTarget.style.backgroundColor = isActionDisabled
+                  ? completed
+                    ? "#E7EFE9"
+                    : "#EDE5DA"
+                  : "#12324A";
               }}
             >
-              {completed ? "已完成" : "完成"}
+              {buttonLabel}
             </button>
           </div>
         </div>
@@ -169,14 +196,16 @@ export function TaskCard({
         <button
           type="button"
           onClick={onComplete}
-          disabled={completed}
+          disabled={isActionDisabled}
           className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
             completed
               ? `text-white ${didAnimate ? "animate-task-complete bg-success" : "bg-[#3B7A61]"}`
-              : "bg-navy text-white shadow-soft active:scale-95"
+              : isActionDisabled
+                ? "bg-[#EDE5DA] text-navy/50"
+                : "bg-navy text-white shadow-soft active:scale-95"
           }`}
         >
-          {completed ? "已完成" : "完成"}
+          {buttonLabel}
         </button>
       </div>
     </div>

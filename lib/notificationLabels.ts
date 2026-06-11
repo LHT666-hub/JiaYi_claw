@@ -7,8 +7,8 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   points_changed: "积分变动",
   exchange: "积分兑换",
   family_binding_created: "家属绑定",
-  leader_matched: "小组长",
-  course_recommended: "小课堂",
+  leader_matched: "小组长匹配",
+  course_recommended: "小课堂推荐",
   group_notice: "小组通知",
   system: "系统提醒",
 };

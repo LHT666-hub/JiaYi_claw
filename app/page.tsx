@@ -25,6 +25,11 @@ import { TopBar } from "@/components/TopBar";
 import { useToast } from "@/components/ToastProvider";
 import { getNextFollowupLabel } from "@/lib/format";
 import {
+  buildResidentFriendlyTaskSnapshot,
+  getCurrentServiceStepTitle,
+} from "@/lib/agentTaskPayload";
+import { mapLocalTodoToProgress, serviceStatusLabelMap } from "@/lib/serviceProgress";
+import {
   ensureSeedNotifications,
   getLocalUnreadNotificationCount,
   getTodayKey,
@@ -32,13 +37,24 @@ import {
   readMatchedLeader,
   STORAGE_CHANGE_EVENT,
 } from "@/lib/storage";
-import { resolveInitialUser } from "@/lib/onboarding";
+import { isAccountUser, resolveInitialUser } from "@/lib/onboarding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { AppRole, DemoUser } from "@/lib/types";
+import { AppRole, DemoUser, ResidentTodoProgressItem } from "@/lib/types";
 import { useClawState } from "@/lib/useClawState";
 
 const previewTaskIcons = [Pill, HeartPulse, ClipboardCheck];
 const keyContactIds = ["li-doctor", "wang-nurse", "chen-pharmacist", "daughter"];
+
+type RealHomeSummary = {
+  totalPoints: number;
+  completedTaskIdsToday: string[];
+  completedTaskCountToday: number;
+  pendingTodoCount: number;
+  groupCheckInCountToday: number;
+  followupConfirmed: boolean;
+  followupResponse: string | null;
+  followupConfirmedAt: string | null;
+};
 
 const roleHomeConfig: Partial<
   Record<
@@ -178,6 +194,27 @@ function RoleHomeCards({ user, onOpen }: { user: DemoUser; onOpen: (href: string
   );
 }
 
+function buildLocalServicePreviewItems(currentUser: DemoUser) {
+  if (currentUser.role !== "resident") {
+    return [];
+  }
+
+  return readDoctorTodos()
+    .filter((todo) => {
+      return (
+        todo.status !== "ignored" &&
+        (todo.residentId === currentUser.id || todo.residentName === currentUser.name)
+      );
+    })
+    .map((todo) =>
+      mapLocalTodoToProgress({
+        todo,
+      }),
+    )
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 2);
+}
+
 export default function HomePage() {
   const router = useRouter();
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -188,6 +225,10 @@ export default function HomePage() {
   const [pendingTodoCount, setPendingTodoCount] = useState(0);
   const [matchedLeaderName, setMatchedLeaderName] = useState<string | null>(null);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [realSummary, setRealSummary] = useState<RealHomeSummary | null>(null);
+  const [servicePreviewItems, setServicePreviewItems] = useState<ResidentTodoProgressItem[]>([]);
+  const usingAccount = isAccountUser(currentUser);
+  const isDemoIdentity = Boolean(currentUser?.id?.startsWith("demo-"));
 
   useEffect(() => {
     let active = true;
@@ -219,7 +260,18 @@ export default function HomePage() {
       return;
     }
 
+    const resolvedUser = currentUser;
+    const currentUserId = resolvedUser.id;
+
     function refresh() {
+      if (usingAccount) {
+        setPendingTodoCount(0);
+        setMatchedLeaderName(null);
+        setRealSummary(null);
+        setServicePreviewItems([]);
+        return;
+      }
+
       ensureSeedNotifications();
       const todos = readDoctorTodos();
       setPendingTodoCount(
@@ -227,19 +279,46 @@ export default function HomePage() {
       );
       const matched = readMatchedLeader();
       setMatchedLeaderName(matched?.leaderName ?? null);
-      setUnreadNotificationCount(getLocalUnreadNotificationCount());
+      setUnreadNotificationCount(getLocalUnreadNotificationCount(currentUserId));
+      setServicePreviewItems(buildLocalServicePreviewItems(resolvedUser));
     }
 
     refresh();
 
-    fetch("/api/notifications?unreadOnly=true&limit=100")
-      .then((res) => res.json())
-      .then((data: { ok?: boolean; notifications?: unknown[] }) => {
-        if (data.ok && data.notifications) {
-          setUnreadNotificationCount(data.notifications.length);
-        }
-      })
-      .catch(() => {});
+    if (usingAccount) {
+      void Promise.all([
+        fetch("/api/notifications?unreadOnly=true&limit=100").then((res) => res.json()),
+        fetch("/api/leaders/selected", { method: "GET", cache: "no-store" }).then((res) => res.json()),
+        fetch("/api/home/summary", { method: "GET", cache: "no-store" }).then((res) => res.json()),
+        fetch("/api/resident/todos", { method: "GET", cache: "no-store" }).then((res) => res.json()),
+      ])
+        .then(
+          ([notificationsData, leaderData, summaryData, residentTodosData]: [
+            { ok?: boolean; notifications?: unknown[] },
+            { ok?: boolean; leader?: { name?: string | null } | null },
+            { ok?: boolean; summary?: RealHomeSummary | null },
+            { todos?: ResidentTodoProgressItem[] },
+          ]) => {
+            if (notificationsData.ok && notificationsData.notifications) {
+              setUnreadNotificationCount(notificationsData.notifications.length);
+            }
+
+            if (leaderData.ok) {
+              setMatchedLeaderName(leaderData.leader?.name ?? null);
+            }
+
+            if (summaryData.ok) {
+              setRealSummary(summaryData.summary ?? null);
+              setPendingTodoCount(summaryData.summary?.pendingTodoCount ?? 0);
+            }
+
+            setServicePreviewItems(
+              resolvedUser.role === "resident" ? (residentTodosData.todos ?? []).slice(0, 2) : [],
+            );
+          },
+        )
+        .catch(() => {});
+    }
 
     window.addEventListener(STORAGE_CHANGE_EVENT, refresh);
     window.addEventListener("storage", refresh);
@@ -248,14 +327,27 @@ export default function HomePage() {
       window.removeEventListener(STORAGE_CHANGE_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, [currentUser]);
+  }, [currentUser, usingAccount]);
 
   const quickContacts = contacts.filter((contact) => keyContactIds.includes(contact.id));
   const previewTasks = tasks.slice(0, 3);
   const featuredCourse = courses[0];
+  const completedTaskIds = usingAccount
+    ? realSummary?.completedTaskIdsToday ?? []
+    : state.completedTaskIds;
+  const totalPoints = usingAccount ? realSummary?.totalPoints ?? 0 : state.points;
+  const groupCheckInCount = usingAccount
+    ? realSummary?.groupCheckInCountToday ?? 0
+    : 8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0);
   const previewCompletedCount = previewTasks.filter((task) =>
-    state.completedTaskIds.includes(task.id),
+    completedTaskIds.includes(task.id),
   ).length;
+  const followupConfirmed = usingAccount
+    ? realSummary?.followupConfirmed ?? false
+    : state.followupConfirmed;
+  const followupResponse = usingAccount
+    ? realSummary?.followupResponse ?? null
+    : state.followupResponse;
 
   function goToAsk(mode?: "voice" | "photo", quickQuestion?: string) {
     const params = new URLSearchParams();
@@ -311,7 +403,7 @@ export default function HomePage() {
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
         <TopBar
-          points={state.points}
+          points={totalPoints}
           hasUnreadNotifications={unreadNotificationCount > 0}
           onBellClick={() => router.push("/notifications")}
         />
@@ -325,22 +417,24 @@ export default function HomePage() {
           </p>
         </div>
 
-        <SectionCard>
-          <div className="rounded-[24px] border border-line/55 bg-surface-card px-4 py-4">
-            <p className="text-sm font-semibold text-navy">演示中心已就绪</p>
-            <p className="mt-1 text-xs leading-5 text-navy/58">
-              可一页查看所有页面入口、推荐讲解路线，并一键重置演示数据。
-            </p>
-            <button
-              type="button"
-              onClick={() => router.push("/demo-center")}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white"
-            >
-              打开演示中心
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </SectionCard>
+        {isDemoIdentity ? (
+          <SectionCard>
+            <div className="rounded-[24px] border border-line/55 bg-surface-card px-4 py-4">
+              <p className="text-sm font-semibold text-navy">体验入口</p>
+              <p className="mt-1 text-xs leading-5 text-navy/58">
+                这里可以查看完整页面入口，并按需重置当前设备上的体验数据。
+              </p>
+              <button
+                type="button"
+                onClick={() => router.push("/demo-center")}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-navy px-4 py-2 text-xs font-semibold text-white"
+              >
+                打开体验中心
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </SectionCard>
+        ) : null}
 
         {currentUser.role !== "resident" ? (
           <RoleHomeCards user={currentUser} onOpen={(href) => router.push(href)} />
@@ -356,11 +450,11 @@ export default function HomePage() {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-navy">
-                    {state.followupConfirmed ? "本周随访已确认" : `${getNextFollowupLabel()} 有随访确认`}
+                    {followupConfirmed ? "本周随访已确认" : `${getNextFollowupLabel()} 有随访确认`}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-navy/62">
-                    {state.followupConfirmed
-                      ? `您已回复：${state.followupResponse ?? "可以按时参加"}`
+                    {followupConfirmed
+                      ? `您已回复：${followupResponse ?? "可以按时参加"}`
                       : `${contacts.find((c) => c.id === "wang-nurse")?.name ?? "王护士"}想确认您本周慢病随访是否方便参加。`}
                   </p>
                   {pendingTodoCount > 0 ? (
@@ -370,7 +464,7 @@ export default function HomePage() {
                   ) : null}
                 </div>
               </div>
-              {state.followupConfirmed ? (
+              {followupConfirmed ? (
                 <span className="rounded-full bg-health-success px-3 py-1 text-xs font-semibold text-success">
                   已确认
                 </span>
@@ -384,7 +478,7 @@ export default function HomePage() {
                 onClick={() => router.push("/followup")}
                 className="rounded-full bg-navy px-5 py-2.5 text-sm font-semibold text-white"
               >
-                {state.followupConfirmed ? "查看回复" : "去确认"}
+                {followupConfirmed ? "查看回复" : "去确认"}
               </button>
               <button
                 type="button"
@@ -403,6 +497,121 @@ export default function HomePage() {
           onText={() => goToAsk()}
           onQuickQuestion={(question) => goToAsk(undefined, question)}
         />
+
+        <SectionCard title="Agent 服务中心">
+          <div className="rounded-[26px] border border-sage/20 bg-[linear-gradient(145deg,#EEF5EF_0%,#F8FBF6_100%)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.62)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-base font-semibold text-navy">先看服务，再发起新需求</p>
+                <p className="mt-2 text-sm leading-6 text-navy/64">
+                  这里会把自然语言需求转成服务任务，并持续显示处理进度，不只是回答一句话。
+                </p>
+              </div>
+              <span className="rounded-full bg-health-muted px-3 py-1 text-xs font-semibold text-sage">
+                Agent
+              </span>
+            </div>
+            {servicePreviewItems.length ? (
+              <div className="mt-4 space-y-3">
+                {servicePreviewItems.map((item) => {
+                  const snapshot = item.serviceTask
+                    ? buildResidentFriendlyTaskSnapshot(item.serviceTask, item.status)
+                    : null;
+                  const currentStepTitle = item.serviceTask
+                    ? getCurrentServiceStepTitle(item.serviceTask)
+                    : null;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => router.push("/service-progress")}
+                      className="w-full rounded-[20px] border border-white/70 bg-white/80 px-4 py-4 text-left active:scale-[0.98]"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-navy line-clamp-2">
+                            {item.serviceTask?.task.title ?? item.originalQuestion}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-navy/58">
+                            {snapshot?.headline ?? item.summary}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-full border border-amber/20 bg-amber/15 px-2.5 py-0.5 text-[11px] font-semibold text-amber">
+                          {serviceStatusLabelMap[item.status]}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-xs leading-5 text-navy/55">
+                        当前节点：{currentStepTitle ?? "等待团队回写"}；下一步：{snapshot?.nextAction ?? "可进入服务进度查看"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[20px] border border-white/70 bg-white/72 px-4 py-4">
+                <p className="text-sm font-semibold text-navy">当前还没有正在流转的服务任务</p>
+                <p className="mt-1 text-xs leading-5 text-navy/58">
+                  可以先从挂号、续方、家医预约这些常见入口发起，之后会在这里显示处理状态。
+                </p>
+              </div>
+            )}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => goToAsk(undefined, "今天谁能看高血压？")}
+                className="rounded-[20px] bg-navy px-4 py-3 text-sm font-semibold text-white"
+              >
+                查今日坐班
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/ask?q=帮我预约明天下午看高血压&serviceType=registration&department=高血压门诊&preferredDate=明天&preferredTime=下午",
+                  )
+                }
+                className="rounded-[20px] border border-line bg-cream px-4 py-3 text-sm font-semibold text-navy"
+              >
+                发起挂号
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    "/ask?q=我药快吃完了，帮我续方&serviceType=refill&medicineName=苯磺酸氨氯地平片&disease=高血压&stockLeft=还剩3天&deliveryMethod=mail",
+                  )
+                }
+                className="rounded-[20px] border border-line bg-cream px-4 py-3 text-sm font-semibold text-navy"
+              >
+                续方配药
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/service-progress")}
+                className="rounded-[20px] border border-line bg-cream px-4 py-3 text-sm font-semibold text-navy"
+              >
+                查看进度
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => router.push("/services")}
+                className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-xs font-semibold text-sage"
+              >
+                打开完整服务中心
+              </button>
+              <button
+                type="button"
+                onClick={() => goToAsk()}
+                className="rounded-full border border-white/70 bg-white/80 px-4 py-2 text-xs font-semibold text-navy"
+              >
+                自己说一句需求
+              </button>
+            </div>
+          </div>
+        </SectionCard>
 
         <SectionCard
           title="今日健康小事"
@@ -439,8 +648,12 @@ export default function HomePage() {
                 description={task.description}
                 points={task.points}
                 icon={previewTaskIcons[index] ?? BookOpen}
-                completed={state.completedTaskIds.includes(task.id)}
+                completed={completedTaskIds.includes(task.id)}
                 onComplete={() => {
+                  if (usingAccount) {
+                    router.push("/tasks");
+                    return;
+                  }
                   const changed = completeTask(task.id, task.points, task.title);
                   showToast(
                     changed ? `已完成，积分 +${task.points}` : "这件事今天已经完成了",
@@ -481,7 +694,7 @@ export default function HomePage() {
               <p className="text-base font-semibold text-navy">高血压互助小组</p>
               <span className="flex items-center gap-1.5 rounded-full bg-sage/15 px-3 py-1 text-xs font-semibold text-sage">
                 <Users className="h-3.5 w-3.5" />
-                今日 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 人打卡
+                今日 {groupCheckInCount} 人打卡
               </span>
             </div>
             <p className="mt-2 text-sm leading-6 text-navy/68">
@@ -498,6 +711,10 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (usingAccount) {
+                    router.push("/group");
+                    return;
+                  }
                   const changed = completeGroupCheckIn();
                   showToast(
                     changed ? "已完成今日小组打卡，+5 分" : "今天已经打过卡了",

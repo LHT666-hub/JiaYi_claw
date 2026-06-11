@@ -1,5 +1,13 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
+import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
+import {
+  getCurrentServiceOwnerRole,
+  normalizeAssignableRole,
+  buildPersistedServiceTask,
+  buildServiceTaskTitle,
+  encodeDescriptionWithServiceTask,
+} from "@/lib/agentTaskPayload";
 import { generateClawSummary } from "@/lib/clawSummary";
 import { createAskLog } from "@/lib/db/askLogs";
 import { createDoctorTodo } from "@/lib/db/doctorTodos";
@@ -23,6 +31,7 @@ import type {
   DemoDoctorTodo,
   KnowledgeItem,
   ProfileRow,
+  ServiceRequestPayload,
 } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -431,14 +440,16 @@ async function findAssignableUserId(
 async function persistAskArtifacts(params: {
   question: string;
   reply: AskReply;
+  serviceRequest?: ServiceRequestPayload | null;
   profile: ProfileRow | null;
   supabase: Awaited<ReturnType<typeof getServerAuthContext>>["supabase"];
 }) {
-  const { question, reply, profile, supabase } = params;
+  const { question, reply, serviceRequest, profile, supabase } = params;
   let askLogToLocal = true;
   let doctorTodoToLocal =
     reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
   let serviceTodo: DemoDoctorTodo | null = null;
+  const serviceTask = buildPersistedServiceTask(reply.agentResult, serviceRequest);
   const summary = generateClawSummary(question, {
     answer: reply.answer,
     nextStep: reply.nextStep,
@@ -455,11 +466,13 @@ async function persistAskArtifacts(params: {
     };
   }
 
+  const currentServiceOwnerRole = normalizeAssignableRole(getCurrentServiceOwnerRole(serviceTask));
   const assigneeRole =
-    summary.recommendedRole.role === "family"
+    currentServiceOwnerRole ??
+    (summary.recommendedRole.role === "family"
       ? "doctor"
       : (summary.recommendedRole
-          .role as Exclude<AppRole, "resident" | "family" | "admin"> | "doctor");
+          .role as Exclude<AppRole, "resident" | "family" | "admin"> | "doctor"));
   const assignedTo = doctorTodoToLocal
     ? await findAssignableUserId(assigneeRole, supabase)
     : null;
@@ -494,13 +507,13 @@ async function persistAskArtifacts(params: {
     const result = await createDoctorTodo({
       residentId: profile.role === "resident" ? profile.id : null,
       assignedTo,
-      type: "ask",
-      title: question.slice(0, 36),
-      description: summary.doctorSummary,
+      type: serviceTask ? `service_${serviceTask.task.intent}` : "ask",
+      title: serviceTask ? buildServiceTaskTitle(serviceTask.task) : question.slice(0, 36),
+      description: encodeDescriptionWithServiceTask(summary.doctorSummary, serviceTask),
       originalQuestion: question,
       clawAnswer: `${reply.answer} ${reply.nextStep}`.trim(),
       riskLevel: reply.riskLevel,
-      source: "ask",
+      source: reply.source === "agent" ? "agent" : "ask",
       supabase,
     });
 
@@ -523,6 +536,7 @@ async function persistAskArtifacts(params: {
         clawAnswer: summary.clawResponse,
         summary: summary.doctorSummary,
         preparedMaterials: summary.prepareItems,
+        serviceTask,
       };
 
       await createTodoStatusEvent({
@@ -623,8 +637,12 @@ async function persistAskArtifacts(params: {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { question?: string };
+    const body = (await request.json()) as {
+      question?: string;
+      serviceRequest?: ServiceRequestPayload | null;
+    };
     const question = typeof body.question === "string" ? body.question.trim() : "";
+    const serviceRequest = body.serviceRequest ?? inferServiceRequestFromQuestion(question);
     const normalizedQuestion = normalizeQuestion(question);
 
     if (!normalizedQuestion) {
@@ -644,6 +662,7 @@ export async function POST(request: NextRequest) {
       const persistence = await persistAskArtifacts({
         question,
         reply,
+        serviceRequest,
         profile,
         supabase,
       });
@@ -663,6 +682,11 @@ export async function POST(request: NextRequest) {
     const greetingReply = getGreetingReply(question);
     if (greetingReply) {
       return finalize(greetingReply);
+    }
+
+    const agentReply = buildAgentReply(question, serviceRequest);
+    if (agentReply) {
+      return finalize(agentReply);
     }
 
     const faqItems = await getFaqs(supabase);
@@ -784,6 +808,16 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const agentReply = buildAgentReply(question, inferServiceRequestFromQuestion(question));
+    if (agentReply) {
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        question,
+        reply: agentReply,
+      });
+    }
+
     const authContext = await getServerAuthContext();
     const faqItems = await getFaqs(authContext.supabase);
     const faqReply = getLocalAskReply(question, faqItems);
@@ -884,6 +918,7 @@ export async function GET(request: NextRequest) {
     flow: [
       "guardrail",
       "greeting",
+      "agent",
       "faq_kimi",
       "knowledge_kimi",
       "kimi",

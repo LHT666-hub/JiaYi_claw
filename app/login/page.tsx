@@ -64,7 +64,7 @@ export default function LoginPage() {
     event.preventDefault();
 
     if (!supabase) {
-      showToast("真实账号暂时不可用，请先使用演示身份。", "warning");
+      showToast("当前暂未开放账号登录，可先从体验入口查看主要流程。", "warning");
       return;
     }
 
@@ -96,7 +96,7 @@ export default function LoginPage() {
 
   function handleDemoLogin(user: DemoUser) {
     loginAs(user);
-    showToast(`已进入 ${user.name}（${user.roleLabel}）演示身份。`, "success");
+    showToast(`已进入 ${user.name}（${user.roleLabel}）体验身份。`, "success");
     router.push(getDemoPath(user));
   }
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
           <div className="text-center">
             <p className="font-brand text-[2rem] font-semibold text-navy">家医 Claw</p>
             <p className="mt-3 text-sm leading-6 text-navy/66">
-              请选择演示身份，或使用测试账号体验不同角色的服务入口。
+              使用账号登录即可进入对应服务入口；也可以先从体验入口快速看看主要流程。
             </p>
             <button
               type="button"
@@ -115,7 +115,7 @@ export default function LoginPage() {
               className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-card px-4 py-2 text-xs font-semibold text-navy active:scale-[0.98]"
             >
               <Sparkles className="h-3.5 w-3.5" />
-              打开演示中心
+              查看体验入口
             </button>
           </div>
 
@@ -128,17 +128,17 @@ export default function LoginPage() {
               </>
             ) : currentUser ? (
               <>
-                当前演示身份：{currentUser.name} / {currentUser.roleLabel}
+                当前体验身份：{currentUser.name} / {currentUser.roleLabel}
                 <br />
                 点击下方任意身份，即可直接切换。
               </>
             ) : (
-              <>当前未登录，可用测试账号或演示身份进入系统。</>
+              <>当前未登录，可先用账号登录，也可以从下方快速进入体验身份。</>
             )}
           </div>
 
           <div className="mt-6 rounded-[28px] border border-line bg-surface-card p-4">
-            <p className="text-sm font-semibold text-navy">测试账号登录</p>
+            <p className="text-sm font-semibold text-navy">账号登录</p>
             <form onSubmit={handleSubmit} className="mt-4 space-y-4">
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-navy">邮箱</span>
@@ -147,7 +147,7 @@ export default function LoginPage() {
                     type="email"
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    placeholder="请输入测试账号邮箱"
+                    placeholder="请输入账号邮箱"
                     className="h-12 w-full bg-transparent text-sm text-navy outline-none placeholder:text-navy/40"
                   />
                 </div>
@@ -173,13 +173,13 @@ export default function LoginPage() {
                   !configured || isLoading ? "bg-navy/55" : "bg-navy"
                 }`}
               >
-                {!configured ? "请先使用演示身份" : isLoading ? "登录中..." : "邮箱密码登录"}
+                {!configured ? "当前暂未开放账号登录" : isLoading ? "登录中..." : "邮箱密码登录"}
               </button>
             </form>
           </div>
 
           <div className="mt-6">
-            <p className="mb-3 text-sm font-semibold text-navy">演示身份快速进入</p>
+              <p className="mb-3 text-sm font-semibold text-navy">体验身份快速进入</p>
             <div className="space-y-3">
               {demoUsers.map((user) => (
                 <button

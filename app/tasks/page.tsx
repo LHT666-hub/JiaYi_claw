@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -48,6 +48,7 @@ const rewards = [
 ];
 
 type SyncMode = "local" | "supabase";
+type AuthMode = "loading" | "real" | "demo" | "none";
 
 function mapSupabaseTask(task: SupabaseTaskRow): ManagedTaskItem {
   return {
@@ -102,10 +103,13 @@ export default function TasksPage() {
   const { currentUser } = useDemoUser();
   const { state, completeTask: completeLocalTask, redeemReward: redeemLocalReward } = useClawState();
   const { showToast } = useToast();
+  const [authMode, setAuthMode] = useState<AuthMode>("loading");
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [syncMode, setSyncMode] = useState<SyncMode>("local");
   const [taskItems, setTaskItems] = useState<ManagedTaskItem[]>(() => readMergedTasks());
   const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(state.completedTaskIds);
   const [points, setPoints] = useState<number>(state.points);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (syncMode !== "local") {
@@ -135,7 +139,7 @@ export default function TasksPage() {
     };
   }, [syncMode]);
 
-  async function loadSupabaseState(profileOverride?: ProfileRow | null) {
+  const loadSupabaseState = useCallback(async (profileOverride?: ProfileRow | null) => {
     if (!supabase) {
       throw new Error("service unavailable");
     }
@@ -169,14 +173,24 @@ export default function TasksPage() {
     setCompletedTaskIds(todayCompletedTaskIds);
     setPoints(Number(summaryPayload.totalPoints ?? 0));
     setSyncMode("supabase");
-  }
+    setRemoteError(null);
+  }, [supabase]);
 
-  function activateLocalFallback() {
+  const activateLocalFallback = useCallback(() => {
     setSyncMode("local");
+    setRemoteError(null);
     setTaskItems(readMergedTasks());
     setCompletedTaskIds(state.completedTaskIds);
     setPoints(state.points);
-  }
+  }, [state.completedTaskIds, state.points]);
+
+  const activateFamilyReadonly = useCallback(() => {
+    setSyncMode("local");
+    setRemoteError(null);
+    setTaskItems(readMergedTasks());
+    setCompletedTaskIds([]);
+    setPoints(0);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -194,15 +208,53 @@ export default function TasksPage() {
           return;
         }
 
-        if (!profile || profile.role !== "resident") {
-          activateLocalFallback();
+        if (!profile) {
+          if (currentUser) {
+            setAuthMode("demo");
+            activateLocalFallback();
+            return;
+          }
+
+          setAuthMode("none");
+          router.replace("/welcome");
           return;
         }
 
-        await loadSupabaseState(profile);
+        setProfile(profile);
+        setAuthMode("real");
+
+        if (profile.role === "resident") {
+          try {
+            await loadSupabaseState(profile);
+          } catch {
+            if (!active) {
+              return;
+            }
+            setSyncMode("supabase");
+            setTaskItems([]);
+            setCompletedTaskIds([]);
+            setPoints(0);
+            setRemoteError("当前账号的任务和积分暂时还没同步成功，请稍后刷新再试。");
+          }
+          return;
+        }
+
+        if (profile.role === "family") {
+          activateFamilyReadonly();
+          return;
+        }
+
+        activateFamilyReadonly();
       } catch {
         if (active) {
-          activateLocalFallback();
+          if (currentUser) {
+            setAuthMode("demo");
+            activateLocalFallback();
+            return;
+          }
+
+          setAuthMode("none");
+          router.replace("/welcome");
         }
       }
     }
@@ -212,7 +264,7 @@ export default function TasksPage() {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [activateFamilyReadonly, activateLocalFallback, currentUser, loadSupabaseState, router, supabase]);
 
   async function handleCompleteTask(task: ManagedTaskItem) {
     if (syncMode === "supabase") {
@@ -250,12 +302,8 @@ export default function TasksPage() {
         await loadSupabaseState();
         return;
       } catch {
-        activateLocalFallback();
-        const changed = completeLocalTask(task.id, task.points, task.title);
-        showToast(
-          changed ? `已先为您记录，积分 +${task.points}` : "这件事今天已经完成了",
-          changed ? "success" : "warning",
-        );
+        setRemoteError("任务完成状态暂时没有同步成功，请稍后重试。");
+        showToast("任务完成状态暂时没有同步成功，请稍后重试。", "warning");
         return;
       }
     }
@@ -300,12 +348,8 @@ export default function TasksPage() {
         await loadSupabaseState();
         return;
       } catch {
-        activateLocalFallback();
-        const success = redeemLocalReward(reward.name, reward.points);
-        showToast(
-          success ? `已兑换 ${reward.name}` : "积分不足，先去完成健康小事吧",
-          success ? "success" : "warning",
-        );
+        setRemoteError("积分兑换暂时没有同步成功，请稍后重试。");
+        showToast("积分兑换暂时没有同步成功，请稍后重试。", "warning");
         return;
       }
     }
@@ -317,17 +361,34 @@ export default function TasksPage() {
     );
   }
 
-  const streakDays = state.streakDays;
+  const streakDays = authMode === "real" ? 0 : state.streakDays;
   const { mustDo, optional } = useMemo(() => pickTaskSections(taskItems), [taskItems]);
   const todayCompletedCount = completedTaskIds.length;
   const todayTotalCount = taskItems.length;
   const todayAwardedPoints = taskItems
     .filter((task) => completedTaskIds.includes(task.id))
     .reduce((sum, task) => sum + task.points, 0);
-  const isResident = currentUser?.role === "resident";
-  const isFamily = currentUser?.role === "family";
+  const role = authMode === "real" ? profile?.role : currentUser?.role;
+  const isResident = role === "resident";
+  const isFamily = role === "family";
 
-  if (!currentUser) {
+  if (authMode === "loading") {
+    return (
+      <PhoneShell showBottomNav>
+        <div className="space-y-5 px-4 pb-8">
+          <BackHeader title="今日健康计划" subtitle="正在读取当前身份..." />
+          <SectionCard>
+            <EmptyState
+              title="正在准备任务页面"
+              description="我们正在根据当前身份加载合适的任务和积分信息。"
+            />
+          </SectionCard>
+        </div>
+      </PhoneShell>
+    );
+  }
+
+  if (authMode === "none") {
     return (
       <PhoneShell showBottomNav>
         <div className="space-y-5 px-4 pb-8">
@@ -362,7 +423,7 @@ export default function TasksPage() {
             />
             <button
               type="button"
-              onClick={() => router.push(currentUser.role === "admin" ? "/admin" : "/doctor")}
+              onClick={() => router.push(role === "admin" ? "/admin" : "/doctor")}
               className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
             >
               进入对应工作台
@@ -378,8 +439,25 @@ export default function TasksPage() {
       <div className="space-y-5 px-4 pb-8">
         <BackHeader
           title={isFamily ? "老人任务情况" : "今日健康计划"}
-          subtitle={isFamily ? "这里先只读查看，方便帮老人提醒。" : "先完成必做，再做加分项。"}
+          subtitle={
+            isFamily
+              ? authMode === "real"
+                ? "家属账号当前用于只读查看与提醒，不会直接替老人完成任务。"
+                : "这里先只读查看，方便帮老人提醒。"
+              : "先完成必做，再做加分项。"
+          }
         />
+
+        {isFamily ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-[#BFD9CB] bg-[#EAF4EE] px-4 py-4">
+              <p className="text-sm font-semibold text-[#355C52]">家属只读提醒</p>
+              <p className="mt-1 text-sm leading-6 text-[#355C52]/90">
+                家属端当前主要用于查看老人今天的任务安排、积分和提醒进度，不会直接替老人完成任务或兑换积分。
+              </p>
+            </div>
+          </SectionCard>
+        ) : null}
 
         <section className="rounded-[30px] bg-gradient-to-br from-navy to-navySoft px-5 py-5 text-white shadow-float">
           <div className="grid grid-cols-4 gap-2 text-center">
@@ -415,6 +493,15 @@ export default function TasksPage() {
           </div>
         </section>
 
+        {authMode === "real" && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
+
         <div className="flex items-center justify-between rounded-[22px] bg-surface-tint px-4 py-3">
           <div className="flex items-center gap-2">
             <Gift className="h-4 w-4 text-amber" />
@@ -426,55 +513,69 @@ export default function TasksPage() {
         </div>
 
         <SectionCard title="今日必做">
-          <div className="space-y-3">
-            {mustDo.map((task) => {
-              const Icon = iconMap[task.category] ?? ClipboardCheck;
-              return (
-                <TaskCard
-                  key={task.id}
-                  title={task.title}
-                  description={task.description}
-                  points={task.points}
-                  icon={Icon}
-                  variant="plan"
-                  completed={completedTaskIds.includes(task.id)}
-                  onComplete={() => {
-                    if (isFamily) {
-                      showToast("家属端先用于查看和提醒老人完成。", "info");
-                      return;
-                    }
-                    void handleCompleteTask(task);
-                  }}
-                />
-              );
-            })}
-          </div>
+          {mustDo.length ? (
+            <div className="space-y-3">
+              {mustDo.map((task) => {
+                const Icon = iconMap[task.category] ?? ClipboardCheck;
+                return (
+                  <TaskCard
+                    key={task.id}
+                    title={task.title}
+                    description={task.description}
+                    points={task.points}
+                    icon={Icon}
+                    variant="plan"
+                    completed={completedTaskIds.includes(task.id)}
+                    onComplete={isFamily ? undefined : () => void handleCompleteTask(task)}
+                    actionLabel={isFamily ? "仅查看" : undefined}
+                    actionDisabled={isFamily}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState
+              title={authMode === "real" ? "任务暂未同步" : "暂时还没有任务"}
+              description={
+                authMode === "real"
+                  ? "等当前账号的任务数据同步成功后，这里会显示今天需要完成的健康小事。"
+                  : "今天的必做任务会显示在这里。"
+              }
+            />
+          )}
         </SectionCard>
 
         <SectionCard title="可选加分">
-          <div className="space-y-3">
-            {optional.map((task) => {
-              const Icon = iconMap[task.category] ?? Users;
-              return (
-                <TaskCard
-                  key={task.id}
-                  title={task.title}
-                  description={task.description}
-                  points={task.points}
-                  icon={Icon}
-                  variant="plan"
-                  completed={completedTaskIds.includes(task.id)}
-                  onComplete={() => {
-                    if (isFamily) {
-                      showToast("家属端先用于查看和提醒老人完成。", "info");
-                      return;
-                    }
-                    void handleCompleteTask(task);
-                  }}
-                />
-              );
-            })}
-          </div>
+          {optional.length ? (
+            <div className="space-y-3">
+              {optional.map((task) => {
+                const Icon = iconMap[task.category] ?? Users;
+                return (
+                  <TaskCard
+                    key={task.id}
+                    title={task.title}
+                    description={task.description}
+                    points={task.points}
+                    icon={Icon}
+                    variant="plan"
+                    completed={completedTaskIds.includes(task.id)}
+                    onComplete={isFamily ? undefined : () => void handleCompleteTask(task)}
+                    actionLabel={isFamily ? "仅查看" : undefined}
+                    actionDisabled={isFamily}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState
+              title={authMode === "real" ? "加分任务暂未同步" : "暂时还没有加分项"}
+              description={
+                authMode === "real"
+                  ? "任务同步完成后，这里会显示当前账号可参与的加分项。"
+                  : "今天的可选加分任务会显示在这里。"
+              }
+            />
+          )}
         </SectionCard>
 
         <SectionCard title="积分兑换">
@@ -494,14 +595,22 @@ export default function TasksPage() {
                   <p className="mt-1 text-xs text-navy/58">{reward.points} 分</p>
                   <button
                     type="button"
-                    onClick={() => void handleExchange(reward)}
+                    onClick={() => {
+                      if (isFamily) {
+                        showToast("家属端当前只读查看，积分兑换请由老人账号操作。", "info");
+                        return;
+                      }
+                      void handleExchange(reward);
+                    }}
                     className={`mt-3 w-full rounded-full py-2 text-xs font-semibold transition ${
-                      canAfford
+                      isFamily
+                        ? "bg-navy/20 text-navy/50"
+                        : canAfford
                         ? "bg-navy text-white active:scale-95"
                         : "bg-navy/20 text-navy/50"
                     }`}
                   >
-                    {canAfford ? "兑换" : "积分不足"}
+                    {isFamily ? "仅老人可兑换" : canAfford ? "兑换" : "积分不足"}
                   </button>
                 </div>
               );

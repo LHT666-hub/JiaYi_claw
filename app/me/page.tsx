@@ -32,8 +32,10 @@ import { clearCurrentUser, saveCurrentUser } from "@/lib/onboarding";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { mapLocalTodoToProgress } from "@/lib/serviceProgress";
+import { buildResidentFriendlyTaskSnapshot } from "@/lib/agentTaskPayload";
 import { fetchCurrentProfile, getRoleLabel, isWorkbenchRole } from "@/lib/supabase/mvp";
 import {
+  ContactItem,
   DemoDoctorTodo,
   FamilyBindingView,
   MatchedLeaderRecord,
@@ -45,6 +47,15 @@ import { logout, useDemoUser } from "@/lib/useDemoUser";
 import { useToast } from "@/components/ToastProvider";
 
 type AuthMode = "loading" | "real" | "demo" | "none";
+type ResidentHomeSummary = {
+  residentId: string;
+  residentName: string;
+  totalPoints: number;
+  completedTaskIdsToday: string[];
+  completedTaskCountToday: number;
+  pendingTodoCount: number;
+  groupCheckInCountToday: number;
+};
 
 function ActionRow({
   icon,
@@ -114,8 +125,15 @@ export default function MePage() {
   const [matchedLeader, setMatchedLeader] = useState<MatchedLeaderRecord | null>(null);
   const [familyBindings, setFamilyBindings] = useState<FamilyBindingView[]>([]);
   const [serviceTodos, setServiceTodos] = useState<ResidentTodoProgressItem[]>([]);
+  const [realHomeSummary, setRealHomeSummary] = useState<ResidentHomeSummary | null>(null);
+  const [familyResidentSummaries, setFamilyResidentSummaries] = useState<
+    Record<string, ResidentHomeSummary>
+  >({});
+  const [contactItems, setContactItems] = useState<ContactItem[]>(localContacts);
   const [basicForm, setBasicForm] = useState({ name: "", phone: "", area: "" });
   const [isSavingBasic, setIsSavingBasic] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const role = authMode === "real" ? profile?.role : demoUser?.role;
 
   useEffect(() => {
     let active = true;
@@ -156,15 +174,30 @@ export default function MePage() {
   }, [demoUser, demoUserReady, router, supabase]);
 
   useEffect(() => {
+    if (authMode !== "demo" || !demoUser) {
+      setMyTodos([]);
+      setMatchedLeader(null);
+      setFamilyBindings([]);
+      setServiceTodos([]);
+      setContactItems(localContacts);
+      return;
+    }
+
+    const localDemoUser = demoUser;
+
     function loadLocalRecords() {
       const localTodos = readDoctorTodos();
       setMyTodos(localTodos);
       setMatchedLeader(readMatchedLeader());
       setFamilyBindings(readFamilyBindings());
-      if (demoUser?.role === "resident") {
+      setContactItems(localContacts);
+      if (localDemoUser.role === "resident") {
         setServiceTodos(
           localTodos
-            .filter((todo) => todo.residentId === demoUser.id || todo.residentName === demoUser.name)
+            .filter(
+              (todo) =>
+                todo.residentId === localDemoUser.id || todo.residentName === localDemoUser.name,
+            )
             .map((todo) =>
               mapLocalTodoToProgress({
                 todo,
@@ -172,6 +205,8 @@ export default function MePage() {
               }),
             ),
         );
+      } else {
+        setServiceTodos([]);
       }
     }
 
@@ -183,14 +218,14 @@ export default function MePage() {
       window.removeEventListener(STORAGE_CHANGE_EVENT, loadLocalRecords);
       window.removeEventListener("storage", loadLocalRecords);
     };
-  }, []);
+  }, [authMode, demoUser]);
 
   useEffect(() => {
     if (authMode === "real" && profile) {
       setBasicForm({
         name: profile.display_name ?? "",
         phone: profile.phone ?? "",
-        area: demoUser?.area ?? "",
+        area: "",
       });
       return;
     }
@@ -205,7 +240,63 @@ export default function MePage() {
   }, [authMode, demoUser, profile]);
 
   useEffect(() => {
-    if (authMode === "none" || authMode === "loading") {
+    if (authMode !== "real") {
+      setRealHomeSummary(null);
+      setFamilyResidentSummaries({});
+      return;
+    }
+
+    let active = true;
+
+    async function loadHomeSummary() {
+      try {
+        const response = await fetch("/api/home/summary", { method: "GET", cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          summary?: ResidentHomeSummary | null;
+          summaries?: ResidentHomeSummary[];
+        };
+
+        if (!active || !response.ok) {
+          return;
+        }
+
+        if (role === "resident") {
+          setRealHomeSummary(payload.summary ?? null);
+          setRemoteError(null);
+          return;
+        }
+
+        if (role === "family") {
+          const nextSummaries = Object.fromEntries(
+            (payload.summaries ?? []).map((item) => [item.residentId, item]),
+          ) as Record<string, ResidentHomeSummary>;
+          setFamilyResidentSummaries(nextSummaries);
+          setRemoteError(null);
+          return;
+        }
+
+        setRealHomeSummary(null);
+        setFamilyResidentSummaries({});
+      } catch {
+        if (!active) {
+          return;
+        }
+
+        setRealHomeSummary(null);
+        setFamilyResidentSummaries({});
+        setRemoteError("当前账号的汇总信息暂时还没同步成功，请稍后刷新再试。");
+      }
+    }
+
+    void loadHomeSummary();
+
+    return () => {
+      active = false;
+    };
+  }, [authMode, role]);
+
+  useEffect(() => {
+    if (authMode !== "real") {
       return;
     }
 
@@ -221,7 +312,9 @@ export default function MePage() {
           setFamilyBindings(payload.bindings);
         }
       } catch {
-        // 本地绑定关系会继续显示。
+        if (active) {
+          setFamilyBindings([]);
+        }
       }
     }
 
@@ -233,7 +326,55 @@ export default function MePage() {
   }, [authMode]);
 
   useEffect(() => {
-    if (authMode === "none" || authMode === "loading") {
+    if (authMode !== "real") {
+      return;
+    }
+
+    let active = true;
+
+    async function loadSelectedLeader() {
+      try {
+        const response = await fetch("/api/leaders/selected", { method: "GET", cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          leader?: {
+            id?: string;
+            name?: string | null;
+            matchPercent?: number | null;
+            reasons?: string[];
+          } | null;
+        };
+
+        if (!active) {
+          return;
+        }
+
+        if (response.ok && payload.leader?.name) {
+          setMatchedLeader({
+            leaderId: payload.leader.id ?? "remote-selected-leader",
+            leaderName: payload.leader.name,
+            matchPercent: payload.leader.matchPercent ?? 0,
+            matchReasons: payload.leader.reasons ?? [],
+            matchedAt: new Date().toISOString(),
+          });
+        } else {
+          setMatchedLeader(null);
+        }
+      } catch {
+        if (active) {
+          setMatchedLeader(null);
+        }
+      }
+    }
+
+    void loadSelectedLeader();
+
+    return () => {
+      active = false;
+    };
+  }, [authMode]);
+
+  useEffect(() => {
+    if (authMode !== "real") {
       return;
     }
 
@@ -253,11 +394,50 @@ export default function MePage() {
           setServiceTodos(payload.todos ?? []);
         }
       } catch {
-        // keep local fallback
+        if (active) {
+          setServiceTodos([]);
+        }
       }
     }
 
     void loadServiceTodos();
+
+    return () => {
+      active = false;
+    };
+  }, [authMode, role]);
+
+  useEffect(() => {
+    if (authMode !== "real") {
+      return;
+    }
+
+    let active = true;
+
+    async function loadRemoteContacts() {
+      try {
+        const response = await fetch("/api/contacts", { method: "GET", cache: "no-store" });
+        const payload = (await response.json().catch(() => ({}))) as {
+          contacts?: ContactItem[];
+        };
+
+        if (!active) {
+          return;
+        }
+
+        if (response.ok) {
+          setContactItems(payload.contacts ?? []);
+        } else {
+          setContactItems([]);
+        }
+      } catch {
+        if (active) {
+          setContactItems([]);
+        }
+      }
+    }
+
+    void loadRemoteContacts();
 
     return () => {
       active = false;
@@ -273,17 +453,17 @@ export default function MePage() {
       : demoUser?.roleLabel ?? "居民";
   const description =
     authMode === "real"
-      ? "当前显示测试账号资料。"
+      ? "当前显示已登录账号资料。"
       : demoUser?.description ?? "当前为本机身份。";
   const tags =
     authMode === "real"
-      ? [roleLabel, profile?.phone ? `手机号：${profile.phone}` : "测试账号"]
+      ? [roleLabel, profile?.phone ? `手机号：${profile.phone}` : "账号已登录"]
       : demoUser?.tags ?? [];
-  const role = authMode === "real" ? profile?.role : demoUser?.role;
   const canOpenWorkbench = isWorkbenchRole(role);
   const canOpenAdmin = role === "admin";
-  const doctorTeam = localContacts.filter((contact) => contact.group === "doctorTeam");
-  const familyMembers = localContacts.filter((contact) => contact.group === "family");
+  const visibleContacts = authMode === "real" ? contactItems : localContacts;
+  const doctorTeam = visibleContacts.filter((contact) => contact.group === "doctorTeam");
+  const familyMembers = visibleContacts.filter((contact) => contact.group === "family");
   const currentUserId = demoUser?.id ?? profile?.id ?? "";
   const taskTotal = readMergedTasks().length;
   const pointSummary = readPointsSummary();
@@ -292,6 +472,18 @@ export default function MePage() {
   const pendingTodoCount = myTodos.filter(
     (todo) => todo.status === "pending" || todo.status === "processing",
   ).length;
+  const displayedPoints =
+    authMode === "real" && role === "resident"
+      ? realHomeSummary?.totalPoints ?? 0
+      : authMode === "real" && role === "family"
+        ? familyResidentSummaries[familyUserBindings[0]?.residentId ?? ""]?.totalPoints ?? 0
+      : state.points;
+  const displayedGroupCheckInCount =
+    authMode === "real" && role === "resident"
+      ? realHomeSummary?.groupCheckInCountToday ?? 0
+      : authMode === "real" && role === "family"
+        ? familyResidentSummaries[familyUserBindings[0]?.residentId ?? ""]?.groupCheckInCountToday ?? 0
+        : 8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0);
 
   async function handleSaveBasic(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -335,7 +527,7 @@ export default function MePage() {
 
       showToast("基础信息已保存。", "success");
     } catch {
-      showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+      showToast("暂时保存失败，请稍后再试。", "warning");
     } finally {
       setIsSavingBasic(false);
     }
@@ -395,6 +587,15 @@ export default function MePage() {
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
         <BackHeader title="我的" />
+
+        {authMode === "real" && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
 
         <SectionCard>
           <div className="flex items-center gap-4">
@@ -490,7 +691,7 @@ export default function MePage() {
           </form>
         </SectionCard>
 
-        <SectionCard title="我的积分" action={<PointsBadge points={state.points} />}>
+        <SectionCard title="我的积分" action={<PointsBadge points={displayedPoints} />}>
           <p className="text-sm leading-6 text-navy/68">
             积分用于鼓励完成健康小事和参与小组互助，不能提现、不能买处方药。
           </p>
@@ -513,6 +714,14 @@ export default function MePage() {
                     <p className="mt-2 text-xs leading-5 text-navy/56">
                       建议联系谁：{todo.recommendedRoleLabel ?? "家庭医生"}
                     </p>
+                    {todo.serviceTask ? (
+                      <div className="mt-2 rounded-[16px] border border-sage/15 bg-[#EDF5EF] px-3 py-3">
+                        <p className="text-[11px] text-navy/45">一句话当前结果</p>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-navy">
+                          {buildResidentFriendlyTaskSnapshot(todo.serviceTask, todo.status).headline}
+                        </p>
+                      </div>
+                    ) : null}
                     <p className="mt-1 text-xs leading-5 text-navy/50">
                       {new Date(todo.createdAt).toLocaleString("zh-CN")}
                     </p>
@@ -565,29 +774,43 @@ export default function MePage() {
           <SectionCard title="我绑定的老人">
             {familyUserBindings.length ? (
               <div className="space-y-3">
-                {familyUserBindings.map((binding) => (
-                  <div key={binding.id} className="rounded-[22px] bg-surface-card p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-navy">{binding.residentName}</p>
-                        <p className="mt-1 text-xs text-navy/56">
-                          {binding.relationship} / 今日任务 {state.completedTaskIds.length}/{taskTotal}
-                        </p>
+                {familyUserBindings.map((binding) => {
+                  const residentSummary = familyResidentSummaries[binding.residentId];
+                  const completedCount =
+                    authMode === "real"
+                      ? residentSummary?.completedTaskCountToday ?? 0
+                      : state.completedTaskIds.length;
+                  const residentPoints =
+                    authMode === "real" ? residentSummary?.totalPoints ?? 0 : pointSummary.current;
+                  const residentPendingTodoCount =
+                    authMode === "real"
+                      ? residentSummary?.pendingTodoCount ?? 0
+                      : pendingTodoCount;
+
+                  return (
+                    <div key={binding.id} className="rounded-[22px] bg-surface-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-navy">{binding.residentName}</p>
+                          <p className="mt-1 text-xs text-navy/56">
+                            {binding.relationship} / 今日任务 {completedCount}/{taskTotal}
+                          </p>
+                        </div>
+                        <PointsBadge points={residentPoints} />
                       </div>
-                      <PointsBadge points={pointSummary.current} />
+                      <p className="mt-3 text-sm leading-6 text-navy/62">
+                        待处理提醒 {residentPendingTodoCount} 条。家属端目前仅查看，不替老人完成任务。
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => router.push("/family")}
+                        className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
+                      >
+                        查看老人健康情况
+                      </button>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-navy/62">
-                      待处理提醒 {pendingTodoCount} 条。家属端目前仅查看，不替老人完成任务。
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => router.push("/family")}
-                      className="mt-4 w-full rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white"
-                    >
-                      查看老人健康情况
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <EmptyState title="还没有绑定老人" description="请联系管理员或家医团队完成绑定。" />
@@ -623,7 +846,7 @@ export default function MePage() {
               <div className="rounded-[22px] bg-surface-card p-4">
                 <p className="text-sm font-semibold text-navy">高血压互助小组</p>
                 <p className="mt-1 text-xs leading-5 text-navy/58">
-                  小组长：{matchedLeader?.leaderName ?? "王阿姨"}。今天 {8 + (state.groupCheckInDates.includes(getTodayKey()) ? 1 : 0)} 位邻居已打卡。
+                  小组长：{matchedLeader?.leaderName ?? "王阿姨"}。今天 {displayedGroupCheckInCount} 位邻居已打卡。
                 </p>
                 <div className="mt-3 flex gap-3">
                   <button
@@ -674,11 +897,13 @@ export default function MePage() {
 
         <SectionCard title="设置">
           <div className="space-y-3">
-            <ActionRow
-              icon={<Sparkles className="h-4 w-4 text-sage" />}
-              label="演示中心"
-              onClick={() => router.push("/demo-center")}
-            />
+            {authMode === "demo" ? (
+              <ActionRow
+                icon={<Sparkles className="h-4 w-4 text-sage" />}
+                label="体验中心"
+                onClick={() => router.push("/demo-center")}
+              />
+            ) : null}
             <ActionRow
               icon={<Bell className="h-4 w-4 text-sage" />}
               label="通知中心"

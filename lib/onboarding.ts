@@ -118,6 +118,10 @@ export function profileToLocalUser(profile: ProfileRow) {
   });
 }
 
+export function isAccountUser(user: DemoUser | null | undefined) {
+  return user?.profile?.source === "account";
+}
+
 export async function resolveInitialUser(supabase: SupabaseClient | null) {
   if (supabase) {
     try {

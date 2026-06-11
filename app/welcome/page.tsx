@@ -250,7 +250,7 @@ export default function WelcomePage() {
         saveCurrentUser(user);
         router.replace(getPostOnboardingPath(role));
       } catch {
-        showToast("暂时保存失败，请稍后再试，也可以先使用演示身份。", "warning");
+        showToast("暂时保存失败，请稍后再试。", "warning");
       }
     } finally {
       setIsSaving(false);
@@ -399,7 +399,7 @@ export default function WelcomePage() {
                   fontFamily: PAGE_FONT_FAMILY,
                 }}
               >
-                已有账号或想先看演示
+                已有账号或先看体验入口
               </button>
 
               <button
@@ -414,7 +414,7 @@ export default function WelcomePage() {
                 }}
               >
                 <Sparkles className="h-4 w-4" />
-                先看演示中心
+                先看体验中心
               </button>
 
               <p

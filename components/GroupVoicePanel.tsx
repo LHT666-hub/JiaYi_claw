@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mic } from "lucide-react";
 import { useSpeechRecognition } from "@/lib/useSpeechRecognition";
 
@@ -43,14 +43,14 @@ export function GroupVoicePanel({
   const startTimeRef = useRef<number | null>(null);
   const speech = useSpeechRecognition();
 
-  function clearTimers() {
+  const clearTimers = useCallback(() => {
     if (intervalRef.current !== null) {
       window.clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  }
+  }, []);
 
-  function resetPanel(nextMode: GroupVoiceMode = mode) {
+  const resetPanel = useCallback((nextMode: GroupVoiceMode = mode) => {
     clearTimers();
     speech.reset();
     startTimeRef.current = null;
@@ -59,7 +59,7 @@ export function GroupVoicePanel({
     setDurationMs(0);
     setDraftText("");
     setErrorMessage("");
-  }
+  }, [clearTimers, mode, speech]);
 
   useEffect(() => {
     if (!open) {
@@ -69,7 +69,7 @@ export function GroupVoicePanel({
     return () => {
       clearTimers();
     };
-  }, [open]);
+  }, [clearTimers, open, resetPanel]);
 
   useEffect(() => {
     if (mode !== "text" || status !== "transcribing") return;

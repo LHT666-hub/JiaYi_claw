@@ -1,6 +1,6 @@
 import { Headphones, PlayCircle } from "lucide-react";
-import { CourseItem } from "@/lib/types";
 import { PointsBadge } from "@/components/PointsBadge";
+import { CourseItem } from "@/lib/types";
 
 type CourseCardProps = {
   course: CourseItem;
@@ -69,7 +69,7 @@ export function CourseCard({
                 : "bg-[#F2E2C7]/60 text-navy/45"
           }`}
         >
-          {watched ? "✓ 已领取" : canClaim ? "看完领积分" : "先去播放"}
+          {watched ? "已领取积分" : canClaim ? "看完领奖励" : "先去播放"}
         </button>
       </div>
     </div>

@@ -14,10 +14,20 @@ import { BackHeader } from "@/components/BackHeader";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { useToast } from "@/components/ToastProvider";
+import {
+  getCurrentServiceOwnerRole,
+  parseDescriptionWithServiceTask,
+} from "@/lib/agentTaskPayload";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { readAskLogs, readDoctorTodos, updateLocalDoctorTodoStatus } from "@/lib/storage";
 import { fetchCurrentProfile, getRoleLabel, isWorkbenchRole } from "@/lib/supabase/mvp";
-import { AppRole, DemoDoctorTodo, DoctorTodoRow, ProfileRow } from "@/lib/types";
+import {
+  AppRole,
+  DemoDoctorTodo,
+  DoctorTodoRow,
+  PersistedServiceTask,
+  ProfileRow,
+} from "@/lib/types";
 import { useDemoUser } from "@/lib/useDemoUser";
 
 const statusLabelMap: Record<DoctorTodoRow["status"], string> = {
@@ -94,17 +104,319 @@ type TodoCardView = {
   clawAnswer?: string;
   doctorSummary?: string;
   preparedMaterials?: string[];
+  serviceTask?: PersistedServiceTask | null;
 };
 
+type TodoAction = {
+  label: string;
+  status: DoctorTodoRow["status"];
+  note?: string;
+  tone?: "primary" | "secondary" | "danger";
+  serviceFactUpdates?: Array<{ label: string; value: string; tone?: "neutral" | "positive" | "warning" }>;
+};
+
+function getServiceRequestRows(todo: TodoCardView) {
+  const request = todo.serviceTask?.serviceRequest;
+
+  if (!request) {
+    return [];
+  }
+
+  if (request.kind === "registration") {
+    return [
+      request.symptom ? { label: "症状/问题", value: request.symptom } : null,
+      request.department ? { label: "目标门诊", value: request.department } : null,
+      request.preferredDoctor ? { label: "优先医生", value: request.preferredDoctor } : null,
+      request.preferredDate || request.preferredTime
+        ? { label: "期望时段", value: `${request.preferredDate ?? ""}${request.preferredTime ?? ""}`.trim() }
+        : null,
+    ].filter(Boolean) as Array<{ label: string; value: string }>;
+  }
+
+  if (request.kind === "family_doctor") {
+    return [
+      request.serviceMode
+        ? {
+            label: "服务方式",
+            value:
+              request.serviceMode === "clinic"
+                ? "线下面诊"
+                : request.serviceMode === "phone"
+                  ? "电话回访"
+                  : request.serviceMode === "home_visit"
+                    ? "上门服务"
+                    : "面诊、电话或上门均可",
+          }
+        : null,
+      request.preferredDate || request.preferredTime
+        ? { label: "期望时段", value: `${request.preferredDate ?? ""}${request.preferredTime ?? ""}`.trim() }
+        : null,
+      request.note ? { label: "补充说明", value: request.note } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string }>;
+  }
+
+  if (request.kind === "dispense_status") {
+    return [
+      request.medicineName ? { label: "药品名称", value: request.medicineName } : null,
+      request.progressFocus
+        ? {
+            label: "关注环节",
+            value:
+              request.progressFocus === "review"
+                ? "医生/药师审核"
+                : request.progressFocus === "dispense"
+                  ? "药房配药"
+                  : request.progressFocus === "delivery"
+                    ? "配送或自取"
+                    : "整体进度",
+          }
+        : null,
+      request.deliveryMethod
+        ? {
+            label: "交付方式",
+            value:
+              request.deliveryMethod === "pickup"
+                ? "到店自取"
+                : request.deliveryMethod === "mail"
+                  ? "邮寄到家"
+                  : "自取或邮寄都可以",
+          }
+        : null,
+    ].filter(Boolean) as Array<{ label: string; value: string }>;
+  }
+
+  if (request.kind === "followup") {
+    return [
+      request.followupType
+        ? {
+            label: "提醒类型",
+            value:
+              request.followupType === "phone_followup"
+                ? "电话随访"
+                : request.followupType === "checkup"
+                  ? "复查提醒"
+                  : request.followupType === "medication_reminder"
+                    ? "用药提醒"
+                    : "复诊提醒",
+          }
+        : null,
+      request.preferredDate ? { label: "期望时间", value: request.preferredDate } : null,
+      request.note ? { label: "补充说明", value: request.note } : null,
+    ].filter(Boolean) as Array<{ label: string; value: string }>;
+  }
+
+  return [
+    request.medicineName ? { label: "药品名称", value: request.medicineName } : null,
+    request.disease ? { label: "慢病类型", value: request.disease } : null,
+    request.stockLeft ? { label: "剩余药量", value: request.stockLeft } : null,
+    request.deliveryMethod
+      ? {
+          label: "交付方式",
+          value:
+            request.deliveryMethod === "pickup"
+              ? "到店自取"
+              : request.deliveryMethod === "mail"
+                ? "邮寄到家"
+                : "自取或邮寄都可以",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+}
+
+function getTodoActionOptions(
+  todo: TodoCardView,
+  workbenchRole: Extract<AppRole, "doctor" | "nurse" | "pharmacist" | "community" | "admin"> | null,
+): TodoAction[] {
+  const intent = todo.serviceTask?.task.intent;
+  const currentStep = todo.serviceTask?.task.steps.find((step) => step.status === "current");
+
+  if (!intent || !currentStep || !workbenchRole || todo.status === "ignored") {
+    return [];
+  }
+
+  if (intent === "refill_request") {
+    if (workbenchRole === "doctor" && currentStep.ownerRole === "doctor") {
+      return [
+        {
+          label: "审核通过并转药师",
+          status: "done",
+          note: "医生已确认可续方，转药师继续审方。",
+          tone: "primary",
+          serviceFactUpdates: [{ label: "是否需线下复诊", value: "本次评估可先续方，无需额外线下复诊", tone: "positive" }],
+        },
+        {
+          label: "需线下复诊",
+          status: "ignored",
+          note: "医生判断需要线下复诊后再决定是否续方。",
+          tone: "danger",
+          serviceFactUpdates: [{ label: "是否需线下复诊", value: "医生判断需线下复诊后再决定是否续方", tone: "warning" }],
+        },
+      ];
+    }
+
+    if (workbenchRole === "pharmacist" && currentStep.title.includes("审方")) {
+      return [
+        {
+          label: "审方通过",
+          status: "done",
+          note: "药师已完成审方，转药房配药。",
+          tone: "primary",
+          serviceFactUpdates: [{ label: "可续方目录", value: "药师已确认本次药品符合续方流转条件", tone: "positive" }],
+        },
+        { label: "补充用药信息", status: "processing", note: "已联系居民补充用药信息。", tone: "secondary" },
+      ];
+    }
+
+    if (workbenchRole === "pharmacist" && currentStep.title.includes("配药")) {
+      return [
+        {
+          label: "已配好",
+          status: "done",
+          note: "药房已完成配药，待确认交付方式。",
+          tone: "primary",
+          serviceFactUpdates: [
+            { label: "药房库存", value: "库存已锁定并完成配药", tone: "positive" },
+            { label: "服务状态", value: "药品已配好，正在确认最终交付方式", tone: "positive" },
+          ],
+        },
+      ];
+    }
+
+    if (workbenchRole === "pharmacist" && (currentStep.title.includes("交付") || currentStep.title.includes("自取") || currentStep.title.includes("邮寄"))) {
+      return [
+        {
+          label: "通知自取",
+          status: "done",
+          note: "已通知居民到店自取，服务流程完成。",
+          tone: "primary",
+          serviceFactUpdates: [{ label: "交付方式", value: "已通知居民到店自取", tone: "positive" }],
+        },
+        {
+          label: "安排邮寄",
+          status: "done",
+          note: "已安排邮寄并告知居民留意签收，服务流程完成。",
+          tone: "secondary",
+          serviceFactUpdates: [{ label: "交付方式", value: "已安排邮寄到家", tone: "positive" }],
+        },
+      ];
+    }
+  }
+
+  if (intent === "clinic_registration" && workbenchRole === "community" && currentStep.ownerRole === "community") {
+    return [
+      {
+        label: "已锁定号源",
+        status: "processing",
+        note: "已锁定候选号源，等待最终确认。",
+        tone: "secondary",
+        serviceFactUpdates: [{ label: "号源确认", value: "已锁定候选号源，等待居民最终确认", tone: "positive" }],
+      },
+      {
+        label: "已预约完成",
+        status: "done",
+        note: "门诊预约已完成，已回写预约结果。",
+        tone: "primary",
+        serviceFactUpdates: [
+          { label: "号源确认", value: "已完成预约并回写就诊结果", tone: "positive" },
+          { label: "下一动作", value: "请按预约时间携带证件到院就诊", tone: "positive" },
+        ],
+      },
+    ];
+  }
+
+  if (intent === "family_doctor_booking" && workbenchRole === "doctor" && currentStep.ownerRole === "doctor") {
+    return [
+      {
+        label: "已确认时段",
+        status: "done",
+        note: "家庭医生团队已确认服务时段。",
+        tone: "primary",
+        serviceFactUpdates: [
+          { label: "联系窗口", value: "家医团队已确认本次服务时段并通知居民", tone: "positive" },
+          { label: "下一动作", value: "请留意家医团队来电或按时参加面诊", tone: "positive" },
+        ],
+      },
+      {
+        label: "改约其他时段",
+        status: "processing",
+        note: "正在协调新的服务时段。",
+        tone: "secondary",
+        serviceFactUpdates: [{ label: "联系窗口", value: "居民当前时段不便，家医团队正在协调新时间", tone: "warning" }],
+      },
+    ];
+  }
+
+  if (intent === "followup_reminder" && workbenchRole === "nurse" && currentStep.ownerRole === "nurse") {
+    return [
+      {
+        label: "已安排随访",
+        status: "processing",
+        note: "已安排随访时间，继续跟进。",
+        tone: "secondary",
+        serviceFactUpdates: [{ label: "下一动作", value: "已锁定随访时间，等待按时回访", tone: "positive" }],
+      },
+      {
+        label: "已完成随访",
+        status: "done",
+        note: "随访已完成并同步给居民。",
+        tone: "primary",
+        serviceFactUpdates: [{ label: "下一动作", value: "已完成随访并回写给居民与家属", tone: "positive" }],
+      },
+    ];
+  }
+
+  if (intent === "dispense_status_query" && workbenchRole === "pharmacist" && currentStep.ownerRole === "pharmacist") {
+    return [
+      {
+        label: "同步最新进度",
+        status: "processing",
+        note: "已同步当前配药进度给居民。",
+        tone: "secondary",
+        serviceFactUpdates: [{ label: "服务状态", value: "药师已同步当前配药进度，居民可在进度页查看", tone: "positive" }],
+      },
+      {
+        label: "配药已完成",
+        status: "done",
+        note: "配药流程已完成，居民可查看结果。",
+        tone: "primary",
+        serviceFactUpdates: [
+          { label: "服务状态", value: "配药已完成，可按通知领取或等待配送", tone: "positive" },
+          { label: "下一动作", value: "请根据通知选择取药或留意配送进度", tone: "positive" },
+        ],
+      },
+    ];
+  }
+
+  return [];
+}
+
 function mapRemoteTodo(todo: DoctorTodoRow): TodoCardView {
+  const descriptionPayload = parseDescriptionWithServiceTask(todo.description);
+  const serviceTask = descriptionPayload.serviceTask;
+
   return {
     id: todo.id,
-    title: todo.title || "待办事项",
-    summary: todo.original_question || todo.description || todo.claw_answer || "暂无更多说明",
+    title: serviceTask?.task.title || todo.title || "待办事项",
+    summary:
+      todo.original_question ||
+      descriptionPayload.plainDescription ||
+      serviceTask?.task.summary ||
+      todo.claw_answer ||
+      "暂无更多说明",
     riskLevel: todo.risk_level,
     status: todo.status,
     source: todo.source ?? "ask",
     createdAt: todo.created_at,
+    recommendedRoleKey: getCurrentServiceOwnerRole(serviceTask) ?? undefined,
+    recommendedRoleLabel: serviceTask?.task.recommendedTeam,
+    recommendedReason: serviceTask?.needsHumanReview
+      ? `该服务需要 ${serviceTask.task.recommendedTeam} 继续处理。`
+      : undefined,
+    originalQuestion: todo.original_question ?? undefined,
+    clawAnswer: todo.claw_answer ?? undefined,
+    doctorSummary: descriptionPayload.plainDescription ?? serviceTask?.task.summary,
+    preparedMaterials: serviceTask?.task.preparedMaterials,
+    serviceTask,
   };
 }
 
@@ -117,13 +429,14 @@ function mapLocalTodo(todo: DemoDoctorTodo): TodoCardView {
     status: todo.status,
     source: todo.source,
     createdAt: todo.createdAt,
-    recommendedRoleKey: todo.recommendedRole,
+    recommendedRoleKey: getCurrentServiceOwnerRole(todo.serviceTask) ?? todo.recommendedRole,
     recommendedRoleLabel: todo.recommendedRoleLabel ?? todo.recommendedRole,
     recommendedReason: todo.recommendedReason,
     originalQuestion: todo.originalQuestion,
     clawAnswer: todo.clawAnswer,
     doctorSummary: todo.summary,
     preparedMaterials: todo.preparedMaterials,
+    serviceTask: todo.serviceTask ?? null,
   };
 }
 
@@ -137,9 +450,11 @@ export default function DoctorPage() {
   const [syncMode, setSyncMode] = useState<SyncMode>("local");
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   function activateLocalTodos() {
     setSyncMode("local");
+    setRemoteError(null);
     setTodos(readDoctorTodos().map(mapLocalTodo));
   }
 
@@ -158,12 +473,9 @@ export default function DoctorPage() {
     setRole(currentProfile.role);
     setAuthMode("supabase");
     setSyncMode("supabase");
+    setRemoteError(null);
     setTodos((payload.todos ?? []).map(mapRemoteTodo));
   }
-
-  useEffect(() => {
-    activateLocalTodos();
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -183,7 +495,16 @@ export default function DoctorPage() {
             setAuthMode("supabase");
 
             if (isWorkbenchRole(currentProfile.role)) {
-              await loadRemoteTodos(currentProfile);
+              try {
+                await loadRemoteTodos(currentProfile);
+              } catch {
+                if (!active) {
+                  return;
+                }
+                setSyncMode("supabase");
+                setRemoteError("当前账号已登录，但团队待办暂时还没同步成功。请稍后刷新，或先查看通知与服务进度。");
+                setTodos([]);
+              }
               return;
             }
 
@@ -198,11 +519,11 @@ export default function DoctorPage() {
         return;
       }
 
-      if (demoUser) {
-        setRole(demoUser.role);
-        setAuthMode("demo");
-        activateLocalTodos();
-        return;
+        if (demoUser) {
+          setRole(demoUser.role);
+          setAuthMode("demo");
+          activateLocalTodos();
+          return;
       }
 
       setAuthMode("none");
@@ -216,7 +537,12 @@ export default function DoctorPage() {
     };
   }, [demoUser, demoUserReady, router, supabase]);
 
-  async function updateTodoStatus(todoId: string, status: DoctorTodoRow["status"]) {
+  async function updateTodoStatus(
+    todoId: string,
+    status: DoctorTodoRow["status"],
+    note?: string,
+    serviceFactUpdates?: TodoAction["serviceFactUpdates"],
+  ) {
     if (syncMode === "supabase" && role && isWorkbenchRole(role)) {
       try {
         const response = await fetch("/api/doctor/todos", {
@@ -224,7 +550,7 @@ export default function DoctorPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ todoId, status }),
+          body: JSON.stringify({ todoId, status, note, serviceFactUpdates }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
           message?: string;
@@ -241,8 +567,8 @@ export default function DoctorPage() {
         showToast("待办状态已更新", "success");
         return;
       } catch {
-        activateLocalTodos();
-        showToast("Supabase 暂时不可用，已回退到本地待办。", "warning");
+        setRemoteError("待办状态暂时没有同步成功，请稍后重试。");
+        showToast("待办状态暂时没有同步成功，请稍后重试。", "warning");
         return;
       }
     }
@@ -252,6 +578,8 @@ export default function DoctorPage() {
       status: status as DemoDoctorTodo["status"],
       actorId: demoUser?.id ?? profile?.id ?? null,
       actorName: demoUser?.name ?? profile?.display_name ?? "",
+      note,
+      serviceFactUpdates,
     });
     const localTodos = readDoctorTodos();
     setTodos(localTodos.map(mapLocalTodo));
@@ -290,7 +618,7 @@ export default function DoctorPage() {
     (todo) => todo.riskLevel === "high" || todo.riskLevel === "emergency",
   ).length;
   const doneCount = myTodos.filter((todo) => todo.status === "done").length;
-  const askLogCount = useMemo(() => readAskLogs().length, [todos]);
+  const askLogCount = syncMode === "supabase" ? todos.length : readAskLogs().length;
 
   const todosByRisk = useMemo(() => {
     const high = myTodos.filter((t) => t.riskLevel === "high" || t.riskLevel === "emergency");
@@ -384,7 +712,9 @@ export default function DoctorPage() {
             <p className={`mt-2 text-2xl font-bold ${riskCount > 0 ? "text-danger" : "text-navy"}`}>{riskCount}</p>
           </div>
           <div className="rounded-[22px] bg-health-muted px-4 py-4 border border-sage/20">
-            <p className="text-[11px] tracking-wide text-sage">FAQ 已分流</p>
+            <p className="text-[11px] tracking-wide text-sage">
+              {syncMode === "supabase" ? "Claw 已转入" : "FAQ 已分流"}
+            </p>
             <p className="mt-2 text-2xl font-bold text-navy">{askLogCount}</p>
           </div>
           <div className="rounded-[22px] bg-health-success px-4 py-4 border border-success/15">
@@ -392,6 +722,15 @@ export default function DoctorPage() {
             <p className="mt-2 text-2xl font-bold text-success">{doneCount}</p>
           </div>
         </div>
+
+        {authMode === "supabase" && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
 
         {/* Todos by risk group */}
         <SectionCard title={isFilteredRole ? "建议我处理的待办" : "Claw 转入待办"}>
@@ -404,7 +743,7 @@ export default function DoctorPage() {
                 </div>
               )}
               {todosByRisk.high.map((todo) => (
-                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+                <TodoCard key={todo.id} todo={todo} workbenchRole={workbenchRole} onStatusChange={updateTodoStatus} />
               ))}
 
               {todosByRisk.medium.length > 0 && (
@@ -414,7 +753,7 @@ export default function DoctorPage() {
                 </div>
               )}
               {todosByRisk.medium.map((todo) => (
-                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+                <TodoCard key={todo.id} todo={todo} workbenchRole={workbenchRole} onStatusChange={updateTodoStatus} />
               ))}
 
               {todosByRisk.low.length > 0 && (
@@ -424,7 +763,7 @@ export default function DoctorPage() {
                 </div>
               )}
               {todosByRisk.low.map((todo) => (
-                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+                <TodoCard key={todo.id} todo={todo} workbenchRole={workbenchRole} onStatusChange={updateTodoStatus} />
               ))}
 
               {todosByRisk.done.length > 0 && (
@@ -434,14 +773,16 @@ export default function DoctorPage() {
                 </div>
               )}
               {todosByRisk.done.map((todo) => (
-                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+                <TodoCard key={todo.id} todo={todo} workbenchRole={workbenchRole} onStatusChange={updateTodoStatus} />
               ))}
             </div>
           ) : (
             <div className="rounded-[22px] bg-surface-card px-4 py-6 text-center">
               <Activity className="mx-auto h-8 w-8 text-sage/60" />
               <p className="mt-3 text-sm text-navy/60">
-                当前没有新的待办。问 Claw 出现高风险问题后，这里会自动出现。
+                {authMode === "supabase" && remoteError
+                  ? "当前先不显示本地占位待办，等远程数据同步成功后会在这里出现。"
+                  : "当前没有新的待办。问 Claw 出现高风险问题后，这里会自动出现。"}
               </p>
             </div>
           )}
@@ -454,7 +795,7 @@ export default function DoctorPage() {
             </p>
             <div className="space-y-3">
               {otherTodos.map((todo) => (
-                <TodoCard key={todo.id} todo={todo} onStatusChange={updateTodoStatus} />
+                <TodoCard key={todo.id} todo={todo} workbenchRole={workbenchRole} onStatusChange={updateTodoStatus} />
               ))}
             </div>
           </SectionCard>
@@ -517,14 +858,23 @@ export default function DoctorPage() {
 
 function TodoCard({
   todo,
+  workbenchRole,
   onStatusChange,
 }: {
   todo: TodoCardView;
-  onStatusChange: (id: string, status: DoctorTodoRow["status"]) => void;
+  workbenchRole: Extract<AppRole, "doctor" | "nurse" | "pharmacist" | "community" | "admin"> | null;
+  onStatusChange: (
+    id: string,
+    status: DoctorTodoRow["status"],
+    note?: string,
+    serviceFactUpdates?: TodoAction["serviceFactUpdates"],
+  ) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const riskStyle = riskStyleMap[todo.riskLevel] || riskStyleMap.low;
   const hasSummaryDetails = !!(todo.originalQuestion || todo.clawAnswer || todo.doctorSummary || todo.preparedMaterials?.length);
+  const actionOptions = getTodoActionOptions(todo, workbenchRole);
+  const serviceRequestRows = getServiceRequestRows(todo);
 
   return (
     <div className={`rounded-[22px] border p-4 ${riskStyle}`}>
@@ -552,6 +902,56 @@ function TodoCard({
           {todo.recommendedReason ? (
             <p className="mt-0.5 text-xs text-navy/55">{todo.recommendedReason}</p>
           ) : null}
+        </div>
+      ) : null}
+      {todo.serviceTask ? (
+        <div className="mt-3 rounded-[16px] border border-sage/15 bg-white/60 p-3">
+          <p className="text-[11px] font-semibold text-sage">{todo.serviceTask.label}</p>
+          <p className="mt-1 text-sm font-semibold text-navy">{todo.serviceTask.task.title}</p>
+          {serviceRequestRows.length ? (
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              {serviceRequestRows.map((row) => (
+                <div key={`${todo.id}-${row.label}`} className="rounded-[14px] border border-line/60 bg-cream px-3 py-2">
+                  <p className="text-[11px] text-navy/45">{row.label}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-navy">{row.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {todo.serviceTask.task.serviceFacts?.length ? (
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              {todo.serviceTask.task.serviceFacts.map((fact) => (
+                <div
+                  key={`${todo.id}-${fact.label}`}
+                  className={`rounded-[14px] border px-3 py-2 ${
+                    fact.tone === "warning"
+                      ? "border-amber/20 bg-[#FFF8ED]"
+                      : "border-line/60 bg-white/80"
+                  }`}
+                >
+                  <p className="text-[11px] text-navy/45">{fact.label}</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-navy">{fact.value}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="mt-2 space-y-1.5">
+            {todo.serviceTask.task.steps.map((step) => (
+              <div key={`${todo.id}-${step.title}`} className="flex items-center gap-2 text-xs text-navy/68">
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    step.status === "done"
+                      ? "bg-success"
+                      : step.status === "current"
+                        ? "bg-sage"
+                        : "bg-navy/20"
+                  }`}
+                />
+                <span className="flex-1">{step.title}</span>
+                <span className="text-navy/45">{step.owner}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
       {hasSummaryDetails ? (
@@ -589,7 +989,27 @@ function TodoCard({
           ) : null}
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2">
+      {actionOptions.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {actionOptions.map((action) => (
+            <button
+              key={`${todo.id}-${action.label}`}
+              type="button"
+              onClick={() => void onStatusChange(todo.id, action.status, action.note, action.serviceFactUpdates)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition active:scale-95 ${
+                action.tone === "danger"
+                  ? "border border-danger/25 bg-risk-soft text-danger"
+                  : action.tone === "secondary"
+                    ? "border border-sage/20 bg-health-soft text-sage"
+                    : "bg-navy text-white"
+              }`}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-line/50 pt-3">
         {(Object.keys(statusLabelMap) as DoctorTodoRow["status"][]).map((status) => (
           <button
             key={status}

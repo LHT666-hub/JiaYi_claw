@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { HeartPulse, Stethoscope, UserRoundPlus, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
+import { EmptyState } from "@/components/EmptyState";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { contacts as localContacts } from "@/data/contacts";
@@ -11,7 +12,7 @@ import { getContactsForResident, mapContactRowToContactItem } from "@/lib/db/con
 import { readMatchedLeader, STORAGE_CHANGE_EVENT } from "@/lib/storage";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { fetchCurrentProfile, resolveResidentScope } from "@/lib/supabase/mvp";
-import { ContactItem, MatchedLeaderRecord } from "@/lib/types";
+import { ContactItem, MatchedLeaderRecord, ProfileRow } from "@/lib/types";
 
 const groupConfig = [
   {
@@ -38,8 +39,16 @@ export default function ContactsPage() {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [items, setItems] = useState<ContactItem[]>(localContacts);
   const [matchedLeader, setMatchedLeader] = useState<MatchedLeaderRecord | null>(null);
+  const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [isRemoteMode, setIsRemoteMode] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isRemoteMode) {
+      setMatchedLeader(null);
+      return;
+    }
+
     function refresh() {
       setMatchedLeader(readMatchedLeader());
     }
@@ -50,7 +59,7 @@ export default function ContactsPage() {
       window.removeEventListener(STORAGE_CHANGE_EVENT, refresh);
       window.removeEventListener("storage", refresh);
     };
-  }, []);
+  }, [isRemoteMode]);
 
   useEffect(() => {
     let active = true;
@@ -66,19 +75,49 @@ export default function ContactsPage() {
         return;
       }
 
+      setProfile(profile);
+      setIsRemoteMode(true);
       const residentScope = await resolveResidentScope(supabase, profile);
 
       if (!active || !residentScope.residentId) {
+        setItems([]);
+        setRemoteError("当前账号还没有关联到可用的联系人范围。");
         return;
       }
 
-      const remoteContacts = await getContactsForResident(residentScope.residentId, supabase);
+      try {
+        const remoteContacts = await getContactsForResident(residentScope.residentId, supabase);
+        const leaderResponse = await fetch("/api/leaders/selected", { method: "GET", cache: "no-store" });
+        const leaderPayload = (await leaderResponse.json().catch(() => ({}))) as {
+          leader?: { id?: string; name?: string | null; matchPercent?: number | null; reasons?: string[] } | null;
+        };
 
-      if (!active || !remoteContacts.length) {
-        return;
+        if (!active) {
+          return;
+        }
+
+        setItems(remoteContacts.map(mapContactRowToContactItem));
+        setMatchedLeader(
+          leaderPayload.leader?.name
+            ? {
+                leaderId: leaderPayload.leader.id ?? "remote-selected-leader",
+                leaderName: leaderPayload.leader.name,
+                matchPercent: leaderPayload.leader.matchPercent ?? 0,
+                matchReasons: leaderPayload.leader.reasons ?? [],
+                matchedAt: new Date().toISOString(),
+              }
+            : null,
+        );
+        setRemoteError(null);
+      } catch {
+        if (!active) {
+          return;
+        }
+
+        setItems([]);
+        setMatchedLeader(null);
+        setRemoteError("当前账号的联系人暂时还没同步成功，请稍后刷新再试。");
       }
-
-      setItems(remoteContacts.map(mapContactRowToContactItem));
     }
 
     void loadContacts();
@@ -87,6 +126,13 @@ export default function ContactsPage() {
       active = false;
     };
   }, [supabase]);
+
+  const visibleGroups = groupConfig
+    .map((group) => ({
+      ...group,
+      contacts: items.filter((contact) => contact.group === group.key),
+    }))
+    .filter((group) => group.contacts.length > 0);
 
   return (
     <PhoneShell showBottomNav>
@@ -102,42 +148,63 @@ export default function ContactsPage() {
           </p>
         </div>
 
-        {groupConfig.map((group) => {
-          const Icon = group.icon;
-          const groupContacts = items.filter((contact) => contact.group === group.key);
-          if (!groupContacts.length) return null;
+        {isRemoteMode && remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
 
-          return (
-            <SectionCard
-              key={group.key}
-              title={group.title}
-              action={<Icon className="h-4 w-4 text-sage" />}
-            >
-              <p className="mb-3 text-xs leading-5 text-navy/55">{group.description}</p>
-              <div className="space-y-3">
-                {groupContacts.map((contact) => (
-                  <ContactNetworkCard key={contact.id} contact={contact} />
-                ))}
-                {group.key === "community" && matchedLeader && (
-                  <div className="rounded-[22px] border border-sage/30 bg-health-soft p-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage/20 text-sm font-semibold text-sage">
-                        {matchedLeader.leaderName.slice(0, 1)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-navy">
-                          {matchedLeader.leaderName}
-                          <span className="ml-2 text-[11px] font-medium text-sage">我的小组长</span>
-                        </p>
-                        <p className="mt-0.5 text-xs text-navy/55">匹配度 {matchedLeader.matchPercent}%</p>
+        {visibleGroups.length ? (
+          visibleGroups.map((group) => {
+            const Icon = group.icon;
+            const groupContacts = group.contacts;
+
+            return (
+              <SectionCard
+                key={group.key}
+                title={group.title}
+                action={<Icon className="h-4 w-4 text-sage" />}
+              >
+                <p className="mb-3 text-xs leading-5 text-navy/55">{group.description}</p>
+                <div className="space-y-3">
+                  {groupContacts.map((contact) => (
+                    <ContactNetworkCard key={contact.id} contact={contact} />
+                  ))}
+                  {group.key === "community" && matchedLeader && (
+                    <div className="rounded-[22px] border border-sage/30 bg-health-soft p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sage/20 text-sm font-semibold text-sage">
+                          {matchedLeader.leaderName.slice(0, 1)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-navy">
+                            {matchedLeader.leaderName}
+                            <span className="ml-2 text-[11px] font-medium text-sage">我的小组长</span>
+                          </p>
+                          <p className="mt-0.5 text-xs text-navy/55">匹配度 {matchedLeader.matchPercent}%</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </SectionCard>
-          );
-        })}
+                  )}
+                </div>
+              </SectionCard>
+            );
+          })
+        ) : (
+          <SectionCard>
+            <EmptyState
+              title="暂时还没有联系人"
+              description={
+                isRemoteMode
+                  ? `当前${profile?.role === "family" ? "家属" : "账号"}还没有配置家医团队或社区联系人。`
+                  : "选择身份后，这里会显示医生、家属和社区支持联系人。"
+              }
+            />
+          </SectionCard>
+        )}
 
         <SectionCard
           title="小组长匹配"

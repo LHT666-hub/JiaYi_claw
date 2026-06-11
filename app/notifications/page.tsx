@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, ChevronRight } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
 import { getNotificationAccent, getNotificationLabel } from "@/lib/notificationLabels";
+import { isAccountUser, resolveInitialUser } from "@/lib/onboarding";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   STORAGE_CHANGE_EVENT,
   ensureSeedNotifications,
@@ -24,7 +26,10 @@ type DisplayNotification = {
   href: string;
   isRead: boolean;
   createdAt: string;
+  metadata?: Record<string, unknown> | null;
 };
+
+type IdentityState = "loading" | "account" | "local" | "none";
 
 const accentClassMap = {
   navy: "bg-[#EEF3F8] text-navy",
@@ -42,11 +47,34 @@ function isToday(dateStr: string): boolean {
   );
 }
 
+function resolveNotificationLabel(notif: DisplayNotification) {
+  if (notif.type === "todo_status_changed" && typeof notif.metadata?.followupResponse === "string") {
+    return "随访回执";
+  }
+
+  if (notif.type === "system" && notif.metadata?.kind === "direct_message") {
+    return "在线留言";
+  }
+
+  if (notif.type === "system" && notif.metadata?.kind === "contact_request") {
+    return "联系请求";
+  }
+
+  if (notif.type === "system" && notif.metadata?.kind === "feedback_submission") {
+    return "体验反馈";
+  }
+
+  return getNotificationLabel(notif.type);
+}
+
 export default function NotificationsPage() {
   const router = useRouter();
+  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const [notifications, setNotifications] = useState<DisplayNotification[]>([]);
   const [isSupabaseMode, setIsSupabaseMode] = useState(false);
+  const [identityState, setIdentityState] = useState<IdentityState>("loading");
   const [loading, setLoading] = useState(true);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -62,6 +90,7 @@ export default function NotificationsPage() {
             link_url: string | null;
             is_read: boolean;
             created_at: string;
+            metadata?: Record<string, unknown> | null;
           }>;
         };
 
@@ -75,15 +104,25 @@ export default function NotificationsPage() {
               href: item.link_url ?? "",
               isRead: item.is_read,
               createdAt: item.created_at,
+              metadata: item.metadata ?? null,
             })),
           );
           setIsSupabaseMode(true);
+          setRemoteError(null);
           setLoading(false);
           return;
         }
       }
     } catch {
-      // Fall through to local notifications.
+      // Continue below.
+    }
+
+    if (identityState === "account") {
+      setNotifications([]);
+      setIsSupabaseMode(false);
+      setRemoteError("当前账号的通知暂时还没同步成功，请稍后刷新再试。");
+      setLoading(false);
+      return;
     }
 
     ensureSeedNotifications();
@@ -97,20 +136,55 @@ export default function NotificationsPage() {
         href: item.linkUrl,
         isRead: item.isRead,
         createdAt: item.createdAt,
+        metadata: item.metadata ?? null,
       })),
     );
     setIsSupabaseMode(false);
+    setRemoteError(null);
     setLoading(false);
-  }, []);
+  }, [identityState]);
 
   useEffect(() => {
+    let active = true;
+
+    async function bootstrapIdentity() {
+      const user = await resolveInitialUser(supabase);
+
+      if (!active) {
+        return;
+      }
+
+      if (!user) {
+        setIdentityState("none");
+        setLoading(false);
+        router.replace("/welcome");
+        return;
+      }
+
+      setIdentityState(isAccountUser(user) ? "account" : "local");
+    }
+
+    void bootstrapIdentity();
+
+    return () => {
+      active = false;
+    };
+  }, [router, supabase]);
+
+  useEffect(() => {
+    if (identityState === "loading" || identityState === "none") {
+      return;
+    }
+
     void loadNotifications();
 
-    window.addEventListener(STORAGE_CHANGE_EVENT, loadNotifications);
-    return () => {
-      window.removeEventListener(STORAGE_CHANGE_EVENT, loadNotifications);
-    };
-  }, [loadNotifications]);
+    if (identityState === "local") {
+      window.addEventListener(STORAGE_CHANGE_EVENT, loadNotifications);
+      return () => {
+        window.removeEventListener(STORAGE_CHANGE_EVENT, loadNotifications);
+      };
+    }
+  }, [identityState, loadNotifications]);
 
   const unreadCount = notifications.filter((item) => !item.isRead).length;
   const todayNotifs = notifications.filter((item) => isToday(item.createdAt));
@@ -125,7 +199,7 @@ export default function NotificationsPage() {
           body: JSON.stringify({ markAllRead: true }),
         });
       } catch {
-        // best effort
+        setRemoteError("通知已显示，但标记已读暂时没有同步成功。");
       }
     } else {
       markAllLocalNotificationsRead();
@@ -144,7 +218,7 @@ export default function NotificationsPage() {
             body: JSON.stringify({ id: notif.id }),
           });
         } catch {
-          // best effort
+          setRemoteError("通知已打开，但已读状态暂时没有同步成功。");
         }
       } else {
         markLocalNotificationRead(notif.id);
@@ -162,7 +236,7 @@ export default function NotificationsPage() {
 
   function renderNotifCard(notif: DisplayNotification) {
     const accent = getNotificationAccent(notif.type);
-    const label = getNotificationLabel(notif.type);
+    const label = resolveNotificationLabel(notif);
 
     return (
       <button
@@ -215,7 +289,7 @@ export default function NotificationsPage() {
     return (
       <PhoneShell>
         <div className="space-y-5 px-4 pb-8">
-          <BackHeader title="通知中心" subtitle="随访、群提醒和课程更新都会出现在这里" />
+          <BackHeader title="通知中心" subtitle="随访、群提醒和课程更新都会出现在这里。" />
           <SectionCard>
             <p className="text-sm text-navy/66">正在加载...</p>
           </SectionCard>
@@ -227,7 +301,16 @@ export default function NotificationsPage() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="通知中心" subtitle="随访、群提醒和课程更新都会出现在这里" />
+        <BackHeader title="通知中心" subtitle="随访、群提醒和课程更新都会出现在这里。" />
+
+        {remoteError ? (
+          <SectionCard>
+            <div className="rounded-[22px] border border-amber/25 bg-[#FFF6EA] px-4 py-4">
+              <p className="text-sm font-semibold text-navy">数据同步稍有延迟</p>
+              <p className="mt-1 text-sm leading-6 text-navy/66">{remoteError}</p>
+            </div>
+          </SectionCard>
+        ) : null}
 
         {unreadCount > 0 ? (
           <div className="flex items-center justify-between rounded-[22px] bg-surface-tint px-4 py-3">
@@ -245,8 +328,12 @@ export default function NotificationsPage() {
         {notifications.length === 0 ? (
           <SectionCard>
             <EmptyState
-              title="暂无通知"
-              description="当有新的提醒、任务完成或积分变动时，通知会出现在这里。"
+              title="暂时还没有通知"
+              description={
+                identityState === "account"
+                  ? "等当前账号有新的提醒、服务更新或课程变动后，这里会自动显示。"
+                  : "当有新的提醒、任务完成或积分变动时，通知会出现在这里。"
+              }
             />
           </SectionCard>
         ) : (

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getContactsForResident } from "@/lib/db/contacts";
+import { getContactsForResident, mapContactRowToContactItem } from "@/lib/db/contacts";
 import { getServerAuthContext } from "@/lib/supabase/server-auth";
 
 export async function GET() {
@@ -7,18 +7,16 @@ export async function GET() {
 
   if (!supabase || !user || !profile) {
     return NextResponse.json(
-      { message: "当前未登录或 Supabase 未配置" },
+      { message: "当前未登录，或账号服务暂时不可用。" },
       { status: 401 },
     );
   }
 
-  // Resident reads own contacts; family reads linked contacts; admin reads all
   let residentId: string | null = null;
 
   if (profile.role === "resident") {
     residentId = profile.id;
   } else if (profile.role === "family") {
-    // Look up which resident this family member is linked to
     const { data } = (await supabase
       .from("contacts")
       .select("resident_id")
@@ -28,8 +26,6 @@ export async function GET() {
       .maybeSingle()) as { data: { resident_id: string } | null };
     residentId = data?.resident_id ?? null;
   } else if (profile.role === "admin") {
-    // Admin can optionally pass ?residentId=...
-    // For now, return empty — admin uses the dashboard
     return NextResponse.json({ ok: true, contacts: [] });
   }
 
@@ -38,5 +34,8 @@ export async function GET() {
   }
 
   const contacts = await getContactsForResident(residentId, supabase);
-  return NextResponse.json({ ok: true, contacts });
+  return NextResponse.json({
+    ok: true,
+    contacts: contacts.map(mapContactRowToContactItem),
+  });
 }
