@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,6 +13,7 @@ const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false 
 const password = `Local-${randomBytes(12).toString("hex")}!`;
 const suffix = `${Date.now()}-${randomBytes(3).toString("hex")}`;
 const createdUserIds = [];
+let assertions = 0;
 const cleanup = {
   organizationIds: [],
   communityIds: [],
@@ -25,6 +26,11 @@ const cleanup = {
   groupMessageIds: [],
   todoIds: [],
   auditIds: [],
+  askLogIds: [],
+  familyLinkCodeIds: [],
+  notificationIds: [],
+  outboxIds: [],
+  wechatIdentityIds: [],
 };
 
 async function createAccount(label, role, organizationId, communityId) {
@@ -58,11 +64,13 @@ async function expectVisible(client, table, id, expected, label) {
   if (Boolean(data) !== expected) {
     throw new Error(`${label}: expected ${expected ? "visible" : "hidden"}, received ${data ? "visible" : "hidden"}.`);
   }
+  assertions += 1;
 }
 
 async function expectDenied(operation, label) {
   const result = await operation();
   if (!result.error) throw new Error(`${label}: mutation unexpectedly succeeded.`);
+  assertions += 1;
 }
 
 async function seedResidentData(residentId, recordedBy, organizationId, communityId, tag) {
@@ -216,6 +224,38 @@ try {
     detail: { synthetic: true },
   }, "auditIds");
 
+  const askLogBId = await insertOne("ask_logs", {
+    user_id: residentB.id,
+    question: "RLS 其他机构私密问答",
+    answer: "synthetic",
+    source: "verification",
+    risk_level: "low",
+    suggest_doctor: false,
+  }, "askLogIds");
+  const familyLinkCodeBId = await insertOne("family_link_codes", {
+    resident_id: residentB.id,
+    code_hash: randomBytes(32).toString("hex"),
+    expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+  }, "familyLinkCodeIds");
+  const notificationBId = await insertOne("notifications", {
+    user_id: residentB.id,
+    type: "system",
+    title: "RLS 其他机构通知",
+    content: "private notification",
+  }, "notificationIds");
+  const outboxBId = await insertOne("outbox_events", {
+    event_type: "service_request.status_changed",
+    aggregate_type: "service_request",
+    aggregate_id: randomUUID(),
+    recipient_id: residentB.id,
+    payload: { requestId: randomUUID(), status: "submitted" },
+  }, "outboxIds");
+  const wechatIdentityBId = await insertOne("wechat_identities", {
+    user_id: residentB.id,
+    app_id: `verify-${suffix}`,
+    open_id: `verify-open-${suffix}`,
+  }, "wechatIdentityIds");
+
   for (const [client, own, foreign, label] of [
     [residentA.client, dataA, dataB, "居民"],
     [familyAuthorized.client, dataA, dataB, "已授权家属"],
@@ -239,10 +279,17 @@ try {
   await expectVisible(staffA2.client, "health_observations", dataA2.healthId, true, "第二社区工作人员可读本社区记录");
   await expectVisible(staffB.client, "health_observations", dataB.healthId, true, "其他机构工作人员可读本机构记录");
   await expectVisible(staffA.client, "skill_runs", dataB.skillRunId, false, "工作人员不能跨机构读取 Skill 运行");
+  await expectVisible(residentA.client, "skill_runs", dataB.skillRunId, false, "居民不能读取其他居民的 Skill 运行");
   await expectVisible(residentA.client, "group_messages", groupMessageBId, false, "旧群消息不再全员可读");
   await expectVisible(staffA.client, "doctor_todos", todoBId, false, "旧待办不能跨机构读取");
   await expectVisible(adminA.client, "staff_invites", inviteBId, false, "管理员不能跨机构读取邀请");
   await expectVisible(adminA.client, "audit_logs", auditBId, false, "管理员不能跨机构读取审计日志");
+  await expectVisible(adminA.client, "public_info_entries", publicInfoBId, false, "管理员不能读取其他机构草稿");
+  await expectVisible(adminA.client, "ask_logs", askLogBId, false, "管理员不能跨机构读取问答记录");
+  await expectVisible(adminA.client, "family_link_codes", familyLinkCodeBId, false, "管理员不能跨机构读取家属邀请码");
+  await expectVisible(adminA.client, "notifications", notificationBId, false, "管理员不能跨机构读取居民通知");
+  await expectVisible(adminA.client, "outbox_events", outboxBId, false, "管理员不能跨机构读取通知队列");
+  await expectVisible(adminA.client, "wechat_identities", wechatIdentityBId, false, "管理员不能跨机构读取微信身份");
 
   await expectDenied(
     () => residentA.client.from("health_observations").insert({
@@ -311,21 +358,38 @@ try {
     }),
     "工作人员不能跨机构推进服务状态",
   );
+  await expectDenied(
+    () => adminA.client.from("ask_logs").insert({
+      user_id: residentB.id,
+      question: "cross tenant",
+      source: "verification",
+      suggest_doctor: false,
+    }),
+    "管理员不能跨机构伪造问答记录",
+  );
 
   const { error: escalationError } = await residentA.client.from("profiles").update({ role: "admin" }).eq("id", residentA.id);
   if (!escalationError) throw new Error("居民角色升级请求未被 RLS 明确拒绝。");
+  assertions += 1;
   const { data: unchangedRole, error: roleCheckError } = await admin.from("profiles").select("role").eq("id", residentA.id).single();
   if (roleCheckError || unchangedRole.role !== "resident") throw roleCheckError ?? new Error("居民角色被非法提升。");
+  assertions += 1;
 
   const { data: unchangedInfo, error: infoCheckError } = await admin.from("public_info_entries").select("title").eq("id", publicInfoBId).single();
   if (infoCheckError || unchangedInfo.title !== "RLS 其他机构内部草稿") throw infoCheckError ?? new Error("跨机构公开信息被修改。");
+  assertions += 1;
 
-  console.log("Verified 42 RLS assertions: resident isolation, family authorization, community and organization boundaries, protected clinical writes, scoped admin operations, legacy privacy, and role-escalation blocking.");
+  console.log(`Verified ${assertions} RLS assertions: resident isolation, family authorization, community and organization boundaries, protected clinical writes, scoped admin operations, legacy privacy, and role-escalation blocking.`);
 } finally {
   const deleteByIds = async (table, ids) => {
     if (ids.length) await admin.from(table).delete().in("id", ids);
   };
   await deleteByIds("audit_logs", cleanup.auditIds);
+  await deleteByIds("outbox_events", cleanup.outboxIds);
+  await deleteByIds("notifications", cleanup.notificationIds);
+  await deleteByIds("wechat_identities", cleanup.wechatIdentityIds);
+  await deleteByIds("family_link_codes", cleanup.familyLinkCodeIds);
+  await deleteByIds("ask_logs", cleanup.askLogIds);
   await deleteByIds("doctor_todos", cleanup.todoIds);
   await deleteByIds("group_messages", cleanup.groupMessageIds);
   await deleteByIds("public_info_entries", cleanup.publicInfoIds);

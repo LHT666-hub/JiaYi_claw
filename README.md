@@ -48,6 +48,7 @@ npm run dev:web -- -p 3000 -H 0.0.0.0
 ```powershell
 npm run check:all
 npm run verify:onboarding
+npm run verify:operations
 npm run verify:rls
 npm run verify:release-compliance
 npm run verify:wechat-notifications
@@ -58,7 +59,8 @@ npm run build:all
 
 - `check:all`：Web/小程序类型、Lint、单测和第三方许可证。
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
-- `verify:rls`：42 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入和旧表隐私边界。
+- `verify:operations`：以生产构建验证内容到期下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
+- `verify:rls`：48 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入和旧表隐私边界。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
 - `eval:ask`：通过真实 HTTP 接口回归公开信息边界、急症、调药、提示注入和方言表达。
