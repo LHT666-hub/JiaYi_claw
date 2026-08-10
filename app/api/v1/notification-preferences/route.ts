@@ -9,6 +9,7 @@ const input = z.object({
   contentUpdates: z.boolean(),
   smsEnabled: z.boolean(),
   wecomEnabled: z.boolean(),
+  wechatMiniEnabled: z.boolean().optional(),
   quietHoursStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   quietHoursEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
 });
@@ -19,6 +20,7 @@ const defaults = {
   content_updates: false,
   sms_enabled: false,
   wecom_enabled: true,
+  wechat_mini_enabled: false,
   quiet_hours_start: "21:00",
   quiet_hours_end: "08:00",
 };
@@ -46,6 +48,9 @@ export async function PUT(request: NextRequest) {
     content_updates: parsed.data.contentUpdates,
     sms_enabled: parsed.data.smsEnabled,
     wecom_enabled: parsed.data.wecomEnabled,
+    ...(typeof parsed.data.wechatMiniEnabled === "boolean"
+      ? { wechat_mini_enabled: parsed.data.wechatMiniEnabled }
+      : {}),
     quiet_hours_start: parsed.data.quietHoursStart,
     quiet_hours_end: parsed.data.quietHoursEnd,
     updated_at: new Date().toISOString(),

@@ -1,7 +1,13 @@
 import { Button, Checkbox, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiRequest, saveSession } from "../../lib/api";
+import {
+  resolvePrivacyAuthorization,
+  subscribePrivacyAuthorization,
+} from "../../lib/privacy";
+
+const PRIVACY_AGREE_BUTTON_ID = "jiayi-privacy-agree";
 
 type VerifyResult = {
   needsOnboarding: boolean;
@@ -14,6 +20,16 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false);
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [privacyAuthorizationNeeded, setPrivacyAuthorizationNeeded] =
+    useState(false);
+
+  useEffect(
+    () =>
+      subscribePrivacyAuthorization((request) =>
+        setPrivacyAuthorizationNeeded(Boolean(request)),
+      ),
+    [],
+  );
 
   async function wechatLogin(event: { detail: { code?: string; errMsg?: string } }) {
     if (!accepted) {
@@ -107,6 +123,52 @@ export default function LoginPage() {
         )}
       </View>
       <View className="subtitle footer-note">平台提供服务导航、资料整理和人工协同，不替代医生诊疗。</View>
+      {privacyAuthorizationNeeded ? (
+        <View className="privacy-mask">
+          <View className="privacy-dialog">
+            <Text className="privacy-dialog-title">隐私保护提示</Text>
+            <Text className="privacy-dialog-copy">
+              为完成微信手机号登录，家医 Claw 需要在您明确同意后获取本次授权手机号。手机号用于身份验证和服务联系，不用于广告推送。
+            </Text>
+            <View className="legal-links privacy-dialog-links">
+              <Text
+                onClick={() =>
+                  Taro.navigateTo({ url: "/pages/legal/index?doc=privacy" })
+                }
+              >
+                查看隐私政策
+              </Text>
+              <Text
+                onClick={() =>
+                  Taro.navigateTo({ url: "/pages/legal/index?doc=agreement" })
+                }
+              >
+                查看用户协议
+              </Text>
+            </View>
+            <View className="privacy-dialog-actions">
+              <Button
+                className="privacy-dialog-cancel"
+                onClick={() => resolvePrivacyAuthorization(false)}
+              >
+                暂不授权
+              </Button>
+              <Button
+                id={PRIVACY_AGREE_BUTTON_ID}
+                className="privacy-dialog-agree"
+                onClick={() =>
+                  resolvePrivacyAuthorization(
+                    true,
+                    PRIVACY_AGREE_BUTTON_ID,
+                  )
+                }
+              >
+                同意并继续
+              </Button>
+            </View>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -18,7 +18,7 @@ export const CONSENT_COPY = {
   },
   notification: {
     title: "服务通知",
-    description: "接收预约进度、补充资料、排班活动和随访提醒，可随时关闭。",
+    description: "接收预约进度、补充资料、排班活动和随访提醒。微信订阅消息按模板逐次授权，可随时关闭其他通知渠道。",
     required: false,
   },
 } as const;

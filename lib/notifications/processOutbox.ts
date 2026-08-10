@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { serviceStatusLabels } from "@/lib/serviceRequests/stateMachine";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { deliverWechatServiceUpdate } from "@/lib/notifications/wechatSubscription";
 
 const payloadSchema = z.object({
   requestId: z.string().uuid(),
@@ -60,9 +61,28 @@ export async function processOutboxEvents(limit = 25): Promise<OutboxProcessResu
         if (notificationError) throw notificationError;
       }
 
+      const label = statusLabel(payload.status);
+      const wechat = await deliverWechatServiceUpdate({
+        supabase,
+        recipientId: event.recipient_id,
+        requestId: payload.requestId,
+        title: "家医服务进度",
+        status: label,
+        note: payload.note?.trim() || `服务状态已更新为：${label}`,
+        updatedAt: new Date().toLocaleString("zh-CN", {
+          timeZone: "Asia/Shanghai",
+          hour12: false,
+        }),
+      });
+
       const { error: sentError } = await supabase
         .from("outbox_events")
-        .update({ status: "sent", sent_at: new Date().toISOString(), last_error: null })
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          last_error: null,
+          delivery_results: { inApp: "sent", wechat },
+        })
         .eq("id", event.id);
       if (sentError) throw sentError;
       sent += 1;

@@ -18,7 +18,12 @@ const password = "LocalOnly123!";
 const accounts = [
   { email: "zhangayi@example.com", displayName: "张阿姨", role: "resident" },
   { email: "daughter@example.com", displayName: "张阿姨女儿", role: "family" },
-  { email: "li-doctor@example.com", displayName: "李医生", role: "doctor" },
+  {
+    email: "li-doctor@example.com",
+    displayName: "李医生",
+    role: "doctor",
+    phone: "+8613800000001",
+  },
   { email: "wang-nurse@example.com", displayName: "王护士", role: "nurse" },
   {
     email: "chen-pharmacist@example.com",
@@ -30,7 +35,12 @@ const accounts = [
     displayName: "居委张老师",
     role: "community",
   },
-  { email: "admin@example.com", displayName: "管理员", role: "admin" },
+  {
+    email: "admin@example.com",
+    displayName: "管理员",
+    role: "admin",
+    phone: "+8613800000002",
+  },
 ];
 
 const { data: community, error: communityError } = await supabase
@@ -54,6 +64,7 @@ for (const account of accounts) {
       email: account.email,
       password,
       email_confirm: true,
+      ...(account.phone ? { phone: account.phone, phone_confirm: true } : {}),
       user_metadata: { display_name: account.displayName },
     });
     if (error || !data.user)
@@ -63,6 +74,7 @@ for (const account of accounts) {
     const { error } = await supabase.auth.admin.updateUserById(user.id, {
       password,
       email_confirm: true,
+      ...(account.phone ? { phone: account.phone, phone_confirm: true } : {}),
     });
     if (error) throw error;
   }
@@ -72,6 +84,7 @@ for (const account of accounts) {
     id: user.id,
     display_name: account.displayName,
     role: account.role,
+    phone: account.phone ?? null,
     organization_id: community.organization_id,
     community_id: community.id,
     account_status: "active",

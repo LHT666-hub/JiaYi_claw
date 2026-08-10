@@ -106,3 +106,12 @@ page { background: #f3ddc2; color: #102a43; font-family: -apple-system, BlinkMac
 .claw-draft-copy { display: block; margin-top: 8px; color: rgba(16,42,67,.62); font-size: 22px; line-height: 1.6; }
 .privacy-intro { background: #eef5f3; }
 .privacy-list { padding-top: 6px; padding-bottom: 6px; }
+.privacy-mask { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; padding: 28px; box-sizing: border-box; background: rgba(16,42,67,.42); }
+.privacy-dialog { width: 100%; padding: 34px 30px 28px; box-sizing: border-box; border: 1px solid rgba(216,194,163,.9); border-radius: 38px; background: #fff8ed; box-shadow: 0 30px 80px rgba(16,42,67,.24); text-align: left; }
+.privacy-dialog-title { display: block; color: #102a43; font-size: 34px; font-weight: 700; }
+.privacy-dialog-copy { display: block; margin-top: 16px; color: rgba(16,42,67,.66); font-size: 25px; line-height: 1.75; }
+.privacy-dialog-links { justify-content: flex-start; margin-top: 18px; }
+.privacy-dialog-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 16px; margin-top: 28px; }
+.privacy-dialog-cancel, .privacy-dialog-agree { margin: 0; border-radius: 999px; font-size: 26px; font-weight: 700; }
+.privacy-dialog-cancel { border: 1px solid #d8c2a3; background: #fff9f0; color: #102a43; }
+.privacy-dialog-agree { border: 0; background: #102a43; color: #fff; }

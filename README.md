@@ -49,6 +49,7 @@ npm run dev:web -- -p 3000 -H 0.0.0.0
 npm run check:all
 npm run verify:onboarding
 npm run verify:release-compliance
+npm run verify:wechat-notifications
 npm run test:e2e
 npm run build:all
 ```
@@ -56,6 +57,7 @@ npm run build:all
 - `check:all`：Web/小程序类型、Lint、单测和第三方许可证。
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
+- `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
 - `test:e2e`：居民、家属、工作人员、内容审核、语音、隐私和移动端视觉闭环。
 - `build:all`：Next.js 与微信小程序生产编译。
 

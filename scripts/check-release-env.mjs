@@ -6,6 +6,8 @@ const required = [
   "TARO_APP_API_BASE_URL",
   "WECHAT_MINIPROGRAM_APP_ID",
   "WECHAT_MINIPROGRAM_APP_SECRET",
+  "WECHAT_SUBSCRIBE_SERVICE_TEMPLATE_ID",
+  "WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP",
   "NEXT_PUBLIC_OPERATOR_NAME",
   "NEXT_PUBLIC_PRIVACY_CONTACT",
   "TENCENT_SMS_SECRET_ID",
@@ -67,6 +69,18 @@ if (
   errors.push(
     "CHANNEL_MESSAGE_ENCRYPTION_KEY: 应为 32 字节十六进制或 Base64 密钥",
   );
+}
+if (process.env.WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP) {
+  try {
+    const map = JSON.parse(process.env.WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP);
+    for (const key of ["title", "status", "updatedAt", "note"]) {
+      if (!/^(thing|phrase|time|date|character_string)\d+$/.test(map[key] ?? "")) {
+        errors.push(`WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP: ${key} 字段映射无效`);
+      }
+    }
+  } catch {
+    errors.push("WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP: 不是有效 JSON");
+  }
 }
 
 for (const key of [

@@ -29,6 +29,7 @@
     "bootstrap:local": "node --env-file=.env.local scripts/bootstrap-local.mjs",
     "verify:onboarding": "node --env-file=.env.local scripts/verify-onboarding-flow.mjs",
     "verify:release-compliance": "node --env-file=.env.local scripts/verify-release-compliance.mjs",
+    "verify:wechat-notifications": "node --env-file=.env.local scripts/verify-wechat-notifications.mjs",
     "check:licenses": "node scripts/check-third-party-licenses.mjs",
     "check:all": "npm run typecheck && npm run lint && npm run test && npm run check:licenses"
   },

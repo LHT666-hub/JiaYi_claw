@@ -87,6 +87,35 @@ test("家属手机号 OTP 注册链路", async ({ page }) => {
   });
 });
 
+test("工作人员使用受邀手机号进入独立工作台入口", async ({ page }) => {
+  let requestedPhone = "";
+  await page.route("**/api/v1/auth/staff/otp/request", async (route) => {
+    requestedPhone = route.request().postDataJSON().phone;
+    await route.fulfill({
+      json: ok({ phone: "+86138****0001", retryAfterSeconds: 60 }),
+    });
+  });
+  await page.route("**/api/v1/auth/staff/otp/verify", (route) =>
+    route.fulfill({
+      json: ok({
+        destination: "/doctor",
+        profile: { role: "doctor", display_name: "李医生" },
+      }),
+    }),
+  );
+
+  await page.goto("/login");
+  await expect(page.getByText("机构工作人员")).toBeVisible();
+  await page.getByRole("link", { name: /工作入口/ }).click();
+  await expect(page).toHaveURL(/\/staff\/login/);
+  await page.getByPlaceholder("请输入中国大陆手机号").fill("13800000001");
+  await page.getByRole("button", { name: /获取验证码/ }).click();
+  await page.getByPlaceholder("6 位验证码").fill("123456");
+  await page.getByRole("button", { name: /验证并继续/ }).click();
+  await expect(page).toHaveURL(/\/doctor/);
+  expect(requestedPhone).toBe("13800000001");
+});
+
 test("居民提交预约并明确确认写操作", async ({ page }) => {
   let submitted = false;
   await page.route("**/api/v1/service-requests", async (route) => {
@@ -492,6 +521,7 @@ test("居民保存通知偏好并设置免打扰", async ({ page }) => {
             content_updates: true,
             sms_enabled: false,
             wecom_enabled: true,
+            wechat_mini_enabled: false,
             quiet_hours_start: "22:00",
             quiet_hours_end: "07:00",
           },
@@ -507,6 +537,7 @@ test("居民保存通知偏好并设置免打扰", async ({ page }) => {
           content_updates: false,
           sms_enabled: false,
           wecom_enabled: true,
+          wechat_mini_enabled: false,
           quiet_hours_start: "21:00",
           quiet_hours_end: "08:00",
         },
@@ -522,6 +553,7 @@ test("居民保存通知偏好并设置免打扰", async ({ page }) => {
     .poll(() => saved)
     .toMatchObject({
       contentUpdates: true,
+      wechatMiniEnabled: false,
       quietHoursStart: "22:00",
       quietHoursEnd: "07:00",
     });
