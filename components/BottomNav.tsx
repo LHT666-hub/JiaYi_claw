@@ -27,7 +27,7 @@ export function BottomNav() {
           ? [
               { href: "/doctor", label: "待办", icon: ClipboardList },
               { href: "/", label: "首页", icon: House },
-              { href: "/notifications", label: "消息", icon: Bell },
+              { href: "/messages", label: "消息", icon: Bell },
             ]
           : residentNavItems;
   const homeBranchPrefixes = ["/ask"];

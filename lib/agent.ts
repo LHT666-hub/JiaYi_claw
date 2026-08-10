@@ -693,10 +693,14 @@ function buildFamilyDoctorBookingResult(
           },
         ],
         actions: [
-          { label: "联系团队", href: "/contacts", kind: "primary" },
+          {
+            label: "填写家医预约",
+            href: "/appointments?type=family_doctor_booking",
+            kind: "primary",
+          },
           {
             label: "查看服务进度",
-            href: "/service-progress",
+            href: "/appointments",
             kind: "secondary",
           },
         ],
@@ -771,10 +775,14 @@ function buildRefillResult(payload?: RefillServiceRequest): AgentResult {
           },
         ],
         actions: [
-          { label: "联系团队", href: "/contacts", kind: "primary" },
+          {
+            label: "填写续方申请",
+            href: "/appointments?type=refill_request",
+            kind: "primary",
+          },
           {
             label: "查看服务进度",
-            href: "/service-progress",
+            href: "/appointments",
             kind: "secondary",
           },
         ],
@@ -846,10 +854,14 @@ function buildFollowupResult(
           },
         ],
         actions: [
-          { label: "去随访页确认", href: "/followup", kind: "primary" },
+          {
+            label: "确认随访需求",
+            href: "/appointments?type=followup_reminder",
+            kind: "primary",
+          },
           {
             label: "查看服务进度",
-            href: "/service-progress",
+            href: "/appointments",
             kind: "secondary",
           },
         ],
@@ -931,8 +943,8 @@ function buildDispenseStatusResult(
           },
         ],
         actions: [
-          { label: "查看服务进度", href: "/service-progress", kind: "primary" },
-          { label: "联系团队", href: "/contacts", kind: "secondary" },
+          { label: "查看服务进度", href: "/appointments", kind: "primary" },
+          { label: "查看服务方式", href: "/services", kind: "secondary" },
         ],
         steps: createSteps(1, [
           { title: "提交配药申请", owner: "居民", ownerRole: "resident" },

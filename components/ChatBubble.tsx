@@ -152,13 +152,24 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
 
       {showActionButtons ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => router.push("/contacts/li-doctor")}
-            className="rounded-full border border-danger/20 bg-risk-soft px-3 py-1.5 text-xs font-semibold text-danger active:scale-95"
-          >
-            联系李医生
-          </button>
+          {message.riskLevel === "emergency" ? (
+            <a
+              href="tel:120"
+              className="rounded-full border border-danger/20 bg-danger px-3 py-1.5 text-xs font-semibold text-white active:scale-95"
+            >
+              立即拨打 120
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() =>
+                router.push("/appointments?type=family_doctor_booking")
+              }
+              className="rounded-full border border-danger/20 bg-risk-soft px-3 py-1.5 text-xs font-semibold text-danger active:scale-95"
+            >
+              联系家医团队
+            </button>
+          )}
           {onSummaryRequest ? (
             <button
               type="button"
@@ -170,10 +181,10 @@ export function ChatBubble({ message, onSummaryRequest }: ChatBubbleProps) {
           ) : null}
           <button
             type="button"
-            onClick={() => router.push("/contacts")}
+            onClick={() => router.push("/services")}
             className="rounded-full border border-line bg-cream px-3 py-1.5 text-xs font-semibold text-navy active:scale-95"
           >
-            查看一键找人
+            查看服务方式
           </button>
         </div>
       ) : null}

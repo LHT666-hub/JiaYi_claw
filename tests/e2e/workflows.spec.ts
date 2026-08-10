@@ -508,6 +508,50 @@ test("Claw 只生成待确认预约草稿，不直接写入", async ({ page }) =
   expect(serviceRequestCreated).toBe(false);
 });
 
+test("Claw 遇到急症只提供立即拨打 120", async ({ page }) => {
+  let serviceRequestCreated = false;
+  await page.route("**/api/v1/assistant/messages", (route) =>
+    route.fulfill({
+      json: ok({
+        reply: {
+          answer: "这种情况不要等待线上回复，请立即拨打 120。",
+          nextStep: "尽快寻求线下急救帮助。",
+          source: "safety",
+          riskLevel: "emergency",
+          suggestDoctor: true,
+        },
+        actions: [
+          {
+            id: "call-120",
+            kind: "emergency",
+            label: "立即拨打 120",
+            description: "紧急情况不要等待线上回复。",
+            href: "tel:120",
+            requiresConfirmation: false,
+          },
+        ],
+        writePerformed: false,
+      }),
+    }),
+  );
+  await page.route("**/api/v1/service-requests", async (route) => {
+    if (route.request().method() === "POST") serviceRequestCreated = true;
+    await route.fulfill({ json: ok({ items: [] }) });
+  });
+
+  await page.goto("/ask");
+  await page
+    .getByPlaceholder("问服务、排班、活动或准备材料")
+    .fill("伤口大出血怎么都止不住");
+  await page.getByRole("button", { name: "发送" }).click();
+
+  const emergencyLink = page.getByRole("link", { name: /立即拨打 120/ });
+  await expect(emergencyLink).toBeVisible();
+  await expect(emergencyLink).toHaveAttribute("href", "tel:120");
+  await expect(page.getByText("需您核对确认后提交")).toHaveCount(0);
+  expect(serviceRequestCreated).toBe(false);
+});
+
 test("居民保存通知偏好并设置免打扰", async ({ page }) => {
   let saved: Record<string, unknown> = {};
   await page.route("**/api/v1/notification-preferences", async (route) => {

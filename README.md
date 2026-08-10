@@ -50,6 +50,7 @@ npm run check:all
 npm run verify:onboarding
 npm run verify:release-compliance
 npm run verify:wechat-notifications
+npm run eval:ask
 npm run test:e2e
 npm run build:all
 ```
@@ -58,6 +59,7 @@ npm run build:all
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
+- `eval:ask`：通过真实 HTTP 接口回归公开信息边界、急症、调药、提示注入和方言表达。
 - `test:e2e`：居民、家属、工作人员、内容审核、语音、隐私和移动端视觉闭环。
 - `build:all`：Next.js 与微信小程序生产编译。
 

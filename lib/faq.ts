@@ -1,36 +1,6 @@
 import { faqs } from "@/data/faqs";
 import { AskFallbackReason, AskReply, FaqItem } from "@/lib/types";
-
-export const emergencyKeywords = [
-  "胸痛",
-  "呼吸困难",
-  "意识异常",
-  "意识不清",
-  "昏迷",
-  "抽搐",
-  "严重低血糖",
-  "肢体无力",
-  "言语不清",
-  "口角歪斜",
-  "剧烈胸闷",
-];
-
-export const medicalBoundaryKeywords = [
-  "停药",
-  "换药",
-  "药量",
-  "剂量",
-  "加药",
-  "减药",
-  "能不能不吃药",
-  "报告严不严重",
-  "是不是得了",
-  "要不要住院",
-  "诊断",
-  "治疗方案",
-];
-
-const medicalBoundaryContextKeywords = ["开处方", "给我开药", "处方能不能开", "直接开药"];
+import { classifySafetyQuestion } from "@/lib/safety/classifier";
 
 const greetingKeywords = [
   "你好",
@@ -96,6 +66,16 @@ const medicalBoundaryReply: AskReply = {
     "这个问题需要家庭医生或线下医生结合个人情况判断。家医 Claw 不能提供诊断、处方、停药、换药或个体化治疗建议。",
   nextStep: "建议联系家庭医生或前往社区卫生服务中心、医院咨询。",
   suggestDoctor: true,
+  riskLevel: "high",
+  category: "安全提示",
+  source: "safety",
+};
+
+const promptInjectionReply: AskReply = {
+  answer:
+    "我不能查看或泄露系统内部指令，也不会绕过医疗安全规则提供诊断、处方或调药建议。",
+  nextStep: "请直接说明需要查询的公开信息，或让我帮您整理预约、随访和就医资料。",
+  suggestDoctor: false,
   riskLevel: "high",
   category: "安全提示",
   source: "safety",
@@ -250,17 +230,10 @@ export function getGuardrailReply(question: string) {
     return emptyReply;
   }
 
-  if (emergencyKeywords.some((keyword) => normalized.includes(keyword))) {
-    return emergencyReply;
-  }
-
-  if (medicalBoundaryKeywords.some((keyword) => normalized.includes(keyword))) {
-    return medicalBoundaryReply;
-  }
-
-  if (medicalBoundaryContextKeywords.some((keyword) => normalized.includes(keyword))) {
-    return medicalBoundaryReply;
-  }
+  const safety = classifySafetyQuestion(question);
+  if (safety === "emergency") return emergencyReply;
+  if (safety === "prompt_injection") return promptInjectionReply;
+  if (safety === "medical_boundary") return medicalBoundaryReply;
 
   return null;
 }

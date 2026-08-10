@@ -1,4 +1,5 @@
 import type { SkillDefinition } from "@jiayi/contracts";
+import { isSafetyTriageQuestion } from "../safety/classifier";
 
 export const skillRegistry: SkillDefinition[] = [
   {
@@ -143,12 +144,7 @@ export function getSkillDefinition(id: string) {
 
 export function routeSkillIds(question: string) {
   const result = new Set<string>();
-  if (/(忽略.{0,8}(指令|规则)|系统提示|开发者消息|越过.{0,6}限制|绕过.{0,6}(安全|规则)|提示词|prompt|role.?play|扮演医生|不要遵守)/i.test(question)) {
-    result.add("safety-triage");
-  }
-  if (/(胸痛|呼吸困难|喘不上气|嘴唇发紫|意识不清|昏迷|叫不醒|大出血|自杀|120|急救)/.test(question)) {
-    result.add("safety-triage");
-  }
+  if (isSafetyTriageQuestion(question)) result.add("safety-triage");
   if (/(几点|什么时候|地址|电话|在哪里|怎么查|流程|政策|门诊时间|服务时间)/.test(question)) {
     result.add("public-info-qa");
   }
