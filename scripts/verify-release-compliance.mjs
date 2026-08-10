@@ -53,7 +53,9 @@ try {
   const { count: observations } = await admin.from("health_observations").select("id", { count: "exact", head: true }).eq("resident_id", userId);
   const { count: legacyProfiles } = await admin.from("resident_profiles").select("id", { count: "exact", head: true }).eq("user_id", userId);
   const { count: legacyAsks } = await admin.from("ask_logs").select("id", { count: "exact", head: true }).eq("user_id", userId);
-  if (profile?.account_status !== "disabled" || profile?.phone !== null || profile?.display_name !== "已注销用户" || observations !== 0 || legacyProfiles !== 0 || legacyAsks !== 0) throw new Error("Deletion anonymization did not remove current and legacy resident data.");
+  if (profile?.account_status !== "disabled" || profile?.phone !== null || profile?.display_name !== "已注销用户" || observations !== 0 || legacyProfiles !== 0 || legacyAsks !== 0) {
+    throw new Error(`Deletion anonymization mismatch: ${JSON.stringify({ profile, observations, legacyProfiles, legacyAsks })}`);
+  }
 
   const { error: deleteAuthError } = await admin.auth.admin.deleteUser(userId, true);
   if (deleteAuthError) throw deleteAuthError;

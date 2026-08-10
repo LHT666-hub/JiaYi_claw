@@ -28,6 +28,7 @@
     "eval:ask": "node scripts/ask-eval.mjs",
     "bootstrap:local": "node --env-file=.env.local scripts/bootstrap-local.mjs",
     "verify:onboarding": "node --env-file=.env.local scripts/verify-onboarding-flow.mjs",
+    "verify:rls": "node --env-file=.env.local scripts/verify-rls-boundaries.mjs",
     "verify:release-compliance": "node --env-file=.env.local scripts/verify-release-compliance.mjs",
     "verify:wechat-notifications": "node --env-file=.env.local scripts/verify-wechat-notifications.mjs",
     "check:licenses": "node scripts/check-third-party-licenses.mjs",
