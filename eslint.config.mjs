@@ -13,8 +13,11 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      ".next-e2e/**",
       ".deploy-target/**",
       ".venv-whisper-wu/**",
+      "apps/wechat/dist/**",
+      "apps/wechat/.temp/**",
       "node_modules/**",
       "next-env.d.ts",
       "tsconfig.tsbuildinfo",

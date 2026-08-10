@@ -1,0 +1,38 @@
+export default defineAppConfig({
+  pages: [
+    "pages/home/index",
+    "pages/services/index",
+    "pages/messages/index",
+    "pages/me/index",
+    "pages/ask/index",
+    "pages/login/index",
+    "pages/onboarding/index",
+    "pages/family-link/index",
+    "pages/privacy/index",
+    "pages/notification-settings/index",
+    "pages/account-security/index",
+    "pages/legal/index",
+    "pages/appointments/index",
+    "pages/progress/index",
+    "pages/public-info/index",
+    "pages/workbench/index",
+  ],
+  window: {
+    backgroundTextStyle: "light",
+    navigationBarBackgroundColor: "#FFF4E2",
+    navigationBarTitleText: "家医 Claw",
+    navigationBarTextStyle: "black",
+    backgroundColor: "#F3DDC2",
+  },
+  tabBar: {
+    color: "#66788A",
+    selectedColor: "#102A43",
+    backgroundColor: "#FFF8ED",
+    list: [
+      { pagePath: "pages/home/index", text: "首页" },
+      { pagePath: "pages/services/index", text: "服务" },
+      { pagePath: "pages/messages/index", text: "消息" },
+      { pagePath: "pages/me/index", text: "我的" },
+    ],
+  },
+});

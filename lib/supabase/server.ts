@@ -8,7 +8,6 @@ import {
   isSupabaseConfigured,
   isSupabaseServiceRoleConfigured,
 } from "@/lib/supabase/env";
-import { Database } from "@/lib/supabase/types";
 
 export async function createSupabaseServerClient() {
   if (!isSupabaseConfigured()) {
@@ -17,7 +16,7 @@ export async function createSupabaseServerClient() {
 
   const cookieStore = await cookies();
 
-  return createServerClient<Database>(getSupabaseUrl(), getSupabaseAnonKey(), {
+  return createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -40,7 +39,7 @@ export function createSupabasePublicServerClient() {
     return null;
   }
 
-  return createClient<Database>(getSupabaseUrl(), getSupabaseAnonKey(), {
+  return createClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -53,7 +52,7 @@ export function createSupabaseServiceRoleClient() {
     return null;
   }
 
-  return createClient<Database>(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+  return createClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

@@ -7,7 +7,7 @@ type PrimaryClawCardProps = {
   onQuickQuestion: (question: string) => void;
 };
 
-const quickQuestions = ["药吃完了怎么办", "体检报告怎么看", "我要找李医生"];
+const quickQuestions = ["药吃完了怎么办", "体检报告怎么看", "今天谁在坐班"];
 
 export function PrimaryClawCard({
   onVoice,
@@ -21,7 +21,9 @@ export function PrimaryClawCard({
       <div className="pointer-events-none absolute -bottom-14 right-6 h-36 w-36 rounded-full bg-amber/18 blur-2xl" />
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-brand text-[1.62rem] font-semibold tracking-[-0.03em]">问 Claw</p>
+          <p className="font-brand text-[1.62rem] font-semibold tracking-[-0.03em]">
+            问 Claw
+          </p>
           <p className="mt-2 text-sm leading-6 text-white/78">
             健康问题先问问，家医分流更省心。
           </p>

@@ -898,7 +898,7 @@ export function getDashboardMetrics() {
     faqHitCount: askLogsToday.filter((item) => item.source === "faq").length,
     safetyBlockCount: askLogsToday.filter((item) => item.source === "safety").length,
     kimiCount: askLogsToday.filter(
-      (item) => item.source === "kimi" || item.source === "knowledge_kimi",
+      (item) => item.source === "kimi" || item.source === "faq_kimi" || item.source === "knowledge_kimi",
     ).length,
     fallbackCount: askLogsToday.filter((item) => item.source === "fallback").length,
     taskCompleteCountToday: taskRecordsToday.length,

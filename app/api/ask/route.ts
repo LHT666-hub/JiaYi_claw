@@ -23,7 +23,14 @@ import {
   normalizeQuestion,
 } from "@/lib/faq";
 import { buildKnowledgePrompt, searchKnowledge } from "@/lib/knowledge";
-import { getServerAuthContext } from "@/lib/supabase/server-auth";
+import {
+  buildVerifiedPublicInfoReply,
+  searchPublicInfo,
+} from "@/lib/publicInfoRepository";
+import {
+  getApiAuthContext,
+  getServerAuthContext,
+} from "@/lib/supabase/server-auth";
 import type {
   AppRole,
   AskFallbackReason,
@@ -40,7 +47,19 @@ const knowledgeSystemPrompt =
   "你是“家医 Claw”，用于家庭医生服务导航与慢病科普信息。你不能提供诊断、处方、停药、换药、剂量调整、严重程度判断或个体化治疗建议。请优先依据给定知识片段回答，并在最后给出下一步建议。";
 
 const generalSystemPrompt =
-  "你是“家医 Claw”。你可以回答一般问题，也要尽量把回答组织得清晰、易懂。若问题涉及家庭医生服务，可优先给出就医与流程导航。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。";
+  "你是“家医 Claw”，负责把居民问题整理成可执行的家庭医生服务路径。你可以解释通用健康概念和本产品的办理步骤，但不得编造本地医生、排班、号源、药品库存、政策、机构电话或服务承诺；缺少已核验来源时要明确说无法核验，并建议查看服务页或由家医团队确认。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。";
+
+const unauthenticatedUnverifiedReply: AskReply = {
+  answer:
+    "目前没有找到可公开核验的对应资料，我不能把模型推测当作本地事实告诉您。",
+  nextStep:
+    "请在公开信息页查看已审核来源；登录后也可以让 Claw 为您整理个人服务诉求。",
+  suggestDoctor: false,
+  riskLevel: "low",
+  category: "未核验信息",
+  source: "fallback",
+  reason: "auth_error",
+};
 
 const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
 const KIMI_TIMEOUT_MS = 40_000;
@@ -129,11 +148,15 @@ function parseStructuredReply(
   },
 ): AskReply {
   const trimmed = text.trim();
-  const answerMatch = trimmed.match(/回答[:：]\s*([\s\S]*?)(?:\n\s*下一步建议[:：]|$)/);
+  const answerMatch = trimmed.match(
+    /回答[:：]\s*([\s\S]*?)(?:\n\s*下一步建议[:：]|$)/,
+  );
   const nextStepMatch = trimmed.match(
     /下一步建议[:：]\s*([\s\S]*?)(?:\n\s*是否建议联系家庭医生[:：]|$)/,
   );
-  const suggestDoctorMatch = trimmed.match(/是否建议联系家庭医生[:：]\s*(.+?)(?:\n|$)/);
+  const suggestDoctorMatch = trimmed.match(
+    /是否建议联系家庭医生[:：]\s*(.+?)(?:\n|$)/,
+  );
   const riskLevelMatch = trimmed.match(/风险等级[:：]\s*(.+?)(?:\n|$)/);
 
   return {
@@ -148,8 +171,14 @@ function parseStructuredReply(
 }
 
 function isRateLimitError(error: unknown) {
-  const status = typeof error === "object" && error !== null && "status" in error ? error.status : null;
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? error.status
+      : null;
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? error.code
+      : null;
   const message =
     typeof error === "object" && error !== null && "message" in error
       ? String(error.message).toLowerCase()
@@ -165,8 +194,14 @@ function isRateLimitError(error: unknown) {
 }
 
 function isTimeoutError(error: unknown) {
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
-  const name = typeof error === "object" && error !== null && "name" in error ? error.name : null;
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? error.code
+      : null;
+  const name =
+    typeof error === "object" && error !== null && "name" in error
+      ? error.name
+      : null;
   const message =
     typeof error === "object" && error !== null && "message" in error
       ? String(error.message).toLowerCase()
@@ -183,8 +218,14 @@ function isTimeoutError(error: unknown) {
 }
 
 function isAuthError(error: unknown) {
-  const status = typeof error === "object" && error !== null && "status" in error ? error.status : null;
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : null;
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? error.status
+      : null;
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? error.code
+      : null;
   const message =
     typeof error === "object" && error !== null && "message" in error
       ? String(error.message).toLowerCase()
@@ -200,7 +241,10 @@ function isAuthError(error: unknown) {
 }
 
 function isModelError(error: unknown) {
-  const status = typeof error === "object" && error !== null && "status" in error ? error.status : null;
+  const status =
+    typeof error === "object" && error !== null && "status" in error
+      ? error.status
+      : null;
   const message =
     typeof error === "object" && error !== null && "message" in error
       ? String(error.message).toLowerCase()
@@ -425,7 +469,9 @@ function buildFaqCacheKey(question: string, faqReply: AskReply) {
 
 async function findAssignableUserId(
   role: Exclude<AppRole, "resident" | "family" | "admin"> | "doctor",
-  supabase: NonNullable<Awaited<ReturnType<typeof getServerAuthContext>>["supabase"]>,
+  supabase: NonNullable<
+    Awaited<ReturnType<typeof getServerAuthContext>>["supabase"]
+  >,
 ) {
   const { data } = (await supabase
     .from("profiles")
@@ -443,13 +489,25 @@ async function persistAskArtifacts(params: {
   serviceRequest?: ServiceRequestPayload | null;
   profile: ProfileRow | null;
   supabase: Awaited<ReturnType<typeof getServerAuthContext>>["supabase"];
+  allowWrite: boolean;
 }) {
-  const { question, reply, serviceRequest, profile, supabase } = params;
-  let askLogToLocal = true;
+  const { question, reply, serviceRequest, profile, supabase, allowWrite } =
+    params;
+  const retainTranscript =
+    process.env.ASSISTANT_TRANSCRIPT_RETENTION === "true";
+  // Legacy clients understand this flag as permission to persist locally.
+  // Formal environments never fall back to device storage for health chat.
+  const askLogToLocal = false;
   let doctorTodoToLocal =
-    reply.suggestDoctor || reply.riskLevel === "high" || reply.riskLevel === "emergency";
+    allowWrite &&
+    (reply.suggestDoctor ||
+      reply.riskLevel === "high" ||
+      reply.riskLevel === "emergency");
   let serviceTodo: DemoDoctorTodo | null = null;
-  const serviceTask = buildPersistedServiceTask(reply.agentResult, serviceRequest);
+  const serviceTask = buildPersistedServiceTask(
+    reply.agentResult,
+    serviceRequest,
+  );
   const summary = generateClawSummary(question, {
     answer: reply.answer,
     nextStep: reply.nextStep,
@@ -466,32 +524,36 @@ async function persistAskArtifacts(params: {
     };
   }
 
-  const currentServiceOwnerRole = normalizeAssignableRole(getCurrentServiceOwnerRole(serviceTask));
+  const currentServiceOwnerRole = normalizeAssignableRole(
+    getCurrentServiceOwnerRole(serviceTask),
+  );
   const assigneeRole =
     currentServiceOwnerRole ??
     (summary.recommendedRole.role === "family"
       ? "doctor"
-      : (summary.recommendedRole
-          .role as Exclude<AppRole, "resident" | "family" | "admin"> | "doctor"));
+      : (summary.recommendedRole.role as
+          Exclude<AppRole, "resident" | "family" | "admin"> | "doctor"));
   const assignedTo = doctorTodoToLocal
     ? await findAssignableUserId(assigneeRole, supabase)
     : null;
 
-  try {
-    await createAskLog({
-      userId: profile.id,
-      question,
-      answer: `${reply.answer} ${reply.nextStep}`.trim(),
-      source: reply.source,
-      category: reply.category,
-      riskLevel: reply.riskLevel,
-      suggestDoctor: reply.suggestDoctor,
-      reason: reply.reason ?? null,
-      supabase,
-    });
-    askLogToLocal = false;
-  } catch {
-    askLogToLocal = true;
+  if (retainTranscript) {
+    try {
+      await createAskLog({
+        userId: profile.id,
+        question,
+        answer: `${reply.answer} ${reply.nextStep}`.trim(),
+        source: reply.source,
+        category: reply.category,
+        riskLevel: reply.riskLevel,
+        suggestDoctor: reply.suggestDoctor,
+        reason: reply.reason ?? null,
+        supabase,
+      });
+    } catch {
+      // No local fallback: failed transcript logging must not copy health chat
+      // onto the resident's device.
+    }
   }
 
   if (!doctorTodoToLocal) {
@@ -508,8 +570,13 @@ async function persistAskArtifacts(params: {
       residentId: profile.role === "resident" ? profile.id : null,
       assignedTo,
       type: serviceTask ? `service_${serviceTask.task.intent}` : "ask",
-      title: serviceTask ? buildServiceTaskTitle(serviceTask.task) : question.slice(0, 36),
-      description: encodeDescriptionWithServiceTask(summary.doctorSummary, serviceTask),
+      title: serviceTask
+        ? buildServiceTaskTitle(serviceTask.task)
+        : question.slice(0, 36),
+      description: encodeDescriptionWithServiceTask(
+        summary.doctorSummary,
+        serviceTask,
+      ),
       originalQuestion: question,
       clawAnswer: `${reply.answer} ${reply.nextStep}`.trim(),
       riskLevel: reply.riskLevel,
@@ -597,7 +664,10 @@ async function persistAskArtifacts(params: {
         profile.role === "resident" &&
         (reply.riskLevel === "high" || reply.riskLevel === "emergency")
       ) {
-        const bindings = await getActiveFamilyBindingsForResident(profile.id, supabase);
+        const bindings = await getActiveFamilyBindingsForResident(
+          profile.id,
+          supabase,
+        );
 
         for (const binding of bindings.filter((item) => item.isPrimary)) {
           try {
@@ -607,7 +677,8 @@ async function persistAskArtifacts(params: {
                 actorId: profile.id,
                 type: "ask_todo_created",
                 title: "绑定老人有一条家医团队提醒",
-                content: "老人有一条问题已转给家医团队，您可以在家属端查看服务进度。",
+                content:
+                  "老人有一条问题已转给家医团队，您可以在家属端查看服务进度。",
                 linkUrl: "/family",
                 metadata: {
                   todoId: result.todo.id,
@@ -641,21 +712,23 @@ export async function POST(request: NextRequest) {
       question?: string;
       serviceRequest?: ServiceRequestPayload | null;
     };
-    const question = typeof body.question === "string" ? body.question.trim() : "";
-    const serviceRequest = body.serviceRequest ?? inferServiceRequestFromQuestion(question);
+    const question =
+      typeof body.question === "string" ? body.question.trim() : "";
+    const serviceRequest =
+      body.serviceRequest ?? inferServiceRequestFromQuestion(question);
     const normalizedQuestion = normalizeQuestion(question);
 
     if (!normalizedQuestion) {
       return NextResponse.json({
         ...getFallbackAskReply("unknown"),
         clientFallbacks: {
-          askLogToLocal: true,
+          askLogToLocal: false,
           doctorTodoToLocal: false,
         },
       });
     }
 
-    const authContext = await getServerAuthContext();
+    const authContext = await getApiAuthContext(request);
     const { supabase, profile } = authContext;
 
     const finalize = async (reply: AskReply) => {
@@ -665,6 +738,9 @@ export async function POST(request: NextRequest) {
         serviceRequest,
         profile,
         supabase,
+        // The legacy endpoint is read-only. Formal writes must use the
+        // permission-checked /api/v1/service-requests confirmation flow.
+        allowWrite: false,
       });
 
       return NextResponse.json({
@@ -684,6 +760,11 @@ export async function POST(request: NextRequest) {
       return finalize(greetingReply);
     }
 
+    const publicInfoMatches = await searchPublicInfo(question);
+    if (publicInfoMatches.length) {
+      return finalize(buildVerifiedPublicInfoReply(publicInfoMatches[0]));
+    }
+
     const agentReply = buildAgentReply(question, serviceRequest);
     if (agentReply) {
       return finalize(agentReply);
@@ -699,7 +780,7 @@ export async function POST(request: NextRequest) {
         {
           category: faqReply.category,
           nextStep: faqReply.nextStep,
-          source: "kimi",
+          source: "faq_kimi",
         },
       );
 
@@ -712,9 +793,13 @@ export async function POST(request: NextRequest) {
 
       return finalize({
         ...reply,
-        source: "kimi",
+        source: "faq_kimi",
         category: faqReply.category || reply.category || "服务导航",
       });
+    }
+
+    if (!profile) {
+      return finalize(unauthenticatedUnverifiedReply);
     }
 
     const knowledgeHits = searchKnowledge(question);
@@ -722,7 +807,8 @@ export async function POST(request: NextRequest) {
       const knowledgeIds = knowledgeHits.map((item) => item.id);
       const fallbackMeta = {
         category: knowledgeHits[0].category,
-        nextStep: "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
+        nextStep:
+          "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
         source: "knowledge_kimi" as const,
         knowledgeIds,
       };
@@ -755,7 +841,8 @@ export async function POST(request: NextRequest) {
       generalSystemPrompt,
       {
         category: "服务导航",
-        nextStep: "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
+        nextStep:
+          "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
         source: "kimi",
       },
     );
@@ -776,7 +863,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...getFallbackAskReply("unknown"),
       clientFallbacks: {
-        askLogToLocal: true,
+        askLogToLocal: false,
         doctorTodoToLocal: false,
       },
     });
@@ -808,7 +895,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const agentReply = buildAgentReply(question, inferServiceRequestFromQuestion(question));
+    const publicInfoMatches = await searchPublicInfo(question);
+    if (publicInfoMatches.length) {
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        question,
+        reply: buildVerifiedPublicInfoReply(publicInfoMatches[0]),
+      });
+    }
+
+    const agentReply = buildAgentReply(
+      question,
+      inferServiceRequestFromQuestion(question),
+    );
     if (agentReply) {
       return NextResponse.json({
         ok: true,
@@ -818,7 +918,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const authContext = await getServerAuthContext();
+    const authContext = await getApiAuthContext(request);
     const faqItems = await getFaqs(authContext.supabase);
     const faqReply = getLocalAskReply(question, faqItems);
     if (faqReply?.source === "faq") {
@@ -829,7 +929,7 @@ export async function GET(request: NextRequest) {
         {
           category: faqReply.category,
           nextStep: faqReply.nextStep,
-          source: "kimi",
+          source: "faq_kimi",
         },
       );
       return NextResponse.json({
@@ -844,9 +944,18 @@ export async function GET(request: NextRequest) {
               }
             : {
                 ...reply,
-                source: "kimi",
+                source: "faq_kimi",
                 category: faqReply.category || reply.category || "服务导航",
               },
+      });
+    }
+
+    if (!authContext.profile) {
+      return NextResponse.json({
+        ok: true,
+        dryRun: true,
+        question,
+        reply: unauthenticatedUnverifiedReply,
       });
     }
 
@@ -854,7 +963,8 @@ export async function GET(request: NextRequest) {
     if (knowledgeHits.length > 0) {
       const fallbackMeta = {
         category: knowledgeHits[0].category,
-        nextStep: "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
+        nextStep:
+          "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
         source: "knowledge_kimi" as const,
         knowledgeIds: knowledgeHits.map((item) => item.id),
       };
@@ -886,7 +996,8 @@ export async function GET(request: NextRequest) {
       generalSystemPrompt,
       {
         category: "服务导航",
-        nextStep: "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
+        nextStep:
+          "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
         source: "kimi",
       },
     );
@@ -918,6 +1029,7 @@ export async function GET(request: NextRequest) {
     flow: [
       "guardrail",
       "greeting",
+      "public_info",
       "agent",
       "faq_kimi",
       "knowledge_kimi",

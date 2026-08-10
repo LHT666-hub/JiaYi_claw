@@ -39,7 +39,10 @@ export function isWorkbenchRole(role?: AppRole | null) {
   );
 }
 
-export function getPostLoginPath(role?: AppRole | null) {
+export function getPostLoginPath(role?: AppRole | null, onboardingCompletedAt?: string | null) {
+  if (onboardingCompletedAt === null) {
+    return "/onboarding";
+  }
   if (role === "family") {
     return "/family";
   }
@@ -63,7 +66,7 @@ export async function fetchCurrentProfile(supabase: SupabaseClient) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, role, avatar_url, phone, created_at, updated_at")
+    .select("id, display_name, role, avatar_url, phone, organization_id, community_id, account_status, onboarding_completed_at, preferred_language, created_at, updated_at")
     .eq("id", user.id)
     .maybeSingle();
 

@@ -264,6 +264,7 @@ export const publicInfoItems: PublicInfoItem[] = [
     category: "接种门诊",
     keywords: [
       "海湾镇接种门诊时间",
+      "海湾镇接种门诊什么时候开",
       "海湾镇疫苗时间",
       "海湾镇预防针时间",
       "海湾镇社区卫生服务中心接种",
@@ -292,6 +293,7 @@ export const publicInfoItems: PublicInfoItem[] = [
       "奉贤专家门诊",
       "社区专家门诊",
       "海湾镇专家门诊",
+      "海湾镇这边专家门诊怎么查",
       "专家坐诊时间表",
     ],
     summary:

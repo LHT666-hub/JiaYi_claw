@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="家医 Claw">
+  <rect width="512" height="512" rx="116" fill="#102A43"/>
+  <path d="M256 76c52 35 105 50 156 54v111c0 91-55 157-156 196C155 398 100 332 100 241V130c51-4 104-19 156-54Z" fill="#FFF4E2"/>
+  <path d="M256 128c38 23 74 35 108 39v71c0 64-36 111-108 143-72-32-108-79-108-143v-71c34-4 70-16 108-39Z" fill="#DDE9E2"/>
+  <path d="M232 177h48v54h54v48h-54v54h-48v-54h-54v-48h54v-54Z" fill="#557C6C"/>
+  <circle cx="374" cy="376" r="58" fill="#E9C77C"/>
+  <path d="M349 376h50M374 351v50" stroke="#102A43" stroke-width="18" stroke-linecap="round"/>
+</svg>

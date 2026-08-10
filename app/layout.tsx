@@ -1,10 +1,22 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/ToastProvider";
+import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "家医 Claw",
-  description: "面向老年慢病居民的家庭医生服务导航与自我管理 MVP。",
+  description: "面向居民、家属和家医团队的基层健康服务协同应用。",
+  icons: { icon: "/app-icon.svg", apple: "/app-icon.svg" },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "家医 Claw", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#FFF4E2",
 };
 
 export default function RootLayout({
@@ -16,6 +28,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body>
         <ToastProvider>{children}</ToastProvider>
+        <PwaRegister />
       </body>
     </html>
   );

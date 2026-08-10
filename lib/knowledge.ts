@@ -47,6 +47,10 @@ function scoreKnowledgeItem(item: KnowledgeItem, normalizedQuestion: string) {
 }
 
 export function searchKnowledge(question: string): KnowledgeItem[] {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    return [];
+  }
+
   const normalizedQuestion = normalizeQuestion(question);
 
   if (!normalizedQuestion) {
@@ -121,7 +125,10 @@ export function isInScope(question: string) {
   );
 }
 
-export function buildKnowledgePrompt(question: string, snippets: KnowledgeItem[]) {
+export function buildKnowledgePrompt(
+  question: string,
+  snippets: KnowledgeItem[],
+) {
   const block = snippets
     .map(
       (item, index) =>

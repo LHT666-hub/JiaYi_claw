@@ -1,0 +1,36 @@
+[
+  {
+    "id": "langcare-mcp-fhir",
+    "repository": "https://github.com/langcare/langcare-mcp-fhir",
+    "commit": "430598bb5a76619ef55fa34fb1fd90c65f3d4783",
+    "license": "MIT",
+    "licenseFile": "third_party/skills/langcare/LICENSE",
+    "enabled": true,
+    "usage": "Six selected Skill specifications are retained as attributed references for Chinese clean-room workflow implementations."
+  },
+  {
+    "id": "openclaw-medical-skills",
+    "repository": "https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills",
+    "commit": "ca216c092121f0d68d8a1e6ab8d075a7c4a6d56d",
+    "license": "MIT",
+    "licenseFile": "third_party/skills/openclaw/medical-entity-extractor/_meta.json",
+    "enabled": true,
+    "usage": "The MIT medical-entity-extractor specification informs the deterministic Chinese extractor."
+  },
+  {
+    "id": "biomcp",
+    "repository": "https://github.com/genomoncology/biomcp",
+    "commit": "241d02615af04788a7997c61d2978414222bc246",
+    "license": "Apache-2.0",
+    "enabled": false,
+    "usage": "Research-only future candidate; no source copied and no resident-facing runtime access."
+  },
+  {
+    "id": "open-wearables",
+    "repository": "https://github.com/the-momentum/open-wearables",
+    "commit": "b804243495f96174b8501bbf83f685d278f272d2",
+    "license": "Apache-2.0",
+    "enabled": false,
+    "usage": "Phase-two adapter direction only; first release uses manual observations."
+  }
+]

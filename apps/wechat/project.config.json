@@ -1,0 +1,8 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "家医 Claw",
+  "description": "基层家医服务预约与协同",
+  "appid": "touristappid",
+  "setting": { "urlCheck": true, "es6": true, "enhance": true, "compileHotReLoad": false },
+  "compileType": "miniprogram"
+}

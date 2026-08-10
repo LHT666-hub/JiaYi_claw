@@ -29,6 +29,7 @@ export type AskSource =
   | "safety"
   | "agent"
   | "faq"
+  | "faq_kimi"
   | "knowledge_kimi"
   | "kimi"
   | "fallback"
@@ -86,6 +87,11 @@ export type ProfileRow = {
   role: AppRole;
   avatar_url: string | null;
   phone: string | null;
+  organization_id?: string | null;
+  community_id?: string | null;
+  account_status?: "pending" | "active" | "disabled";
+  onboarding_completed_at?: string | null;
+  preferred_language?: string;
   created_at?: string;
   updated_at?: string;
 };

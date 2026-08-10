@@ -2,33 +2,60 @@
   "name": "jiayi-claw",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
+    "dev:web": "next dev",
+    "dev:wechat": "npm run dev:weapp --workspace @jiayi/wechat",
     "build": "next build",
+    "build:web": "next build",
+    "build:wechat": "npm run build:weapp --workspace @jiayi/wechat",
+    "build:all": "npm run build:web && npm run build:wechat",
+    "check:release": "node --env-file-if-exists=.env.production.local scripts/check-release-env.mjs",
+    "prepare:wechat": "node --env-file-if-exists=.env.production.local scripts/prepare-wechat-project.mjs",
+    "build:release": "npm run check:release && npm run prepare:wechat && npm run build:all",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "eval:ask": "node scripts/ask-eval.mjs"
+    "typecheck": "npm run typecheck:web && npm run typecheck:wechat",
+    "typecheck:web": "tsc --noEmit",
+    "typecheck:wechat": "tsc --noEmit -p apps/wechat/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "eval:ask": "node scripts/ask-eval.mjs",
+    "bootstrap:local": "node --env-file=.env.local scripts/bootstrap-local.mjs",
+    "verify:onboarding": "node --env-file=.env.local scripts/verify-onboarding-flow.mjs",
+    "verify:release-compliance": "node --env-file=.env.local scripts/verify-release-compliance.mjs",
+    "check:licenses": "node scripts/check-third-party-licenses.mjs",
+    "check:all": "npm run typecheck && npm run lint && npm run test && npm run check:licenses"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
+    "cheerio": "^1.1.2",
+    "fast-xml-parser": "^5.2.5",
     "lucide-react": "^0.511.0",
     "next": "^15.3.2",
     "openai": "^6.34.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
+    "@playwright/test": "^1.55.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.39.4",
     "eslint-config-next": "^15.5.15",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   },
   "optionalDependencies": {
     "@next/swc-win32-x64-msvc": "^15.5.15"

@@ -165,7 +165,7 @@ create index if not exists idx_course_views_course  on public.course_views(cours
 -- Unique constraint: one points-earning view per resident per course per day
 -- We use a partial unique index based on the date
 create unique index if not exists idx_course_views_daily_unique
-  on public.course_views (resident_id, course_id, (viewed_at::date));
+  on public.course_views (resident_id, course_id, ((viewed_at at time zone 'UTC')::date));
 
 alter table public.course_views enable row level security;
 

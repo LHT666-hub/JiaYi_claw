@@ -3,22 +3,20 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { PointsBadge } from "@/components/PointsBadge";
-import { useDemoUser } from "@/lib/useDemoUser";
 
 type TopBarProps = {
+  name: string;
   onBellClick: () => void;
-  points: number;
+  points?: number;
   hasUnreadNotifications?: boolean;
 };
 
 export function TopBar({
+  name,
   onBellClick,
   points,
   hasUnreadNotifications = false,
 }: TopBarProps) {
-  const { currentUser } = useDemoUser();
-  const name = currentUser?.name ?? "用户";
-
   return (
     <div className="px-2 pt-7">
       <div className="grid grid-cols-[72px_1fr_72px] items-center gap-2">
@@ -39,9 +37,7 @@ export function TopBar({
           <p className="mt-2 text-xs font-medium tracking-[0.08em] text-navy/50">
             今日健康助手
           </p>
-          <div className="mt-2 flex justify-center">
-            <PointsBadge points={points} className="px-3 py-1.5 text-xs" />
-          </div>
+          {typeof points === "number" ? <div className="mt-2 flex justify-center"><PointsBadge points={points} className="px-3 py-1.5 text-xs" /></div> : null}
         </div>
 
         <div className="flex justify-end">

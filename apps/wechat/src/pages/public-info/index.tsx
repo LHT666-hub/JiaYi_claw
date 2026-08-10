@@ -1,0 +1,6 @@
+import { Button, Input, Text, View } from "@tarojs/components";
+import Taro from "@tarojs/taro";
+import { useState } from "react";
+import { apiRequest } from "../../lib/api";
+
+export default function PublicInfoPage() { const [query, setQuery] = useState(""); const [items, setItems] = useState<Array<{ id: string; title: string; content: string; sourceName: string; sourceUrl: string; verifiedAt: string; stale: boolean }>>([]); async function search() { const data = await apiRequest<{ items: typeof items }>(`/api/v1/public-info?q=${encodeURIComponent(query)}`); setItems(data.items); } return <View className="page"><View className="card"><Text className="title">公开信息</Text><View className="subtitle">只展示来源、更新时间和核验状态明确的资料。</View><Input className="input" value={query} onInput={(event) => setQuery(event.detail.value)} placeholder="接种门诊什么时候开" /><Button className="primary" onClick={search}>查询</Button></View>{items.map((item) => <View className="card" key={item.id}><View className="row"><Text className="grow" style={{ fontWeight: 600 }}>{item.title}</Text><Text className="status">{item.stale ? "待核验" : "有效"}</Text></View><View className="subtitle">{item.stale ? "资料更新时间较早，请先联系机构核实。" : item.content}</View><Button className="secondary" onClick={() => Taro.setClipboardData({ data: item.sourceUrl })}>复制来源链接</Button></View>)}</View>; }

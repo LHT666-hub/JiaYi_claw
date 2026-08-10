@@ -5,6 +5,15 @@
 ALTER TABLE IF EXISTS notifications
   DROP CONSTRAINT IF EXISTS notifications_type_check;
 
+-- Policies from the previous notification migration depend on user_id and
+-- must be removed before changing that column from text to uuid.
+DROP POLICY IF EXISTS notifications_select_own ON notifications;
+DROP POLICY IF EXISTS notifications_select_admin ON notifications;
+DROP POLICY IF EXISTS notifications_insert ON notifications;
+DROP POLICY IF EXISTS notifications_update_own ON notifications;
+DROP POLICY IF EXISTS notifications_insert_own_system ON notifications;
+DROP POLICY IF EXISTS notifications_update_own_read ON notifications;
+
 ALTER TABLE IF EXISTS notifications
   RENAME COLUMN body TO content;
 
@@ -97,6 +106,8 @@ DROP POLICY IF EXISTS notifications_select_own ON notifications;
 DROP POLICY IF EXISTS notifications_select_admin ON notifications;
 DROP POLICY IF EXISTS notifications_insert ON notifications;
 DROP POLICY IF EXISTS notifications_update_own ON notifications;
+DROP POLICY IF EXISTS notifications_insert_own_system ON notifications;
+DROP POLICY IF EXISTS notifications_update_own_read ON notifications;
 
 CREATE POLICY notifications_select_own ON notifications
   FOR SELECT

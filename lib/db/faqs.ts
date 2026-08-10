@@ -24,7 +24,9 @@ export function mapFaqRows(rows: Array<Record<string, unknown>>): FaqItem[] {
   }));
 }
 
-function mapManagedFaqRows(rows: Array<Record<string, unknown>>): ManagedFaqItem[] {
+function mapManagedFaqRows(
+  rows: Array<Record<string, unknown>>,
+): ManagedFaqItem[] {
   return rows.map((row) => ({
     id: String(row.id),
     question: String(row.question),
@@ -45,6 +47,7 @@ export function resetFaqCache() {
 }
 
 export async function getFaqs(supabaseClient?: TypedSupabaseClient | null) {
+  const allowDemoFallback = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   try {
     const now = Date.now();
 
@@ -55,7 +58,7 @@ export async function getFaqs(supabaseClient?: TypedSupabaseClient | null) {
     const supabase = supabaseClient ?? createSupabasePublicServerClient();
 
     if (!supabase) {
-      return localFaqs;
+      return allowDemoFallback ? localFaqs : [];
     }
 
     const { data, error } = await supabase
@@ -68,7 +71,7 @@ export async function getFaqs(supabaseClient?: TypedSupabaseClient | null) {
       .order("created_at", { ascending: true });
 
     if (error || !data?.length) {
-      return localFaqs;
+      return allowDemoFallback ? localFaqs : [];
     }
 
     const items = mapFaqRows(data as Array<Record<string, unknown>>);
@@ -79,7 +82,7 @@ export async function getFaqs(supabaseClient?: TypedSupabaseClient | null) {
 
     return items;
   } catch {
-    return localFaqs;
+    return allowDemoFallback ? localFaqs : [];
   }
 }
 
