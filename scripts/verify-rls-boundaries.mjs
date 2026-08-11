@@ -381,6 +381,56 @@ try {
     }),
     "未授权家属不能写健康记录",
   );
+  const { data: residentObservation, error: residentObservationError } = await residentA.client
+    .from("health_observations")
+    .insert({
+      resident_id: residentA.id,
+      recorded_by: residentA.id,
+      observation_type: "blood_pressure",
+      value: 126,
+      secondary_value: 78,
+      unit: "mmHg",
+      measured_at: new Date().toISOString(),
+      note: "居民本人录入验证",
+    })
+    .select("id")
+    .single();
+  if (residentObservationError || !residentObservation) {
+    throw residentObservationError ?? new Error("居民无法录入自己的健康记录。");
+  }
+  cleanup.healthIds.push(residentObservation.id);
+  assertions += 1;
+
+  const { data: familyObservation, error: familyObservationError } = await familyAuthorized.client
+    .from("health_observations")
+    .insert({
+      resident_id: residentA.id,
+      recorded_by: familyAuthorized.id,
+      observation_type: "blood_glucose",
+      value: 5.6,
+      unit: "mmol/L",
+      measured_at: new Date().toISOString(),
+      note: "已授权家属代录验证",
+    })
+    .select("id")
+    .single();
+  if (familyObservationError || !familyObservation) {
+    throw familyObservationError ?? new Error("已授权家属无法代录健康记录。");
+  }
+  cleanup.healthIds.push(familyObservation.id);
+  assertions += 1;
+
+  await expectDenied(
+    () => residentA.client.from("health_observations").insert({
+      resident_id: residentA.id,
+      recorded_by: residentA.id,
+      observation_type: "weight",
+      value: 9999,
+      unit: "kg",
+      measured_at: new Date().toISOString(),
+    }),
+    "绕过客户端的异常健康数值仍被数据库拒绝",
+  );
   await expectDenied(
     () => staffA.client.from("clinical_briefs").insert({
       resident_id: residentA.id,

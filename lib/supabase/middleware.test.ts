@@ -5,6 +5,8 @@ describe("production legacy route isolation", () => {
   it("redirects old localStorage pages to formal services", () => {
     expect(getLegacyPageTarget("/courses")).toBe("/services?tab=classroom");
     expect(getLegacyPageTarget("/contacts/doctor-id")).toBe("/services");
+    expect(getLegacyPageTarget("/service-progress")).toBe("/appointments");
+    expect(getLegacyPageTarget("/welcome")).toBe("/onboarding");
     expect(getLegacyPageTarget("/services")).toBeNull();
   });
 

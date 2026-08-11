@@ -1,6 +1,7 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest } from "../../lib/api";
 
 type Message = {
@@ -27,9 +28,11 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [bound, setBound] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   async function load() {
     setLoading(true);
+    setError("");
     try {
       const data = await apiRequest<{
         messages: Message[];
@@ -38,10 +41,7 @@ export default function MessagesPage() {
       setMessages(data.messages);
       setBound(data.channelBindings.length > 0);
     } catch (error) {
-      void Taro.showToast({
-        title: error instanceof Error ? error.message : "消息加载失败",
-        icon: "none",
-      });
+      setError(error instanceof Error ? error.message : "消息暂时无法加载。");
     } finally {
       setLoading(false);
     }
@@ -52,30 +52,38 @@ export default function MessagesPage() {
   });
 
   async function markRead(message: Message) {
-    if (!message.is_read) {
-      await apiRequest("/api/v1/messages", {
-        method: "PATCH",
-        data: { id: message.id },
-      });
-      setMessages((items) =>
-        items.map((item) =>
-          item.id === message.id ? { ...item, is_read: true } : item,
-        ),
-      );
+    try {
+      if (!message.is_read) {
+        await apiRequest("/api/v1/messages", {
+          method: "PATCH",
+          data: { id: message.id },
+        });
+        setMessages((items) =>
+          items.map((item) =>
+            item.id === message.id ? { ...item, is_read: true } : item,
+          ),
+        );
+      }
+      if (!message.link_url) return;
+      if (message.link_url.startsWith("/appointments"))
+        void Taro.navigateTo({ url: "/pages/progress/index" });
+      else if (message.link_url.startsWith("/services"))
+        void Taro.switchTab({ url: "/pages/services/index" });
+    } catch (caught) {
+      void Taro.showToast({ title: caught instanceof Error ? caught.message : "消息状态更新失败", icon: "none" });
     }
-    if (!message.link_url) return;
-    if (message.link_url.startsWith("/appointments"))
-      void Taro.navigateTo({ url: "/pages/progress/index" });
-    else if (message.link_url.startsWith("/services"))
-      void Taro.switchTab({ url: "/pages/services/index" });
   }
 
   async function markAllRead() {
-    await apiRequest("/api/v1/messages", {
-      method: "PATCH",
-      data: { markAllRead: true },
-    });
-    setMessages((items) => items.map((item) => ({ ...item, is_read: true })));
+    try {
+      await apiRequest("/api/v1/messages", {
+        method: "PATCH",
+        data: { markAllRead: true },
+      });
+      setMessages((items) => items.map((item) => ({ ...item, is_read: true })));
+    } catch (caught) {
+      void Taro.showToast({ title: caught instanceof Error ? caught.message : "消息状态更新失败", icon: "none" });
+    }
   }
 
   const unreadCount = messages.filter((item) => !item.is_read).length;
@@ -102,7 +110,13 @@ export default function MessagesPage() {
         ) : null}
       </View>
 
-      <View className={`channel-status ${bound ? "connected" : ""}`}>
+      {loading && !messages.length ? <PageSkeleton rows={3} /> : null}
+      {!loading && error && !messages.length ? (
+        <PageFeedback title="消息暂时没连上" message={error} onRetry={() => void load()} />
+      ) : null}
+      {error && messages.length ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
+
+      {messages.length || !error ? <><View className={`channel-status ${bound ? "connected" : ""}`}>
         <View className="channel-status-dot" />
         <View className="grow">
           <Text className="channel-status-title">
@@ -124,7 +138,6 @@ export default function MessagesPage() {
         </Text>
       </View>
 
-      {loading ? <View className="message-loading">正在同步消息...</View> : null}
       {!loading && messages.length ? (
         <View className="message-list-surface">
           {messages.map((item) => (
@@ -157,6 +170,7 @@ export default function MessagesPage() {
           </Text>
         </View>
       ) : null}
+      </> : null}
     </View>
   );
 }

@@ -8,6 +8,8 @@ export const legacyPageTargets: Record<string, string> = {
   "/tasks": "/me",
   "/match-leader": "/me",
   "/feedback": "/me",
+  "/service-progress": "/appointments",
+  "/welcome": "/onboarding",
 };
 
 export const legacyApiPrefixes = [

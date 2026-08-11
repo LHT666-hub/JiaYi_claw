@@ -15,7 +15,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const devLoginEnabled = process.env.NEXT_PUBLIC_DEV_LOGIN === "true";
-  const { capabilities, failed, loading: capabilityLoading } = useAuthCapabilities();
+  const { capabilities, failed, loading: capabilityLoading, retry } = useAuthCapabilities();
   const [showcaseVisible, setShowcaseVisible] = useState(false);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
 
@@ -81,6 +81,7 @@ export default function LoginPage() {
           subtitle="首次登录后完成本人或家属身份与服务社区建档"
           availability={capabilityLoading ? "checking" : capabilities?.sms.available ? "available" : "unavailable"}
           unavailableMessage={failed ? "暂时无法核验登录通道，请稍后刷新页面。" : capabilities?.sms.unavailableMessage}
+          onRetryAvailability={retry}
           onVerified={(payload) => {
             router.replace(
               payload.needsOnboarding

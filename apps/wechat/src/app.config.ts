@@ -27,6 +27,7 @@ export default defineAppConfig({
     "pages/legal/index",
     "pages/appointments/index",
     "pages/progress/index",
+    "pages/health-records/index",
     "pages/public-info/index",
     "pages/browser/index",
     "pages/workbench/index",

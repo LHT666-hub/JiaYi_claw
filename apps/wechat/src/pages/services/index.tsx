@@ -1,6 +1,7 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest, withCareSubject } from "../../lib/api";
 
 type ServiceItem = {
@@ -99,13 +100,22 @@ export default function ServicesPage() {
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState<Tab>("service");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      setData(await apiRequest<Data>(withCareSubject("/api/v1/home")));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "服务暂时无法加载。");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useDidShow(() => {
-    setLoading(true);
-    void apiRequest<Data>(withCareSubject("/api/v1/home"))
-      .then(setData)
-      .catch((error) => Taro.showToast({ title: error.message, icon: "none" }))
-      .finally(() => setLoading(false));
+    void load();
   });
 
   function scheduleTime(value: string) {
@@ -125,7 +135,13 @@ export default function ServicesPage() {
         </Text>
       </View>
 
-      <View className="network-ribbon">
+      {loading && !data ? <PageSkeleton rows={3} /> : null}
+      {!loading && error && !data ? (
+        <PageFeedback title="服务暂时没连上" message={error} onRetry={() => void load()} />
+      ) : null}
+      {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
+
+      {data ? <><View className="network-ribbon">
         <View className="network-mark">医</View>
         <View className="grow">
           <Text className="network-kicker">我的家医网络</Text>
@@ -335,6 +351,7 @@ export default function ServicesPage() {
           </View>
         </>
       ) : null}
+      </> : null}
     </View>
   );
 }

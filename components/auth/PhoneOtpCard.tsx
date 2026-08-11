@@ -30,6 +30,7 @@ type PhoneOtpCardProps = {
   onVerified: (payload: VerifyPayload) => void;
   availability?: "checking" | "available" | "unavailable";
   unavailableMessage?: string | null;
+  onRetryAvailability?: () => void;
 };
 
 export function PhoneOtpCard({
@@ -41,6 +42,7 @@ export function PhoneOtpCard({
   onVerified,
   availability = "available",
   unavailableMessage,
+  onRetryAvailability,
 }: PhoneOtpCardProps) {
   const { showToast } = useToast();
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -148,6 +150,15 @@ export function PhoneOtpCard({
           <p className="mt-2 text-xs leading-5 text-navy/58">
             {unavailableMessage ?? "登录服务正在配置，请稍后再试。"}
           </p>
+          {onRetryAvailability ? (
+            <button
+              type="button"
+              onClick={onRetryAvailability}
+              className="mt-3 rounded-full bg-white px-4 py-2 text-xs font-semibold text-navy shadow-sm"
+            >
+              刷新状态
+            </button>
+          ) : null}
         </div>
       ) : null}
 

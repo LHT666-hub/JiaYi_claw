@@ -155,6 +155,35 @@ export const healthObservationSchema = z.object({
   unit: z.string().trim().min(1).max(24),
   measuredAt: z.string().datetime(),
   note: z.string().trim().max(300).nullable().default(null),
+}).superRefine((observation, context) => {
+  const ranges: Record<typeof observation.type, [number, number]> = {
+    blood_pressure: [40, 300],
+    blood_glucose: [0.5, 50],
+    weight: [1, 500],
+    steps: [0, 200000],
+  };
+  const units: Record<typeof observation.type, string> = {
+    blood_pressure: "mmHg",
+    blood_glucose: "mmol/L",
+    weight: "kg",
+    steps: "步",
+  };
+  const [minimum, maximum] = ranges[observation.type];
+  if (observation.value < minimum || observation.value > maximum) {
+    context.addIssue({ code: "custom", path: ["value"], message: "健康记录数值超出可录入范围" });
+  }
+  if (observation.unit !== units[observation.type]) {
+    context.addIssue({ code: "custom", path: ["unit"], message: "健康记录单位与类型不匹配" });
+  }
+  if (observation.type === "blood_pressure") {
+    if (observation.secondaryValue == null || observation.secondaryValue < 30 || observation.secondaryValue > 200) {
+      context.addIssue({ code: "custom", path: ["secondaryValue"], message: "舒张压数值超出可录入范围" });
+    } else if (observation.secondaryValue >= observation.value) {
+      context.addIssue({ code: "custom", path: ["secondaryValue"], message: "请核对血压记录顺序" });
+    }
+  } else if (observation.secondaryValue != null) {
+    context.addIssue({ code: "custom", path: ["secondaryValue"], message: "该记录不需要第二个数值" });
+  }
 });
 export type HealthObservationInput = z.infer<typeof healthObservationSchema>;
 

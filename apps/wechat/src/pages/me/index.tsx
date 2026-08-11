@@ -1,6 +1,7 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest, clearSession, withCareSubject } from "../../lib/api";
 
 type Data = {
@@ -23,13 +24,22 @@ const roleLabels: Record<string, string> = {
 export default function MePage() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      setData(await apiRequest<Data>(withCareSubject("/api/v1/me")));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "账户暂时无法加载。");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useDidShow(() => {
-    setLoading(true);
-    void apiRequest<Data>(withCareSubject("/api/v1/me"))
-      .then(setData)
-      .catch((error) => Taro.showToast({ title: error.message, icon: "none" }))
-      .finally(() => setLoading(false));
+    void load();
   });
 
   function logout() {
@@ -51,6 +61,12 @@ export default function MePage() {
 
   return (
     <View className="page me-page">
+      {loading && !data ? <PageSkeleton rows={4} /> : null}
+      {!loading && error && !data ? (
+        <PageFeedback title="账户暂时没连上" message={error} onRetry={() => void load()} />
+      ) : null}
+      {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
+      {data ? <>
       <View className="me-profile">
         <View className="me-avatar">
           {(data?.profile.display_name ?? "我").slice(0, 1)}
@@ -97,7 +113,7 @@ export default function MePage() {
           <Text className="me-data-label">服务记录</Text>
         </View>
         <View className="me-data-divider" />
-        <View className="me-data-item">
+        <View className="me-data-item pressable" onClick={() => Taro.navigateTo({ url: "/pages/health-records/index" })}>
           <Text className="me-data-value">{data?.observations.length ?? 0}</Text>
           <Text className="me-data-label">健康记录</Text>
         </View>
@@ -132,6 +148,7 @@ export default function MePage() {
         退出当前账号
       </Button>
       <Text className="me-version">家医 Claw · 服务导航与家庭医生协同</Text>
+      </> : null}
     </View>
   );
 }

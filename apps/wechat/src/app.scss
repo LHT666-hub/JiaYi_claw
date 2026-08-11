@@ -47,6 +47,7 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .auth-channel-note { background: #eef5f3; color: rgba(16,42,67,.6); }
 .auth-channel-unavailable { border: 1px solid rgba(168,120,45,.24); background: #f6eddd; color: rgba(16,42,67,.62); }
 .auth-channel-note-title { display: block; margin-bottom: 5px; color: #102a43; font-size: 24px; font-weight: 750; }
+.auth-channel-retry { width: 190px; margin: 18px 0 0; border: 0; border-radius: 999px; background: #fff; color: #102a43; font-size: 20px; font-weight: 750; box-shadow: 0 8px 20px rgba(16,42,67,.07); }
 @keyframes auth-channel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 .sms-toggle { margin-top: 24px; border: 0; background: transparent; color: #557c6c; font-size: 24px; font-weight: 700; }
 .sms-toggle::after { border: 0; }
@@ -452,6 +453,25 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 @keyframes recording-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(164,74,63,.18); } 50% { box-shadow: 0 0 0 12px rgba(164,74,63,0); } }
 @media (prefers-reduced-motion: reduce) { .pressable, .chat-row, .typing-mini-dot, .recording-pulse { animation: none !important; transition: none !important; } }
 
+.page-feedback { display: flex; flex-direction: column; align-items: center; margin: 28px 0; padding: 54px 34px; border: 1px solid #dce4e2; border-radius: 32px; background: #fff; text-align: center; box-shadow: 0 16px 38px rgba(16,42,67,.06); }
+.page-feedback-mark { width: 70px; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 24px; background: #edf2f0; color: #2f6c56; font-family: Georgia, serif; font-size: 34px; font-weight: 800; }
+.page-feedback-title { display: block; margin-top: 22px; color: #102a43; font-size: 27px; font-weight: 780; }
+.page-feedback-copy { display: block; max-width: 520px; margin-top: 10px; color: rgba(16,42,67,.52); font-size: 21px; line-height: 1.65; }
+.page-feedback-action { min-width: 210px; margin-top: 24px; border: 0; border-radius: 999px; background: #102a43; color: #fff; font-size: 22px; font-weight: 750; box-shadow: 0 12px 26px rgba(16,42,67,.17); }
+.inline-retry { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; padding: 16px 18px; border: 1px solid rgba(154,100,44,.16); border-radius: 22px; background: #f7f1e6; color: #7c552b; }
+.inline-retry-mark { width: 34px; height: 34px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: rgba(154,100,44,.1); font-size: 21px; font-weight: 800; }
+.inline-retry-copy { flex: 1; font-size: 19px; line-height: 1.5; }
+.inline-retry-action { flex-shrink: 0; padding: 8px 12px; border-radius: 999px; background: #fff; font-size: 19px; font-weight: 800; }
+.page-skeleton { padding-top: 10px; }
+.page-skeleton-hero, .page-skeleton-icon, .page-skeleton-line { background: linear-gradient(90deg, #e8edeb 20%, #f4f6f5 42%, #e8edeb 68%); background-size: 240% 100%; animation: page-skeleton-shimmer 1.4s ease-in-out infinite; }
+.page-skeleton-hero { height: 190px; margin-bottom: 20px; border-radius: 34px; }
+.page-skeleton-row { display: flex; align-items: center; gap: 18px; margin-top: 12px; padding: 20px; border: 1px solid #e0e6e4; border-radius: 28px; background: #fff; }
+.page-skeleton-icon { width: 60px; height: 60px; flex-shrink: 0; border-radius: 20px; }
+.page-skeleton-line { width: 72%; height: 16px; margin-top: 12px; border-radius: 999px; }
+.page-skeleton-line.strong { width: 46%; height: 20px; margin-top: 0; }
+@keyframes page-skeleton-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .page-skeleton-hero, .page-skeleton-icon, .page-skeleton-line { animation: none !important; } }
+
 /* Resident app: summary-first hierarchy inspired by mature health apps. */
 .home-page, .services-page, .messages-page, .me-page { background: #eef2f1; }
 .home-topbar { display: flex; align-items: center; gap: 16px; margin: 4px 2px 24px; }
@@ -604,3 +624,54 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .me-logout { margin-top: 24px; border: 1px solid rgba(164,74,63,.18); border-radius: 999px; background: transparent; color: #a44a3f; font-size: 22px; font-weight: 750; }
 .me-version { display: block; margin-top: 22px; color: rgba(16,42,67,.3); text-align: center; font-size: 18px; }
 .browser-loading { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #eef2f1; color: rgba(16,42,67,.5); font-size: 24px; }
+
+.health-records-page { background: #eef2f1; }
+.health-records-heading { margin: 6px 2px 24px; }
+.health-records-title { display: block; margin-top: 5px; color: #102a43; font-family: Georgia, "Songti SC", serif; font-size: 42px; font-weight: 760; }
+.health-records-copy { display: block; margin-top: 9px; color: rgba(16,42,67,.52); font-size: 22px; line-height: 1.55; }
+.health-subject { display: flex; align-items: center; gap: 15px; padding: 18px; border: 1px solid #dce4e2; border-radius: 28px; background: rgba(255,255,255,.84); box-shadow: 0 12px 28px rgba(16,42,67,.055); }
+.health-subject-avatar { width: 58px; height: 58px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 19px; background: #102a43; color: #fff; font-size: 25px; font-weight: 800; }
+.health-subject-kicker { display: block; color: rgba(16,42,67,.42); font-size: 17px; font-weight: 700; }
+.health-subject-name { display: block; margin-top: 4px; color: #102a43; font-size: 23px; font-weight: 760; }
+.health-subject-state { padding: 6px 11px; border-radius: 999px; background: #e5efec; color: #2f6c56; font-size: 17px; font-weight: 800; }
+.health-latest-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+.health-latest-item { min-width: 0; padding: 20px; border: 1px solid #dce4e2; border-radius: 27px; background: #fff; box-shadow: 0 12px 28px rgba(16,42,67,.05); }
+.health-latest-item.blood_pressure { border-top: 5px solid #557ba1; }
+.health-latest-item.blood_glucose { border-top: 5px solid #9a642c; }
+.health-latest-item.weight { border-top: 5px solid #2f6c56; }
+.health-latest-item.steps { border-top: 5px solid #65558a; }
+.health-latest-label { display: block; color: rgba(16,42,67,.46); font-size: 18px; font-weight: 750; }
+.health-latest-value { display: block; margin-top: 9px; overflow: hidden; color: #102a43; font-family: Georgia, serif; font-size: 34px; font-variant-numeric: tabular-nums; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+.health-latest-unit { display: block; margin-top: 3px; color: rgba(16,42,67,.38); font-size: 17px; }
+.health-entry-surface { margin-top: 22px; padding: 24px; border: 1px solid #dce4e2; border-radius: 32px; background: #fff; box-shadow: 0 18px 42px rgba(16,42,67,.07); }
+.health-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.health-entry-kicker { display: block; color: #2f6c56; font-size: 18px; font-weight: 800; }
+.health-entry-title { display: block; margin-top: 4px; color: #102a43; font-size: 27px; font-weight: 780; }
+.health-entry-time { color: rgba(16,42,67,.4); font-size: 18px; }
+.health-type-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 22px 0; }
+.health-type { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 7px; padding: 13px 4px; border: 1px solid #dce4e2; border-radius: 20px; color: rgba(16,42,67,.54); font-size: 19px; font-weight: 700; }
+.health-type.selected { border-color: #102a43; background: #102a43; color: #fff; box-shadow: 0 10px 22px rgba(16,42,67,.16); }
+.health-type-mark { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: #eef3f1; color: #2f6c56; font-size: 18px; font-weight: 800; }
+.health-type.selected .health-type-mark { background: rgba(255,255,255,.12); color: #fff; }
+.health-value-row { display: flex; gap: 12px; }
+.health-value-input { display: flex; height: 82px; align-items: center; gap: 10px; margin: 10px 0 20px; padding: 0 17px; border: 1px solid #dce4e2; border-radius: 22px; background: #f5f7f6; }
+.health-value-input input { min-width: 0; flex: 1; color: #102a43; font-size: 28px; font-variant-numeric: tabular-nums; font-weight: 750; }
+.health-value-input > text { flex-shrink: 0; color: rgba(16,42,67,.4); font-size: 17px; }
+.health-note { width: 100%; min-height: 116px; box-sizing: border-box; margin-top: 10px; padding: 16px; border: 1px solid #dce4e2; border-radius: 22px; background: #f5f7f6; color: #102a43; font-size: 21px; line-height: 1.55; }
+.health-save { margin-top: 20px; border: 0; border-radius: 999px; background: #102a43; color: #fff; font-size: 23px; font-weight: 760; box-shadow: 0 13px 28px rgba(16,42,67,.18); }
+.health-data-note { display: block; margin-top: 14px; color: rgba(16,42,67,.4); text-align: center; font-size: 17px; line-height: 1.55; }
+.health-history-head { display: flex; align-items: center; justify-content: space-between; margin: 30px 2px 14px; color: #102a43; font-size: 27px; font-weight: 780; }
+.health-history-head text + text { color: rgba(16,42,67,.4); font-size: 18px; font-weight: 650; }
+.health-history-surface { overflow: hidden; border: 1px solid #dce4e2; border-radius: 30px; background: #fff; box-shadow: 0 16px 38px rgba(16,42,67,.06); }
+.health-history-row { display: flex; align-items: flex-start; gap: 15px; padding: 20px; }
+.health-history-row + .health-history-row { border-top: 1px solid #e5ebe9; }
+.health-history-mark { width: 54px; height: 54px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 18px; background: #e8f0ee; color: #2f6c56; font-size: 20px; font-weight: 800; }
+.health-history-mark.blood_pressure { background: #e9eef5; color: #365f8a; }
+.health-history-mark.blood_glucose { background: #f6eedf; color: #9a642c; }
+.health-history-mark.steps { background: #ece9f5; color: #65558a; }
+.health-history-title { display: block; color: #102a43; font-size: 23px; font-weight: 760; }
+.health-history-meta { display: block; margin-top: 5px; color: rgba(16,42,67,.42); font-size: 17px; }
+.health-history-note { display: block; margin-top: 7px; color: rgba(16,42,67,.56); font-size: 18px; line-height: 1.5; }
+.health-history-reading { flex-shrink: 0; text-align: right; }
+.health-history-reading text:first-child { display: block; color: #102a43; font-family: Georgia, serif; font-size: 28px; font-variant-numeric: tabular-nums; font-weight: 760; }
+.health-history-reading text:last-child { display: block; margin-top: 3px; color: rgba(16,42,67,.38); font-size: 16px; }

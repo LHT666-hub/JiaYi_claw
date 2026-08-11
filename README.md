@@ -63,7 +63,7 @@ npm run build:all
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:operations`：以生产构建验证内容到期下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
 - `verify:assistant-continuity`：验证居民/家属会话隔离、未授权拒绝、无原文存储和清除级联。
-- `verify:rls`：55 条真实 JWT 断言，覆盖跨居民、可撤销家属授权、跨社区、跨机构、临床写入、经办认领和旧表隐私边界。
+- `verify:rls`：58 条真实 JWT 断言，覆盖跨居民、可撤销家属授权、健康记录代录与数值约束、跨社区、跨机构、临床写入、经办认领和旧表隐私边界。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
 - `eval:ask`：通过真实 HTTP 接口回归公开信息边界、急症、调药、提示注入和方言表达。

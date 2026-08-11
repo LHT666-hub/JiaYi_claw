@@ -1,6 +1,7 @@
 import { Button, Picker, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import {
   apiRequest,
   isLoggedIn,
@@ -52,18 +53,17 @@ const statusLabels: Record<string, string> = {
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   async function load() {
     setLoading(true);
+    setError("");
     try {
       const result = await apiRequest<HomeData>(withCareSubject("/api/v1/home"));
       saveCareSubjectId(result.careSubject.residentId);
       setData(result);
     } catch (error) {
-      void Taro.showToast({
-        title: error instanceof Error ? error.message : "首页加载失败",
-        icon: "none",
-      });
+      setError(error instanceof Error ? error.message : "首页暂时无法加载。");
     } finally {
       setLoading(false);
     }
@@ -120,6 +120,12 @@ export default function HomePage() {
         </View>
       </View>
 
+      {loading && !data ? <PageSkeleton rows={2} /> : null}
+      {!loading && error && !data ? (
+        <PageFeedback title="首页暂时没连上" message={error} onRetry={() => void load()} />
+      ) : null}
+      {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
+
       {data?.careSubject ? (
         <Picker
           mode="selector"
@@ -147,7 +153,7 @@ export default function HomePage() {
         </Picker>
       ) : null}
 
-      <View className="home-claw-hero">
+      {data ? <><View className="home-claw-hero">
         <View className="home-claw-orbit">
           <Text>AI</Text>
         </View>
@@ -236,13 +242,13 @@ export default function HomePage() {
         </View>
       </View>
 
-      {loading && !data ? <View className="home-loading">正在连接服务中台...</View> : null}
       <View className="home-safety">
         <Text className="home-safety-title">紧急情况</Text>
         <Text className="home-safety-copy">
           胸痛、呼吸困难、意识不清或大出血请立即拨打 120。AI 不诊断、不开方、不调药。
         </Text>
       </View>
+      </> : null}
     </View>
   );
 }

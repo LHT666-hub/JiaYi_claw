@@ -1,6 +1,6 @@
 import { Button, Checkbox, Image, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { apiRequest, saveSession } from "../../lib/api";
 import {
   resolvePrivacyAuthorization,
@@ -49,21 +49,21 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  useEffect(() => {
-    let active = true;
-    void apiRequest<AuthCapabilities>("/api/v1/auth/capabilities")
-      .then((result) => {
-        if (!active) return;
-        setCapabilities(result);
-        if (result.preferredResidentChannel === "sms") setSmsOpen(true);
-      })
-      .catch(() => {
-        if (active) setCapabilityError(true);
-      });
-    return () => {
-      active = false;
-    };
+  const loadCapabilities = useCallback(async () => {
+    setCapabilityError(false);
+    setCapabilities(null);
+    try {
+      const result = await apiRequest<AuthCapabilities>("/api/v1/auth/capabilities");
+      setCapabilities(result);
+      if (result.preferredResidentChannel === "sms") setSmsOpen(true);
+    } catch {
+      setCapabilityError(true);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadCapabilities();
+  }, [loadCapabilities]);
 
   async function wechatLogin(event: { detail: { code?: string; errMsg?: string } }) {
     if (!capabilities?.wechat.available) {
@@ -177,7 +177,7 @@ export default function LoginPage() {
         {!capabilities && !capabilityError ? <View className="auth-channel-loading"><View /><View /></View> : null}
         {capabilities?.wechat.available ? <><Button className="primary wechat-primary pressable" openType="getPhoneNumber" loading={loading} onGetPhoneNumber={wechatLogin}>微信手机号一键登录</Button><Text className="auth-secure-note">仅用于身份验证和家医服务联系</Text></> : null}
         {capabilities && !capabilities.wechat.available && capabilities.sms.available ? <View className="auth-channel-note"><Text className="auth-channel-note-title">短信验证登录</Text><Text>输入已登记的手机号，新用户验证后完成居民或家属建档。</Text></View> : null}
-        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后重试。" : "微信和短信登录正在完成机构配置。"}</Text></View> : null}
+        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后重试。" : "微信和短信登录正在完成机构配置。"}</Text><Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()}>刷新状态</Button></View> : null}
 
         {capabilities?.sms.available && capabilities.wechat.available ? <Button
           className="sms-toggle pressable"

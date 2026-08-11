@@ -33,6 +33,18 @@ if (app) {
   if (!app.permission?.["scope.record"]?.desc) errors.push("app.json: 缺少录音用途说明");
   if (app.sitemapLocation !== "sitemap.json") errors.push("app.json: 未声明隐私 sitemap");
   if (app.tabBar?.list?.length !== 4) errors.push("app.json: 居民端必须保留首页、服务、消息、我的四栏");
+  for (const requiredPage of [
+    "pages/home/index",
+    "pages/services/index",
+    "pages/messages/index",
+    "pages/me/index",
+    "pages/login/index",
+    "pages/appointments/index",
+    "pages/progress/index",
+    "pages/health-records/index",
+  ]) {
+    if (!app.pages?.includes(requiredPage)) errors.push(`app.json: 缺少正式居民页面 ${requiredPage}`);
+  }
   for (const item of app.tabBar?.list ?? []) {
     for (const key of ["iconPath", "selectedIconPath"]) {
       if (!item[key]) {

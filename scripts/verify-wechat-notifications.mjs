@@ -3,7 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !serviceRoleKey) throw new Error("Local Supabase service role is required.");
+if (!url || !serviceRoleKey || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(url)) {
+  throw new Error("verify:wechat-notifications only runs against the local Supabase stack.");
+}
 
 const supabase = createClient(url, serviceRoleKey, {
   auth: { persistSession: false },
@@ -11,25 +13,18 @@ const supabase = createClient(url, serviceRoleKey, {
 const traceId = `wechat-notification-check-${randomUUID()}`;
 const templateId = `local-template-${randomUUID()}`;
 let userId;
-let previousPreference;
 
 try {
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("role", "resident")
-    .limit(1)
-    .single();
-  if (profileError) throw profileError;
-  userId = profile.id;
-
-  const { data: preference, error: preferenceError } = await supabase
-    .from("notification_preferences")
-    .select("wechat_mini_enabled")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (preferenceError) throw preferenceError;
-  previousPreference = preference;
+  const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+    email: `wechat-notification-${randomUUID()}@example.local`,
+    password: `Local-${randomUUID()}!`,
+    email_confirm: true,
+    user_metadata: { display_name: "微信通知验证居民" },
+  });
+  if (createUserError || !createdUser.user) {
+    throw createUserError ?? new Error("Unable to create the notification verification resident.");
+  }
+  userId = createdUser.user.id;
 
   const rows = [
     {
@@ -97,17 +92,7 @@ try {
       .delete()
       .eq("request_trace_id", traceId);
     await supabase.from("audit_logs").delete().eq("detail->>traceId", traceId);
-    if (previousPreference) {
-      await supabase.from("notification_preferences").upsert({
-        user_id: userId,
-        wechat_mini_enabled: previousPreference.wechat_mini_enabled,
-        updated_at: new Date().toISOString(),
-      });
-    } else {
-      await supabase
-        .from("notification_preferences")
-        .delete()
-        .eq("user_id", userId);
-    }
+    await supabase.from("notification_preferences").delete().eq("user_id", userId);
+    await supabase.auth.admin.deleteUser(userId).catch(() => undefined);
   }
 }

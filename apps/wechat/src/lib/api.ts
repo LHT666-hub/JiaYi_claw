@@ -1,9 +1,16 @@
 import Taro from "@tarojs/taro";
+import {
+  apiErrorFromPayload,
+  networkError,
+  sessionExpiredError,
+} from "./apiError";
 
 declare const API_BASE_URL: string;
 const ACCESS_KEY = "jiayi_access_token";
 const REFRESH_KEY = "jiayi_refresh_token";
 const CARE_SUBJECT_KEY = "jiayi_care_subject";
+let refreshInFlight: Promise<boolean> | null = null;
+let redirectingToLogin = false;
 
 export function saveSession(session: {
   accessToken: string;
@@ -33,19 +40,43 @@ export function withCareSubject(path: string) {
   return `${path}${path.includes("?") ? "&" : "?"}residentId=${encodeURIComponent(residentId)}`;
 }
 
-async function refreshSession() {
+async function performRefresh() {
   const refreshToken = Taro.getStorageSync<string>(REFRESH_KEY);
   if (!refreshToken) return false;
-  const response = await Taro.request({
-    url: `${API_BASE_URL}/api/v1/auth/refresh`,
-    method: "POST",
-    data: { refreshToken },
-    header: { "X-Client-Platform": "weapp" },
-  });
-  if (response.statusCode !== 200 || !response.data?.data?.session)
+  try {
+    const response = await Taro.request({
+      url: `${API_BASE_URL}/api/v1/auth/refresh`,
+      method: "POST",
+      data: { refreshToken },
+      header: { "X-Client-Platform": "weapp" },
+    });
+    if (response.statusCode !== 200 || !response.data?.data?.session)
+      return false;
+    saveSession(response.data.data.session);
+    return true;
+  } catch {
     return false;
-  saveSession(response.data.data.session);
-  return true;
+  }
+}
+
+async function refreshSession() {
+  if (!refreshInFlight) {
+    refreshInFlight = performRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function expireSession() {
+  clearSession();
+  if (redirectingToLogin) return;
+  redirectingToLogin = true;
+  try {
+    await Taro.reLaunch({ url: "/pages/login/index?reason=session_expired" });
+  } finally {
+    setTimeout(() => { redirectingToLogin = false; }, 800);
+  }
 }
 
 export async function apiRequest<T>(
@@ -58,23 +89,31 @@ export async function apiRequest<T>(
   retry = true,
 ): Promise<T> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
-  const response = await Taro.request({
-    url: `${API_BASE_URL}${path}`,
-    method: options.method ?? "GET",
-    data: options.data,
-    header: {
-      "Content-Type": "application/json",
-      "X-Client-Platform": "weapp",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.idempotencyKey
-        ? { "Idempotency-Key": options.idempotencyKey }
-        : {}),
-    },
-  });
-  if (response.statusCode === 401 && retry && (await refreshSession()))
-    return apiRequest<T>(path, options, false);
+  let response;
+  try {
+    response = await Taro.request({
+      url: `${API_BASE_URL}${path}`,
+      method: options.method ?? "GET",
+      data: options.data,
+      header: {
+        "Content-Type": "application/json",
+        "X-Client-Platform": "weapp",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.idempotencyKey
+          ? { "Idempotency-Key": options.idempotencyKey }
+          : {}),
+      },
+    });
+  } catch {
+    throw networkError();
+  }
+  if (response.statusCode === 401 && token) {
+    if (retry && (await refreshSession())) return apiRequest<T>(path, options, false);
+    await expireSession();
+    throw sessionExpiredError();
+  }
   if (response.statusCode < 200 || response.statusCode >= 300)
-    throw new Error(response.data?.error?.message ?? "请求失败");
+    throw apiErrorFromPayload(response.data, response.statusCode);
   return response.data.data as T;
 }
 
@@ -83,23 +122,31 @@ export async function uploadVoice(
   retry = true,
 ): Promise<{ text: string; requiresConfirmation: boolean }> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
-  const response = await Taro.uploadFile({
-    url: `${API_BASE_URL}/api/v1/speech/transcribe`,
-    filePath,
-    name: "audio",
-    header: {
-      "X-Client-Platform": "weapp",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (response.statusCode === 401 && retry && (await refreshSession()))
-    return uploadVoice(filePath, false);
+  let response;
+  try {
+    response = await Taro.uploadFile({
+      url: `${API_BASE_URL}/api/v1/speech/transcribe`,
+      filePath,
+      name: "audio",
+      header: {
+        "X-Client-Platform": "weapp",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    throw networkError();
+  }
+  if (response.statusCode === 401 && token) {
+    if (retry && (await refreshSession())) return uploadVoice(filePath, false);
+    await expireSession();
+    throw sessionExpiredError();
+  }
   const payload =
     typeof response.data === "string"
       ? JSON.parse(response.data)
       : response.data;
   if (response.statusCode < 200 || response.statusCode >= 300)
-    throw new Error(payload?.error?.message ?? "语音识别失败");
+    throw apiErrorFromPayload(payload, response.statusCode);
   return payload.data;
 }
 
@@ -120,24 +167,32 @@ export async function uploadDocumentImage(
 ): Promise<DocumentAnalysisResult> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
   const residentId = getCareSubjectId();
-  const response = await Taro.uploadFile({
-    url: `${API_BASE_URL}/api/v1/documents/analyze`,
-    filePath,
-    name: "image",
-    formData: residentId ? { residentId } : undefined,
-    header: {
-      "X-Client-Platform": "weapp",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (response.statusCode === 401 && retry && (await refreshSession()))
-    return uploadDocumentImage(filePath, false);
+  let response;
+  try {
+    response = await Taro.uploadFile({
+      url: `${API_BASE_URL}/api/v1/documents/analyze`,
+      filePath,
+      name: "image",
+      formData: residentId ? { residentId } : undefined,
+      header: {
+        "X-Client-Platform": "weapp",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  } catch {
+    throw networkError();
+  }
+  if (response.statusCode === 401 && token) {
+    if (retry && (await refreshSession())) return uploadDocumentImage(filePath, false);
+    await expireSession();
+    throw sessionExpiredError();
+  }
   const payload =
     typeof response.data === "string"
       ? JSON.parse(response.data)
       : response.data;
   if (response.statusCode < 200 || response.statusCode >= 300)
-    throw new Error(payload?.error?.message ?? "图片识别失败");
+    throw apiErrorFromPayload(payload, response.statusCode);
   return payload.data;
 }
 

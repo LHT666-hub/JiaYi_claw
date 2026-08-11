@@ -12,6 +12,7 @@ export type AuthCapabilities = {
 export function useAuthCapabilities() {
   const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(null);
   const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -29,7 +30,16 @@ export function useAuthCapabilities() {
         setFailed(true);
       });
     return () => controller.abort();
-  }, []);
+  }, [attempt]);
 
-  return { capabilities, failed, loading: !capabilities && !failed };
+  return {
+    capabilities,
+    failed,
+    loading: !capabilities && !failed,
+    retry() {
+      setCapabilities(null);
+      setFailed(false);
+      setAttempt((value) => value + 1);
+    },
+  };
 }
