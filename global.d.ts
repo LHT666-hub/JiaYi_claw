@@ -30,6 +30,7 @@ declare module "lucide-react" {
   export const Activity: LucideIcon;
   export const AlertTriangle: LucideIcon;
   export const ArrowLeft: LucideIcon;
+  export const ArrowUpRight: LucideIcon;
   export const Award: LucideIcon;
   export const Bell: LucideIcon;
   export const BellRing: LucideIcon;

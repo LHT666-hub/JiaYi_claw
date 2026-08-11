@@ -16,6 +16,7 @@ export default defineAppConfig({
     "pages/appointments/index",
     "pages/progress/index",
     "pages/public-info/index",
+    "pages/browser/index",
     "pages/workbench/index",
   ],
   window: {

@@ -28,6 +28,10 @@ export async function POST(request: Request) {
   }
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_REQUEST", "请选择体验身份。", 400, traceId);
+  const isWechatClient = request.headers.get("x-client-platform") === "weapp";
+  if (isWechatClient && !["resident", "family"].includes(parsed.data.role)) {
+    return apiError("ROLE_NOT_AVAILABLE", "小程序预览仅提供居民和家属身份。", 403, traceId);
+  }
   const supabase = await createSupabaseServerClient();
   if (!supabase) return apiError("AUTH_NOT_CONFIGURED", "本地账号服务尚未启动。", 503, traceId);
 
@@ -35,7 +39,9 @@ export async function POST(request: Request) {
     email: accounts[parsed.data.role],
     password: "LocalOnly123!",
   });
-  if (error || !data.user) return apiError("DEV_SESSION_FAILED", "本地体验账号尚未初始化。", 503, traceId);
+  if (error || !data.user || (isWechatClient && !data.session)) {
+    return apiError("DEV_SESSION_FAILED", "本地体验账号尚未初始化。", 503, traceId);
+  }
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
@@ -43,5 +49,15 @@ export async function POST(request: Request) {
     .eq("id", data.user.id)
     .single();
   if (profileError || !profile) return apiError("PROFILE_LOAD_FAILED", "体验档案读取失败。", 503, traceId);
-  return apiOk({ profile }, traceId);
+  return apiOk({
+    profile,
+    needsOnboarding: !profile.onboarding_completed_at,
+    ...(isWechatClient && data.session ? {
+      session: {
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        expiresAt: data.session.expires_at,
+      },
+    } : {}),
+  }, traceId);
 }

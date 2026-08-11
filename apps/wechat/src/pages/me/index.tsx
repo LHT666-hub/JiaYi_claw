@@ -1,7 +1,7 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
-import { apiRequest, clearSession } from "../../lib/api";
+import { apiRequest, clearSession, withCareSubject } from "../../lib/api";
 
 type Data = {
   profile: { display_name: string; role: string; phone?: string };
@@ -14,76 +14,124 @@ type Data = {
   serviceRequests: unknown[];
   channelBindings: unknown[];
 };
+
+const roleLabels: Record<string, string> = {
+  resident: "居民本人",
+  family: "家属代办人",
+};
+
 export default function MePage() {
   const [data, setData] = useState<Data | null>(null);
+  const [loading, setLoading] = useState(true);
+
   useDidShow(() => {
-    void apiRequest<Data>("/api/v1/me")
+    setLoading(true);
+    void apiRequest<Data>(withCareSubject("/api/v1/me"))
       .then(setData)
-      .catch((error) => Taro.showToast({ title: error.message, icon: "none" }));
+      .catch((error) => Taro.showToast({ title: error.message, icon: "none" }))
+      .finally(() => setLoading(false));
   });
+
   function logout() {
     clearSession();
     void Taro.reLaunch({ url: "/pages/login/index" });
   }
+
   const links = [
-    { label: "隐私与授权", url: "/pages/privacy/index" },
-    { label: "通知设置", url: "/pages/notification-settings/index" },
-    { label: "账号与安全", url: "/pages/account-security/index" },
-    { label: "隐私政策", url: "/pages/legal/index?doc=privacy" },
-    { label: "用户协议", url: "/pages/legal/index?doc=agreement" },
+    { glyph: "权", label: "隐私与授权", note: "健康信息和 AI 处理范围", url: "/pages/privacy/index" },
+    { glyph: "知", label: "通知设置", note: "订阅消息与免打扰时间", url: "/pages/notification-settings/index" },
+    { glyph: "安", label: "账号与安全", note: "手机号、登录设备和注销", url: "/pages/account-security/index" },
+    { glyph: "法", label: "隐私政策与用户协议", note: "查看当前生效版本", url: "/pages/legal/index?doc=privacy" },
   ];
+
+  const phone = data?.profile.phone ?? "";
+  const maskedPhone = phone.length >= 7
+    ? `${phone.slice(0, 3)}****${phone.slice(-4)}`
+    : phone;
+
   return (
-    <View className="page">
-      <View className="card">
-        <Text className="title">{data?.profile.display_name ?? "我的"}</Text>
-        <View className="subtitle">{data?.profile.phone ?? ""}</View>
+    <View className="page me-page">
+      <View className="me-profile">
+        <View className="me-avatar">
+          {(data?.profile.display_name ?? "我").slice(0, 1)}
+        </View>
+        <View className="grow">
+          <Text className="me-name">{data?.profile.display_name ?? "我的账户"}</Text>
+          <Text className="me-identity">
+            {roleLabels[data?.profile.role ?? ""] ?? "家医服务用户"}
+            {maskedPhone ? ` · ${maskedPhone}` : ""}
+          </Text>
+        </View>
+        <View className="me-verified">已认证</View>
       </View>
-      <View className="card">
-        <Text className="label">家医服务绑定</Text>
-        <View className="subtitle">
-          {data?.network?.name ?? "尚未绑定家医网络"}
+
+      <View className="binding-panel">
+        <View className="binding-panel-head">
+          <View>
+            <Text className="binding-kicker">家医服务绑定</Text>
+            <Text className="binding-name">
+              {data?.network?.name ?? "尚未绑定家医网络"}
+            </Text>
+          </View>
+          <View className={`binding-state ${data?.network ? "active" : ""}`}>
+            {data?.network ? "服务中" : "待绑定"}
+          </View>
         </View>
-        <View className="muted">
-          {data?.network?.community?.name ?? "请联系社区工作人员"} · 协作机构{" "}
-          {data?.network?.institutions?.length ?? 0} 家
-        </View>
+        <Text className="binding-community">
+          {data?.network?.community?.name ?? "请联系社区工作人员"} · 协作机构 {data?.network?.institutions?.length ?? 0} 家
+        </Text>
         <Button
-          className="secondary"
+          className="binding-action pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/family-link/index" })}
         >
-          {data?.profile.role === "family" ? "绑定与管理家人" : "家属协助授权"}
+          {data?.profile.role === "family" ? "管理服务对象" : "管理家属协助授权"}
         </Button>
       </View>
-      <View className="card">
-        <Text className="label">我的数据</Text>
-        <View className="row">
-          <Text>健康记录</Text>
-          <Text>{data?.observations.length ?? 0} 条</Text>
+
+      <View className="me-data-surface">
+        <View
+          className="me-data-item pressable"
+          onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
+        >
+          <Text className="me-data-value">{data?.serviceRequests.length ?? 0}</Text>
+          <Text className="me-data-label">服务记录</Text>
         </View>
-        <View className="row">
-          <Text>服务申请</Text>
-          <Text>{data?.serviceRequests.length ?? 0} 条</Text>
+        <View className="me-data-divider" />
+        <View className="me-data-item">
+          <Text className="me-data-value">{data?.observations.length ?? 0}</Text>
+          <Text className="me-data-label">健康记录</Text>
         </View>
-        <View className="row">
-          <Text>企业微信</Text>
-          <Text>{data?.channelBindings.length ? "已绑定" : "未绑定"}</Text>
+        <View className="me-data-divider" />
+        <View className="me-data-item">
+          <Text className="me-data-value">{data?.channelBindings.length ? 1 : 0}</Text>
+          <Text className="me-data-label">已连渠道</Text>
         </View>
       </View>
-      <View className="card link-list">
+
+      <View className="me-section-head">
+        <Text className="service-section-title">账户与服务</Text>
+      </View>
+      <View className="me-settings-surface">
         {links.map((item) => (
           <View
             key={item.url}
-            className="row link-row"
+            className="me-setting-row pressable"
             onClick={() => Taro.navigateTo({ url: item.url })}
           >
-            <Text>{item.label}</Text>
-            <Text className="muted">›</Text>
+            <View className="me-setting-glyph">{item.glyph}</View>
+            <View className="grow">
+              <Text className="me-setting-title">{item.label}</Text>
+              <Text className="me-setting-note">{item.note}</Text>
+            </View>
+            <Text className="me-setting-arrow">›</Text>
           </View>
         ))}
       </View>
-      <Button className="secondary" onClick={logout}>
-        退出登录
+
+      <Button className="me-logout pressable" disabled={loading} onClick={logout}>
+        退出当前账号
       </Button>
+      <Text className="me-version">家医 Claw · 服务导航与家庭医生协同</Text>
     </View>
   );
 }

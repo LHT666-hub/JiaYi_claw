@@ -3,6 +3,10 @@ import { z } from "zod";
 import { POST as legacyAskPost } from "@/app/api/ask/route";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { buildAssistantActions } from "@/lib/assistant/actions";
+import {
+  buildAssistantActivity,
+  presentAssistantActivity,
+} from "@/lib/assistant/activity";
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { inferServiceRequestFromQuestion } from "@/lib/agent";
 import { getGuardrailReply } from "@/lib/faq";
@@ -152,6 +156,45 @@ export async function POST(request: NextRequest) {
     serviceRequest: inferredServiceRequest,
   });
 
+  const activityDescriptor = buildAssistantActivity({
+    reply,
+    actions,
+    serviceRequest: inferredServiceRequest,
+    skillIds,
+  });
+  let activity = null;
+  const { data: recordedActivity, error: activityError } = await supabase.rpc(
+    "record_assistant_activity",
+    {
+      p_resident_id: careSubject.residentId,
+      p_activity_type: activityDescriptor.activityType,
+      p_service_type: activityDescriptor.serviceType,
+      p_risk_level: activityDescriptor.riskLevel,
+      p_source: activityDescriptor.source,
+      p_skill_ids: activityDescriptor.skillIds,
+      p_knowledge_refs: activityDescriptor.knowledgeRefs,
+      p_action_kinds: activityDescriptor.actionKinds,
+      p_trace_id: traceId,
+      p_channel:
+        request.headers.get("x-client-platform") === "weapp"
+          ? "wechat"
+          : "web",
+    },
+  );
+  if (!activityError && recordedActivity) {
+    const recorded = recordedActivity as {
+      activityId: string;
+      occurredAt: string;
+    };
+    activity = presentAssistantActivity({
+      id: recorded.activityId,
+      activity_type: activityDescriptor.activityType,
+      service_type: activityDescriptor.serviceType,
+      risk_level: activityDescriptor.riskLevel,
+      created_at: recorded.occurredAt,
+    });
+  }
+
   return apiOk(
     {
       reply,
@@ -159,6 +202,8 @@ export async function POST(request: NextRequest) {
       actions,
       careSubject: careSubject?.selected ?? null,
       writePerformed: false,
+      activity,
+      rawTranscriptStored: false,
     },
     traceId,
   );

@@ -1,6 +1,33 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const ok = (data: unknown) => ({ ok: true, data, traceId: "e2e-trace" });
+
+async function mockAssistantSession(
+  page: Page,
+  activities: Array<Record<string, unknown>> = [],
+) {
+  await page.route("**/api/v1/assistant/session*", async (route) => {
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({ json: ok({ cleared: true }) });
+      return;
+    }
+    await route.fulfill({
+      json: ok({
+        session: activities.length
+          ? {
+              id: "76000000-0000-0000-0000-000000000001",
+              lastActivityAt: "2026-08-10T10:00:00.000Z",
+              expiresAt: "2026-09-09T10:00:00.000Z",
+              lastChannel: "wechat",
+            }
+          : null,
+        activities,
+        retentionDays: 30,
+        rawTranscriptStored: false,
+      }),
+    });
+  });
+}
 
 test("家属手机号 OTP 注册链路", async ({ page }) => {
   let requestBody: Record<string, unknown> = {};
@@ -432,6 +459,7 @@ test("正式登录与首次建档保持移动端圆角视觉", async ({ page }) 
 });
 
 test("居民语音先转写并确认文字", async ({ page }) => {
+  await mockAssistantSession(page);
   await page.route("**/api/v1/speech/transcribe", (route) =>
     route.fulfill({
       json: ok({
@@ -458,6 +486,7 @@ test("居民语音先转写并确认文字", async ({ page }) => {
 });
 
 test("Claw 只生成待确认预约草稿，不直接写入", async ({ page }) => {
+  await mockAssistantSession(page);
   let assistantBody: Record<string, unknown> = {};
   let serviceRequestCreated = false;
   await page.route("**/api/v1/assistant/messages", async (route) => {
@@ -509,6 +538,7 @@ test("Claw 只生成待确认预约草稿，不直接写入", async ({ page }) =
 });
 
 test("Claw 遇到急症只提供立即拨打 120", async ({ page }) => {
+  await mockAssistantSession(page);
   let serviceRequestCreated = false;
   await page.route("**/api/v1/assistant/messages", (route) =>
     route.fulfill({
@@ -550,6 +580,37 @@ test("Claw 遇到急症只提供立即拨打 120", async ({ page }) => {
   await expect(emergencyLink).toHaveAttribute("href", "tel:120");
   await expect(page.getByText("需您核对确认后提交")).toHaveCount(0);
   expect(serviceRequestCreated).toBe(false);
+});
+
+test("Claw 恢复可清除的服务轨迹而不恢复对话原文", async ({ page }) => {
+  await mockAssistantSession(page, [
+    {
+      id: "76000000-0000-0000-0000-000000000002",
+      type: "service_draft_prepared",
+      title: "已整理挂号协助草稿",
+      detail: "原对话未保存；核对资料后才会提交给家医团队。",
+      badge: "待确认",
+      riskLevel: "low",
+      occurredAt: "2026-08-10T10:00:00.000Z",
+      primaryAction: {
+        label: "继续办理",
+        href: "/appointments?type=clinic_registration&from=claw",
+      },
+    },
+  ]);
+
+  await page.goto("/ask");
+  await expect(page.getByText("继续上次服务")).toBeVisible();
+  await expect(page.getByText("已整理挂号协助草稿")).toBeVisible();
+  await page.getByRole("button", { name: /继续上次服务/ }).click();
+  await expect(page.getByText("原对话未保存；核对资料后才会提交给家医团队。")).toBeVisible();
+  await expect(page.getByRole("link", { name: "继续办理" })).toHaveAttribute(
+    "href",
+    "/appointments?type=clinic_registration&from=claw",
+  );
+  await page.getByRole("button", { name: /清除/ }).click();
+  await expect(page.getByText("继续上次服务")).toHaveCount(0);
+  await expect(page.getByText(/办理动作会形成可清除的服务轨迹/)).toBeVisible();
 });
 
 test("居民保存通知偏好并设置免打扰", async ({ page }) => {

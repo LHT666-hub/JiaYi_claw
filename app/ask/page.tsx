@@ -6,12 +6,17 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowUpRight,
   ChevronRight,
   BookOpen,
+  Clock3,
+  History,
   MessageCircle,
   Mic,
   Send,
+  ShieldCheck,
   Stethoscope,
+  Trash2,
 } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
@@ -33,6 +38,22 @@ type Message = {
     href: string;
     requiresConfirmation: boolean;
   }>;
+};
+
+type AssistantActivity = {
+  id: string;
+  type:
+    | "public_info_query"
+    | "schedule_query"
+    | "service_draft_prepared"
+    | "safety_guidance"
+    | "general_guidance";
+  title: string;
+  detail: string;
+  badge: string;
+  riskLevel: "low" | "medium" | "high" | "emergency";
+  occurredAt: string;
+  primaryAction: { label: string; href: string } | null;
 };
 
 const sourceLabels: Record<string, string> = {
@@ -57,6 +78,10 @@ export default function AskPage() {
   ]);
   const [loading, setLoading] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [activities, setActivities] = useState<AssistantActivity[]>([]);
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [clearingActivity, setClearingActivity] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -64,6 +89,21 @@ export default function AskPage() {
     if (initial) setQuestion(initial);
     if (params.get("voice") === "1") setVoiceOpen(true);
   }, []);
+  useEffect(() => {
+    let active = true;
+    void fetch("/api/v1/assistant/session", { cache: "no-store" })
+      .then(async (response) => {
+        if (response.status === 401) return router.replace("/login");
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (active) setActivities(payload.data?.activities ?? []);
+      })
+      .catch(() => undefined)
+      .finally(() => active && setActivityLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [router]);
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -122,6 +162,13 @@ export default function AskPage() {
           actions: payload.data.actions ?? [],
         },
       ]);
+      const activity = payload.data.activity as AssistantActivity | null;
+      if (activity) {
+        setActivities((items) => [
+          activity,
+          ...items.filter((item) => item.id !== activity.id),
+        ].slice(0, 12));
+      }
     } catch (error) {
       setMessages((items) => [
         ...items,
@@ -137,6 +184,32 @@ export default function AskPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function clearActivity() {
+    if (clearingActivity) return;
+    setClearingActivity(true);
+    try {
+      const response = await fetch("/api/v1/assistant/session", {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("清除失败");
+      setActivities([]);
+      setActivityOpen(false);
+    } finally {
+      setClearingActivity(false);
+    }
+  }
+
+  function activityTime(value: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "最近";
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
   }
   return (
     <PhoneShell showBottomNav>
@@ -161,6 +234,98 @@ export default function AskPage() {
         <div className="mt-4">
           <CareSubjectSwitcher compact />
         </div>
+        {activityLoading ? (
+          <div className="mt-4 h-[74px] animate-shimmer rounded-[24px]" />
+        ) : activities.length ? (
+          <section className="ios-material animate-in mt-4 overflow-hidden rounded-[26px]">
+            <button
+              type="button"
+              aria-expanded={activityOpen}
+              onClick={() => setActivityOpen((value) => !value)}
+              className="ios-pressable flex w-full items-center gap-3 px-4 py-3.5 text-left"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-health-muted text-sage">
+                <History className="h-4.5 w-4.5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-semibold text-sage">
+                  继续上次服务
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-semibold text-navy">
+                  {activities[0].title}
+                </span>
+              </span>
+              <span className="rounded-full bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-navy/48">
+                {activities.length} 条轨迹
+              </span>
+              <ChevronRight
+                className={`h-4 w-4 text-navy/38 transition-transform duration-200 ${activityOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+            {activityOpen ? (
+              <div className="border-t border-line/45 px-4 pb-3">
+                <div className="divide-y divide-line/45">
+                  {activities.slice(0, 5).map((activity) => (
+                    <div key={activity.id} className="flex gap-3 py-3.5">
+                      <span
+                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${activity.riskLevel === "emergency" ? "bg-risk-strong text-danger" : "bg-white/75 text-sage"}`}
+                      >
+                        {activity.riskLevel === "emergency" ? (
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                        ) : (
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-xs font-semibold text-navy">
+                            {activity.title}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-health-soft px-2 py-0.5 text-[9px] font-semibold text-sage">
+                            {activity.badge}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-4 text-navy/48">
+                          {activity.detail}
+                        </span>
+                        <span className="mt-1.5 flex items-center gap-1 text-[10px] text-navy/35">
+                          <Clock3 className="h-3 w-3" />
+                          {activityTime(activity.occurredAt)}
+                        </span>
+                      </span>
+                      {activity.primaryAction ? (
+                        <Link
+                          href={activity.primaryAction.href}
+                          aria-label={activity.primaryAction.label}
+                          className="ios-pressable flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70 text-navy"
+                        >
+                          <ArrowUpRight className="h-3.5 w-3.5" />
+                        </Link>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between border-t border-line/45 pt-3 text-[10px] text-navy/38">
+                  <span>仅保留结构化轨迹 30 天，不保存对话原文</span>
+                  <button
+                    type="button"
+                    disabled={clearingActivity}
+                    onClick={() => void clearActivity()}
+                    className="ios-pressable flex min-h-0 items-center gap-1 rounded-full px-2 py-1.5 font-semibold text-danger disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    清除
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <div className="mt-4 flex items-center gap-2 px-1 text-[11px] leading-5 text-navy/42">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-sage" />
+            对话原文不保存；办理动作会形成可清除的服务轨迹
+          </div>
+        )}
         <div className="mt-4 rounded-[22px] border border-danger/15 bg-risk-soft p-3 text-xs leading-5 text-danger">
           <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
           胸痛、呼吸困难、意识不清或大出血请立即拨打 120。
@@ -169,7 +334,7 @@ export default function AskPage() {
           {messages.map((item) => (
             <div
               key={item.id}
-              className={`flex ${item.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`message-enter flex ${item.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
                 className={`max-w-[86%] rounded-[24px] px-4 py-3 text-sm leading-6 shadow-[0_10px_26px_rgba(16,42,67,0.07)] ${item.role === "user" ? "rounded-br-[8px] bg-navy text-white" : "rounded-bl-[8px] border border-line/60 bg-surface-card text-navy"}`}
@@ -261,7 +426,7 @@ export default function AskPage() {
             type="button"
             onClick={() => setVoiceOpen(true)}
             aria-label="语音输入"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-health-muted text-sage"
+            className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-health-muted text-sage"
           >
             <Mic className="h-5 w-5" />
           </button>
@@ -274,7 +439,7 @@ export default function AskPage() {
           <button
             disabled={!question.trim() || loading}
             aria-label="发送"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-white disabled:opacity-40"
+            className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-white shadow-[0_10px_22px_rgba(16,42,67,0.2)] disabled:opacity-40"
           >
             <Send className="h-4 w-4" />
           </button>

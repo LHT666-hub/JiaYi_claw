@@ -34,4 +34,9 @@
 - clinical-note-summarization and care-coordination files that reserve all rights were not copied.
 - Apple Health, Fitbit, Withings, OpenFoodFacts, ExerciseAPI, and Fitness Coach are not integrated in the first release.
 
+## Design Research References (Not Vendored)
+
+- Apple Human Interface Guidelines and Apple Health are product/design references only. No Apple design assets, private APIs, or proprietary UI resources are distributed with this project.
+- `vermont42/iOS-Design-Agent-Skill` (MIT, inspected on 2026-08-11) informed the typography, color, spatial composition, motion, and depth review. Its SwiftUI implementation snippets were not copied into the Taro application.
+
 This notice is an engineering provenance record, not legal advice. The exact machine-readable ledger is `third_party/skills/sources.json`.

@@ -1,6 +1,6 @@
 # 家医 Claw 产品与开源借鉴台账
 
-更新日期：2026-07-18
+更新日期：2026-08-11
 
 ## 核心判断
 
@@ -18,6 +18,8 @@
 | Medplum | 身份、临床数据、API、自动化 Bot 分层 | Skill Registry、受控工具、审计、服务状态机分层 | 首版不把国内系统强行建模成完整 FHIR |
 | EasyAppointments / Cal.com | 服务、人员、工作时间和预约状态分离 | `service_catalog`、医生排班、人工确认与 `AppointmentProvider` 边界 | 无正式号源接口时不计算或展示“剩余号源” |
 | 上海分级诊疗政策 | 社区首诊与家庭医生上转协同；官方挂号和家医优先转诊是两条路径 | `care_networks`、`referral_routes`、官方入口与家医协助并列 | 不在代码中虚构合作医院、绿色通道或实时优先号源 |
+| Apple Health / HIG | 摘要优先、趋势突出、隐私控制；层级、和谐、克制动效和无障碍 | 小程序首页今日摘要、分段服务、语义色、按压反馈、减少动态效果 | 不复制 iOS 外观、Liquid Glass 或不存在的 HealthKit 趋势 |
+| iOS Design Agent Skill | 从字体、颜色、空间、动效和景深五维审查移动端 | 统一小程序层级、分组列表、语义色和目的明确的反馈 | SwiftUI 代码不进入 Taro 运行时 |
 
 ## 开源组件边界
 
@@ -38,6 +40,7 @@
 6. 急症优先终止普通流程并提示 120，不能继续推荐线上服务。
 7. AI 授权按居民服务对象记录，撤回后立即停止后续 AI 处理。
 8. 正式环境默认不保存完整健康对话，只保留脱敏 Skill 运行和必要服务审计。
+9. 跨端连续性只恢复“查询排班、生成服务草稿、安全分流”等结构化轨迹，不恢复问题和回答原文。
 
 ## 明确不做
 
@@ -69,3 +72,6 @@
 - Beda EMR: https://github.com/beda-software/fhir-emr
 - EasyAppointments: https://github.com/alextselegidis/easyappointments
 - 上海市家庭医生签约服务规范：https://www.shanghai.gov.cn/gwk/search/content/cce2723d80034c169d573aaa4c23fd59
+- Apple Human Interface Guidelines: https://developer.apple.com/design/human-interface-guidelines
+- Apple Health: https://www.apple.com/health/
+- iOS Design Agent Skill: https://github.com/vermont42/iOS-Design-Agent-Skill

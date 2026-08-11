@@ -29,6 +29,7 @@
     "bootstrap:local": "node --env-file=.env.local scripts/bootstrap-local.mjs",
     "verify:onboarding": "node --env-file=.env.local scripts/verify-onboarding-flow.mjs",
     "verify:operations": "node --env-file=.env.local scripts/verify-operational-lifecycle.mjs",
+    "verify:assistant-continuity": "node --env-file=.env.local scripts/verify-assistant-continuity.mjs",
     "verify:rls": "node --env-file=.env.local scripts/verify-rls-boundaries.mjs",
     "verify:release-compliance": "node --env-file=.env.local scripts/verify-release-compliance.mjs",
     "verify:wechat-notifications": "node --env-file=.env.local scripts/verify-wechat-notifications.mjs",

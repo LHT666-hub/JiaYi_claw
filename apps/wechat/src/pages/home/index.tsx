@@ -15,30 +15,57 @@ type CareSubject = {
   isSelf: boolean;
 };
 
+type Schedule = {
+  id: string;
+  starts_at: string;
+  location?: string | null;
+  practitioner?: { name?: string; title?: string | null } | null;
+  department?: { name?: string } | null;
+  institution?: { name?: string } | null;
+};
+
 type HomeData = {
   profile: { displayName: string };
   careSubject: CareSubject;
   careSubjects: CareSubject[];
   network: null | { name: string; community?: { name?: string } };
-  serviceRequests: Array<{ id: string; title: string; status: string }>;
-  schedules: Array<Record<string, unknown>>;
+  serviceRequests: Array<{
+    id: string;
+    title: string;
+    status: string;
+    updated_at: string;
+  }>;
+  schedules: Schedule[];
+  notifications: Array<{ id: string; is_read: boolean }>;
+};
+
+const statusLabels: Record<string, string> = {
+  submitted: "已提交",
+  needs_info: "待补资料",
+  accepted: "团队已受理",
+  checking_availability: "核对资源中",
+  awaiting_user_confirmation: "待您确认",
+  booked: "已预约",
+  waitlisted: "候补中",
 };
 
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
+    setLoading(true);
     try {
-      const result = await apiRequest<HomeData>(
-        withCareSubject("/api/v1/home"),
-      );
+      const result = await apiRequest<HomeData>(withCareSubject("/api/v1/home"));
       saveCareSubjectId(result.careSubject.residentId);
       setData(result);
     } catch (error) {
-      Taro.showToast({
+      void Taro.showToast({
         title: error instanceof Error ? error.message : "首页加载失败",
         icon: "none",
       });
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -61,14 +88,35 @@ export default function HomePage() {
   const activeRequest = data?.serviceRequests.find(
     (item) => !["completed", "cancelled", "failed"].includes(item.status),
   );
+  const nextSchedule = data?.schedules[0];
+  const unreadCount = data?.notifications.filter((item) => !item.is_read).length ?? 0;
+
+  function scheduleTime(value?: string) {
+    if (!value) return "暂无已核验排班";
+    const date = new Date(value);
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
 
   return (
-    <View className="page">
-      <View className="page-heading">
-        <Text className="eyebrow">社区家庭医生服务</Text>
-        <Text className="brand-title left">家医 Claw</Text>
-        <View className="subtitle">
-          {data ? `${data.profile.displayName}，您好` : "正在连接服务中台"}
+    <View className="page home-page">
+      <View className="home-topbar">
+        <View className="home-avatar">
+          {(data?.profile.displayName ?? "家").slice(0, 1)}
+        </View>
+        <View className="grow">
+          <Text className="home-greeting">
+            {data ? `${data.profile.displayName}，您好` : "家医 Claw"}
+          </Text>
+          <Text className="home-context">
+            {data?.network?.community?.name ?? "正在连接您的家医团队"}
+          </Text>
+        </View>
+        <View
+          className="home-message-button pressable"
+          onClick={() => Taro.switchTab({ url: "/pages/messages/index" })}
+        >
+          <Text>消息</Text>
+          {unreadCount ? <View className="home-unread">{unreadCount}</View> : null}
         </View>
       </View>
 
@@ -76,90 +124,116 @@ export default function HomePage() {
         <Picker
           mode="selector"
           range={data.careSubjects.map(
-            (item) =>
-              `${item.displayName} · ${item.isSelf ? "本人" : item.relationship}`,
+            (item) => `${item.displayName} · ${item.isSelf ? "本人" : item.relationship}`,
           )}
           onChange={(event) => void switchSubject(Number(event.detail.value))}
         >
-          <View className="subject-card">
+          <View className="home-subject pressable">
             <View className="subject-avatar">
               {data.careSubject.displayName.slice(0, 1)}
             </View>
             <View className="grow">
               <Text className="subject-label">当前服务对象</Text>
               <Text className="subject-name">
-                {data.careSubject.displayName} ·{" "}
-                {data.careSubject.isSelf ? "本人" : "家属代办"}
+                {data.careSubject.displayName} · {data.careSubject.isSelf ? "本人" : "家属代办"}
               </Text>
             </View>
             {data.careSubjects.length > 1 ? (
-              <Text className="subject-switch">切换</Text>
-            ) : null}
+              <Text className="subject-switch">切换 ›</Text>
+            ) : (
+              <Text className="subject-switch">已绑定</Text>
+            )}
           </View>
         </Picker>
       ) : null}
 
-      <View className="voice-hero">
-        <Text className="title">直接告诉 Claw 想办什么</Text>
-        <View className="subtitle">
-          查已核验信息、整理诉求，再由您确认下一步。
+      <View className="home-claw-hero">
+        <View className="home-claw-orbit">
+          <Text>AI</Text>
         </View>
+        <Text className="home-claw-title">今天想让 Claw 帮什么？</Text>
+        <Text className="home-claw-copy">
+          一句话查信息、整理诉求，再由您确认办理。
+        </Text>
         <Button
-          className="claw-primary"
+          className="home-claw-primary pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/ask/index?voice=1" })}
         >
-          语音问 Claw
+          按住想说的，直接告诉我
         </Button>
-        <View className="claw-actions">
-          <Button
-            className="claw-secondary"
+        <View className="home-claw-shortcuts">
+          <View
+            className="home-claw-shortcut pressable"
             onClick={() => Taro.navigateTo({ url: "/pages/ask/index" })}
           >
-            打字咨询
-          </Button>
-          <Button
-            className="claw-secondary"
-            onClick={() =>
-              Taro.navigateTo({ url: "/pages/appointments/index" })
-            }
+            <Text className="shortcut-symbol">问</Text>
+            <Text>打字咨询</Text>
+          </View>
+          <View
+            className="home-claw-shortcut pressable"
+            onClick={() => Taro.navigateTo({ url: "/pages/appointments/index" })}
           >
-            一键帮预约
-          </Button>
+            <Text className="shortcut-symbol">约</Text>
+            <Text>一键预约</Text>
+          </View>
+          <View
+            className="home-claw-shortcut pressable"
+            onClick={() => Taro.switchTab({ url: "/pages/services/index" })}
+          >
+            <Text className="shortcut-symbol">诊</Text>
+            <Text>医生坐班</Text>
+          </View>
         </View>
       </View>
 
-      <View className="card">
-        <Text className="label no-margin">正在办理</Text>
-        {activeRequest ? (
-          <View
-            className="service-summary"
-            onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
-          >
-            <View className="grow">
-              <Text className="consent-title">{activeRequest.title}</Text>
-              <Text className="consent-note">
-                团队正在处理，点击查看完整进度
-              </Text>
-            </View>
-            <Text className="status">查看进度</Text>
+      <View className="home-section-head">
+        <Text className="home-section-title">今日摘要</Text>
+        <Text className="home-section-note">只展示与您相关的信息</Text>
+      </View>
+      <View className="summary-surface">
+        <View
+          className="summary-row pressable"
+          onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
+        >
+          <View className="summary-icon service">办</View>
+          <View className="grow">
+            <Text className="summary-kicker">正在办理</Text>
+            <Text className="summary-title">
+              {activeRequest?.title ?? "当前没有待处理服务"}
+            </Text>
+            <Text className="summary-detail">
+              {activeRequest
+                ? statusLabels[activeRequest.status] ?? "团队处理中"
+                : "可以直接向 Claw 描述需求"}
+            </Text>
           </View>
-        ) : (
-          <View className="empty-copy">
-            当前没有处理中服务，可以直接向 Claw 描述需求。
-          </View>
-        )}
-        <Button
-          className="secondary"
+          <Text className="summary-arrow">›</Text>
+        </View>
+        <View
+          className="summary-row pressable"
           onClick={() => Taro.switchTab({ url: "/pages/services/index" })}
         >
-          医生坐班与分级诊疗
-        </Button>
+          <View className="summary-icon schedule">诊</View>
+          <View className="grow">
+            <Text className="summary-kicker">近期坐班</Text>
+            <Text className="summary-title">
+              {nextSchedule?.practitioner?.name ?? "查看家医网络排班"}
+              {nextSchedule?.department?.name ? ` · ${nextSchedule.department.name}` : ""}
+            </Text>
+            <Text className="summary-detail">
+              {scheduleTime(nextSchedule?.starts_at)}
+              {nextSchedule?.institution?.name ? ` · ${nextSchedule.institution.name}` : ""}
+            </Text>
+          </View>
+          <Text className="summary-arrow">›</Text>
+        </View>
       </View>
 
-      <View className="safety-strip">
-        <Text>
-          胸痛、呼吸困难、意识不清或大出血请立即拨打 120。AI
-          不诊断、不开方、不调药。
+      {loading && !data ? <View className="home-loading">正在连接服务中台...</View> : null}
+      <View className="home-safety">
+        <Text className="home-safety-title">紧急情况</Text>
+        <Text className="home-safety-copy">
+          胸痛、呼吸困难、意识不清或大出血请立即拨打 120。AI 不诊断、不开方、不调药。
         </Text>
       </View>
     </View>

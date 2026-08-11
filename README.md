@@ -4,8 +4,8 @@
 
 项目同时交付：
 
-- Next.js Web/H5/PWA 居民端与工作人员/管理员后台。
-- Taro + React 微信小程序，共用 `/api/v1` 后端和 Supabase 数据权限。
+- Taro + React 微信小程序作为居民/家属主产品。
+- Next.js Web 作为医生、工作人员和管理员主工作台，并保留居民 H5 兼容入口。
 - 可审计的 Skill Registry、预约状态机、通知 outbox、内容/排班审核和家属授权。
 
 ## 正式产品结构
@@ -49,6 +49,7 @@ npm run dev:web -- -p 3000 -H 0.0.0.0
 npm run check:all
 npm run verify:onboarding
 npm run verify:operations
+npm run verify:assistant-continuity
 npm run verify:rls
 npm run verify:release-compliance
 npm run verify:wechat-notifications
@@ -60,6 +61,7 @@ npm run build:all
 - `check:all`：Web/小程序类型、Lint、单测和第三方许可证。
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:operations`：以生产构建验证内容到期下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
+- `verify:assistant-continuity`：验证居民/家属会话隔离、未授权拒绝、无原文存储和清除级联。
 - `verify:rls`：48 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入和旧表隐私边界。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。

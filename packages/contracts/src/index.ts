@@ -168,6 +168,29 @@ export const medicalEntitySchema = z.object({
 });
 export type MedicalEntityResult = z.infer<typeof medicalEntitySchema>;
 
+export const assistantActivityTypeSchema = z.enum([
+  "public_info_query",
+  "schedule_query",
+  "service_draft_prepared",
+  "safety_guidance",
+  "general_guidance",
+]);
+export type AssistantActivityType = z.infer<typeof assistantActivityTypeSchema>;
+
+export const assistantActivityViewSchema = z.object({
+  id: z.string().uuid(),
+  type: assistantActivityTypeSchema,
+  title: z.string(),
+  detail: z.string(),
+  badge: z.string(),
+  riskLevel: z.enum(["low", "medium", "high", "emergency"]),
+  occurredAt: z.string().datetime(),
+  primaryAction: z
+    .object({ label: z.string(), href: z.string() })
+    .nullable(),
+});
+export type AssistantActivityView = z.infer<typeof assistantActivityViewSchema>;
+
 export type SkillRisk = "low" | "medium" | "high";
 export type SkillDefinition = {
   id: string;
