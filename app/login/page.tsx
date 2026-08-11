@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronRight, LogIn, ShieldCheck, Stethoscope } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
@@ -54,9 +55,14 @@ export default function LoginPage() {
     <PhoneShell>
       <main className="min-h-full px-5 pb-10 pt-8">
         <header className="py-4 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[22px] bg-navy text-white shadow-[0_16px_34px_rgba(16,42,67,0.22)]">
-            <ShieldCheck className="h-7 w-7" />
-          </div>
+          <Image
+            src="/app-icon.png"
+            width={64}
+            height={64}
+            priority
+            alt="家医 Claw"
+            className="mx-auto h-16 w-16 rounded-[22px] shadow-[0_16px_34px_rgba(16,42,67,0.22)]"
+          />
           <p className="mt-4 font-brand text-3xl font-semibold text-navy">
             家医 Claw
           </p>

@@ -16,9 +16,7 @@ export function PrimaryClawCard({
   onQuickQuestion,
 }: PrimaryClawCardProps) {
   return (
-    <section className="relative overflow-hidden rounded-[32px] border border-white/45 bg-[linear-gradient(145deg,#12365A_0%,#102A43_58%,#0B2238_100%)] px-5 py-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.24)]">
-      <div className="pointer-events-none absolute -right-9 -top-10 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-14 right-6 h-36 w-36 rounded-full bg-amber/18 blur-2xl" />
+    <section className="relative overflow-hidden rounded-[32px] border border-navySoft bg-navy px-5 py-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.22)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="font-brand text-[1.62rem] font-semibold tracking-[-0.03em]">

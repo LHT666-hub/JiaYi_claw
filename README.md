@@ -62,7 +62,7 @@ npm run build:all
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:operations`：以生产构建验证内容到期下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
 - `verify:assistant-continuity`：验证居民/家属会话隔离、未授权拒绝、无原文存储和清除级联。
-- `verify:rls`：52 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入、经办认领和旧表隐私边界。
+- `verify:rls`：55 条真实 JWT 断言，覆盖跨居民、可撤销家属授权、跨社区、跨机构、临床写入、经办认领和旧表隐私边界。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
 - `eval:ask`：通过真实 HTTP 接口回归公开信息边界、急症、调药、提示注入和方言表达。
@@ -89,6 +89,12 @@ npm run build:release
 Web 使用 `MediaRecorder`，小程序使用原生 `RecorderManager`，统一上传到 `POST /api/v1/speech/transcribe`。音频最大 10MB，写入临时目录，识别后删除；转写文字必须由居民确认后才能进入 Claw。
 
 当前本地 Worker 为 Whisper Small + Whisper-Wu LoRA。模型链路已实测可运行，但公开上海话样本准确率尚未达到试点验收标准。正式部署必须提供隔离的 Python 运行时，并建立真实普通话/上海话语料评测，不把“模型能启动”等同于“识别质量合格”。
+
+## 报告与药盒识别
+
+Web 与小程序统一上传到 `POST /api/v1/documents/analyze`。接口仅接受 JPEG、PNG、WebP，最大 4 MB，并同时校验文件声明与文件魔数。图片只在当前请求内发送给配置的 Kimi 视觉模型，不写磁盘、对象存储、数据库或日志；数据库仅记录图片字节数、媒体类型、文档类型、置信度和 `retained=false`。
+
+识别结果分为可见文字、通俗摘要、需要向医生确认的问题和不确定项。居民必须核对后才能把文字带入 Claw，系统不会依据图片诊断、开方或调整用药。部署与验证细节见 [报告与药盒图片处理说明](docs/DOCUMENT_VISION.md)。
 
 ## 第三方来源
 

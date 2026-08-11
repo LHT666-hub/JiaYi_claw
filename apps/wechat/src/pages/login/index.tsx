@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Text, View } from "@tarojs/components";
+import { Button, Checkbox, Image, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useEffect, useState } from "react";
 import { apiRequest, saveSession } from "../../lib/api";
@@ -6,6 +6,7 @@ import {
   resolvePrivacyAuthorization,
   subscribePrivacyAuthorization,
 } from "../../lib/privacy";
+import appIcon from "../../assets/brand/app-icon.png";
 
 const PRIVACY_AGREE_BUTTON_ID = "jiayi-privacy-agree";
 declare const DEV_LOGIN_ENABLED: boolean;
@@ -128,7 +129,12 @@ export default function LoginPage() {
   return (
     <View className="page auth-page">
       <View className="auth-brand">
-        <View className="brand-mark">家医</View>
+        <Image
+          className="brand-mark-image"
+          src={appIcon}
+          mode="aspectFit"
+          aria-label="家医 Claw"
+        />
         <Text className="brand-title">家医 Claw</Text>
         <Text className="brand-subtitle">海湾镇家医服务与分级诊疗协同入口</Text>
       </View>

@@ -459,7 +459,7 @@ export default function TasksPage() {
           </SectionCard>
         ) : null}
 
-        <section className="rounded-[30px] bg-gradient-to-br from-navy to-navySoft px-5 py-5 text-white shadow-float">
+        <section className="rounded-[30px] bg-navy px-5 py-5 text-white shadow-float">
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <p className="text-[11px] tracking-wide text-white/60">今日完成</p>

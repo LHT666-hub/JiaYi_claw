@@ -40,7 +40,7 @@ try {
     p_display_name: "验证居民",
     p_role: "resident",
     p_community_id: community.id,
-    p_policy_version: "2026-07-18",
+    p_policy_version: "2026-08-11",
     p_consents: baseConsents,
   });
   if (residentOnboardingError) throw residentOnboardingError;
@@ -49,7 +49,7 @@ try {
     p_display_name: "验证家属",
     p_role: "family",
     p_community_id: community.id,
-    p_policy_version: "2026-07-18",
+    p_policy_version: "2026-08-11",
     p_consents: { ...baseConsents, sensitive_health: false },
   });
   if (familyOnboardingError) throw familyOnboardingError;
@@ -59,7 +59,7 @@ try {
   const { error: codeError } = await resident.client.rpc("create_family_link_code", {
     p_code_hash: codeHash,
     p_expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
-    p_policy_version: "2026-07-18",
+    p_policy_version: "2026-08-11",
   });
   if (codeError) throw codeError;
 

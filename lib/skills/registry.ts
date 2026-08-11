@@ -99,14 +99,14 @@ export const skillRegistry: SkillDefinition[] = [
   {
     id: "patient-document-explainer",
     name: "医疗文件适老解释",
-    version: "1.0.0",
-    purpose: "忠实简化用户提供的报告文字，不推断诊断或治疗建议。",
+    version: "1.1.0-vision",
+    purpose: "临时读取用户主动拍摄的报告、处方或药盒图片，忠实提取并通俗整理，不推断诊断或治疗建议。",
     source: "家医 Claw 自研，借鉴 Patiently AI 交互原则",
     license: "Proprietary clean-room implementation",
     risk: "high",
     enabled: true,
-    allowedTools: [],
-    solves: "帮助居民看懂报告原文并准备向医生提问的问题。",
+    allowedTools: ["vision.extract"],
+    solves: "帮助居民从图片中核对报告或药品文字，并准备向医生提问的问题；原图默认不留存。",
     evalScore: 90,
   },
   {

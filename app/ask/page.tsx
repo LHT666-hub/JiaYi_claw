@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   ChevronRight,
   BookOpen,
+  Camera,
   Clock3,
   History,
   MessageCircle,
@@ -21,6 +22,10 @@ import {
 import { PhoneShell } from "@/components/PhoneShell";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
 import { VoiceInputPanel } from "@/components/VoiceInputPanel";
+import {
+  DocumentImagePanel,
+  type DocumentImagePanelHandle,
+} from "@/components/DocumentImagePanel";
 
 type Message = {
   id: string;
@@ -83,11 +88,14 @@ export default function AskPage() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [clearingActivity, setClearingActivity] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const documentRef = useRef<DocumentImagePanelHandle>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initial = params.get("q");
     if (initial) setQuestion(initial);
     if (params.get("voice") === "1") setVoiceOpen(true);
+    if (params.get("photo") === "1")
+      window.setTimeout(() => documentRef.current?.open(), 180);
   }, []);
   useEffect(() => {
     let active = true;
@@ -418,10 +426,19 @@ export default function AskPage() {
             ))}
           </div>
         ) : null}
+        <DocumentImagePanel ref={documentRef} onUse={setQuestion} />
         <form
           onSubmit={submit}
           className="sticky bottom-0 mt-4 flex gap-2 rounded-[28px] border border-white/55 bg-surface-nav/88 p-2 shadow-[0_16px_36px_rgba(16,42,67,0.12)] backdrop-blur-2xl"
         >
+          <button
+            type="button"
+            onClick={() => documentRef.current?.open()}
+            aria-label="拍照识别报告或药盒"
+            className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EDF3F7] text-[#315B7D]"
+          >
+            <Camera className="h-5 w-5" />
+          </button>
           <button
             type="button"
             onClick={() => setVoiceOpen(true)}

@@ -1,9 +1,11 @@
-import { Button, Text, Textarea, View } from "@tarojs/components";
+import { Button, Image, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useDidShow, useLoad } from "@tarojs/taro";
 import { useEffect, useMemo, useState } from "react";
 import {
   apiRequest,
+  type DocumentAnalysisResult,
   getCareSubjectId,
+  uploadDocumentImage,
   uploadVoice,
   withCareSubject,
 } from "../../lib/api";
@@ -35,7 +37,16 @@ type ChatMessage = {
   actions?: AssistantAction[];
 };
 
-type State = "idle" | "recording" | "transcribing" | "asking" | "error";
+type State = "idle" | "recording" | "transcribing" | "analyzing" | "asking" | "error";
+
+const documentTypeLabels: Record<DocumentAnalysisResult["documentType"], string> = {
+  lab_report: "化验报告",
+  exam_report: "检查报告",
+  prescription: "处方",
+  medicine_package: "药盒或药品包装",
+  discharge_summary: "出院小结",
+  other: "医疗文件",
+};
 
 export default function AskPage() {
   const recorder = useMemo(() => Taro.getRecorderManager(), []);
@@ -46,6 +57,9 @@ export default function AskPage() {
   const [activities, setActivities] = useState<AssistantActivity[]>([]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [documentPreview, setDocumentPreview] = useState("");
+  const [documentAnalysis, setDocumentAnalysis] =
+    useState<DocumentAnalysisResult | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -56,6 +70,7 @@ export default function AskPage() {
 
   useLoad((params) => {
     if (params.voice === "1") setTimeout(() => start(), 180);
+    if (params.photo === "1") setTimeout(() => void chooseDocumentImage(), 180);
   });
 
   useDidShow(() => {
@@ -114,6 +129,50 @@ export default function AskPage() {
       encodeBitRate: 48_000,
       format: "mp3",
     });
+  }
+
+  async function chooseDocumentImage() {
+    if (state === "analyzing" || state === "asking") return;
+    setError("");
+    try {
+      const media = await Taro.chooseMedia({
+        count: 1,
+        mediaType: ["image"],
+        sourceType: ["camera", "album"],
+        sizeType: ["compressed"],
+      });
+      const file = media.tempFiles[0];
+      if (!file?.tempFilePath) return;
+      if (file.size && file.size > 4 * 1024 * 1024) {
+        void Taro.showToast({ title: "图片不能超过 4MB", icon: "none" });
+        return;
+      }
+      setDocumentPreview(file.tempFilePath);
+      setDocumentAnalysis(null);
+      setState("analyzing");
+      const result = await uploadDocumentImage(file.tempFilePath);
+      setDocumentAnalysis(result);
+      setState("idle");
+      void Taro.showToast({ title: "已完成临时识别", icon: "success" });
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "图片识别失败";
+      if (!message.includes("cancel")) {
+        setError(message);
+        setState("error");
+      }
+    }
+  }
+
+  function useDocumentAnalysis() {
+    if (!documentAnalysis) return;
+    const visible = documentAnalysis.visibleText.slice(0, 8).join("；");
+    const questions = documentAnalysis.questionsForClinician.join("；");
+    setText(
+      `请帮我整理这份${documentTypeLabels[documentAnalysis.documentType]}，图片识别到：${visible || "没有清晰识别到文字"}。我想向家庭医生确认：${questions || "下一步需要准备什么"}`,
+    );
+    setDocumentPreview("");
+    setDocumentAnalysis(null);
+    void Taro.showToast({ title: "请核对文字后发送", icon: "none" });
   }
 
   async function ask() {
@@ -295,6 +354,70 @@ export default function AskPage() {
         胸痛、呼吸困难、意识不清或大出血请立即拨打 120。
       </View>
 
+      {documentPreview ? (
+        <View className="document-review-card">
+          <View className="document-review-head">
+            <Image
+              className="document-preview-image"
+              src={documentPreview}
+              mode="aspectFill"
+              aria-label="待识别医疗文件预览"
+            />
+            <View className="grow">
+              <Text className="document-review-kicker">图片临时识别</Text>
+              <Text className="document-review-title">
+                {state === "analyzing"
+                  ? "正在读取清晰可见的文字..."
+                  : documentAnalysis
+                    ? documentTypeLabels[documentAnalysis.documentType]
+                    : "识别未完成"}
+              </Text>
+              <Text className="document-review-privacy">图片不会保存到居民档案</Text>
+            </View>
+            <Text
+              className="document-review-close"
+              onClick={() => {
+                if (state === "analyzing") return;
+                setDocumentPreview("");
+                setDocumentAnalysis(null);
+              }}
+            >
+              ×
+            </Text>
+          </View>
+          {state === "analyzing" ? (
+            <View className="document-analyzing">
+              <View className="typing-mini-dot" />
+              <View className="typing-mini-dot delay" />
+              <View className="typing-mini-dot delay-two" />
+              <Text>正在进行文字提取与适老整理</Text>
+            </View>
+          ) : null}
+          {documentAnalysis ? (
+            <View className="document-result">
+              {documentAnalysis.plainSummary.map((item) => (
+                <View className="document-result-row" key={item}>
+                  <View className="document-result-dot" />
+                  <Text>{item}</Text>
+                </View>
+              ))}
+              {documentAnalysis.uncertainItems.length ? (
+                <View className="document-uncertain">
+                  <Text>需要人工核对：{documentAnalysis.uncertainItems.join("；")}</Text>
+                </View>
+              ) : null}
+              <Text className="document-safety">{documentAnalysis.safetyNotice}</Text>
+              <Button
+                className="document-use-button pressable"
+                onClick={useDocumentAnalysis}
+              >
+                核对文字并继续问 Claw
+              </Button>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       <View className="chat-stream">
         {messages.map((message) => (
           <View
@@ -366,8 +489,15 @@ export default function AskPage() {
         />
         <View className="composer-actions">
           <Button
+            className="photo-trigger pressable"
+            disabled={state === "recording" || state === "transcribing" || state === "analyzing"}
+            onClick={() => void chooseDocumentImage()}
+          >
+            拍报告
+          </Button>
+          <Button
             className="voice-trigger pressable"
-            disabled={state === "recording" || state === "transcribing"}
+            disabled={state === "recording" || state === "transcribing" || state === "analyzing"}
             onClick={start}
           >
             语音

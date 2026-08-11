@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, ChevronRight, RefreshCw, ShieldCheck, UserRoundPlus, Users } from "lucide-react";
+import { CheckCircle2, ChevronRight, RefreshCw, ShieldCheck, Trash2, UserRoundPlus, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
@@ -92,6 +92,27 @@ export default function FamilyLinkPage() {
     }
   }
 
+  async function revokeBinding(binding: Binding) {
+    const personName = data?.role === "family" ? binding.residentName : binding.familyName;
+    if (!window.confirm(`确认解除与${personName}的家属授权？解除后将不能继续代办或查看对方的服务进度。`)) return;
+    setSaving(true);
+    try {
+      const response = await fetch("/api/v1/family-links", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bindingId: binding.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? "解除授权失败");
+      showToast("家属授权已解除。", "success");
+      await load();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "解除授权失败。", "warning");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
@@ -118,7 +139,7 @@ export default function FamilyLinkPage() {
 
         {!loading && data?.bindings.length ? (
           <SectionCard title="已绑定家人" subtitle="只展示已授权的家属关系">
-            <div className="space-y-3">{data.bindings.map((binding) => <div key={binding.id} className="flex items-center gap-3 rounded-[24px] bg-surface-card p-4"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-health-soft text-success"><CheckCircle2 className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-navy">{data.role === "family" ? binding.residentName : binding.familyName}</p><p className="mt-1 text-xs text-navy/52">{binding.relationship} · {binding.status === "active" ? "已授权" : "待核验"}</p></div>{data.role === "family" && binding.status === "active" ? <button type="button" onClick={() => router.push("/family")} className="flex items-center gap-1 rounded-full bg-navy px-3 py-2 text-xs font-semibold text-white">进入<ChevronRight className="h-3.5 w-3.5" /></button> : null}</div>)}</div>
+            <div className="space-y-3">{data.bindings.map((binding) => <div key={binding.id} className="rounded-[24px] bg-surface-card p-4"><div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-health-soft text-success"><CheckCircle2 className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-navy">{data.role === "family" ? binding.residentName : binding.familyName}</p><p className="mt-1 text-xs text-navy/52">{binding.relationship} · {binding.status === "active" ? "已授权" : "已解除"}</p></div>{data.role === "family" && binding.status === "active" ? <button type="button" onClick={() => router.push("/family")} className="flex items-center gap-1 rounded-full bg-navy px-3 py-2 text-xs font-semibold text-white">进入<ChevronRight className="h-3.5 w-3.5" /></button> : null}</div>{binding.status === "active" ? <button type="button" disabled={saving} onClick={() => void revokeBinding(binding)} className="mt-3 flex w-full items-center justify-center gap-2 border-t border-line pt-3 text-xs font-semibold text-danger disabled:opacity-45"><Trash2 className="h-3.5 w-3.5" />解除授权</button> : null}</div>)}</div>
           </SectionCard>
         ) : null}
 

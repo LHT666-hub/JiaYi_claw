@@ -117,7 +117,7 @@ export default function FamilyPage() {
         ) : null}
 
         {selectedBinding ? (
-          <section className="rounded-[30px] bg-[linear-gradient(145deg,#12365A_0%,#102A43_75%)] p-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.22)]">
+          <section className="rounded-[30px] bg-navy p-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.22)]">
             <div className="flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/20 bg-white/10 text-xl font-semibold">{residentName(selectedBinding).slice(0, 1)}</div><div className="min-w-0 flex-1"><h1 className="truncate text-lg font-semibold">{residentName(selectedBinding)}</h1><p className="mt-1 text-sm text-white/64">{selectedBinding.relationship} · 已授权代办</p></div><ShieldCheck className="h-5 w-5 text-white/70" /></div>
             <div className="mt-5 rounded-[22px] bg-white/10 px-4 py-3"><p className="text-xs text-white/55">所属家医网络</p><p className="mt-1 text-sm font-semibold">{home?.network?.name ?? "家医团队正在核验绑定"}</p><p className="mt-1 text-xs text-white/58">{home?.network?.community?.name ?? "暂无社区信息"}</p></div>
           </section>

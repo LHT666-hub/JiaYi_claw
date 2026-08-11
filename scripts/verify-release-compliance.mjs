@@ -22,7 +22,7 @@ try {
 
   const { data: community, error: communityError } = await admin.from("communities").select("id").eq("slug", "haiwan-town").single();
   if (communityError) throw communityError;
-  const { error: onboardingError } = await client.rpc("complete_public_onboarding", { p_display_name: "注销验证居民", p_role: "resident", p_community_id: community.id, p_policy_version: "2026-07-18", p_consents: { privacy: true, sensitive_health: true, ai_processing: true, notification: true } });
+  const { error: onboardingError } = await client.rpc("complete_public_onboarding", { p_display_name: "注销验证居民", p_role: "resident", p_community_id: community.id, p_policy_version: "2026-08-11", p_consents: { privacy: true, sensitive_health: true, ai_processing: true, notification: true } });
   if (onboardingError) throw onboardingError;
 
   const { error: preferenceError } = await client.from("notification_preferences").upsert({ user_id: userId, service_updates: true, followup_reminders: false, content_updates: true, sms_enabled: false, wecom_enabled: false, quiet_hours_start: "22:00", quiet_hours_end: "07:00" });

@@ -88,7 +88,7 @@ export function AudioPlayerCard({
   }
 
   return (
-    <div className="rounded-[28px] bg-gradient-to-br from-navy to-navySoft px-5 py-5 text-white shadow-float">
+    <div className="rounded-[28px] bg-navy px-5 py-5 text-white shadow-float">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm tracking-[0.16em] text-white/72">

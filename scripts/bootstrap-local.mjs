@@ -115,7 +115,7 @@ const consentRows = [
       user_id: userId,
       resident_id: residentId,
       scope,
-      policy_version: "2026-07-18",
+      policy_version: "2026-08-11",
       granted: true,
       granted_at: new Date().toISOString(),
       revoked_at: null,

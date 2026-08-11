@@ -163,13 +163,17 @@ try {
   const staffB = await createAccount("staff-b", "doctor", otherOrganizationId, otherCommunityId);
   const adminA = await createAccount("admin-a", "admin", primaryOrganization.id, primaryCommunity.id);
 
-  const { error: bindingError } = await admin.from("family_bindings").insert({
-    resident_id: residentA.id,
-    family_id: familyAuthorized.id,
-    relationship: "女儿",
-    status: "active",
-  });
-  if (bindingError) throw bindingError;
+  const { data: familyBinding, error: bindingError } = await admin
+    .from("family_bindings")
+    .insert({
+      resident_id: residentA.id,
+      family_id: familyAuthorized.id,
+      relationship: "女儿",
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (bindingError || !familyBinding) throw bindingError ?? new Error("Unable to seed family binding.");
 
   const dataA = await seedResidentData(residentA.id, residentA.id, primaryOrganization.id, primaryCommunity.id, "A");
   const dataA2 = await seedResidentData(residentA2.id, residentA2.id, primaryOrganization.id, secondaryCommunityId, "A2");
@@ -443,7 +447,33 @@ try {
   if (infoCheckError || unchangedInfo.title !== "RLS 其他机构内部草稿") throw infoCheckError ?? new Error("跨机构公开信息被修改。");
   assertions += 1;
 
-  console.log(`Verified ${assertions} RLS assertions: resident isolation, family authorization, community and organization boundaries, protected clinical writes, scoped admin operations, legacy privacy, and role-escalation blocking.`);
+  await expectDenied(
+    () => familyUnrelated.client.rpc("revoke_family_binding", {
+      p_binding_id: familyBinding.id,
+    }),
+    "未授权家属不能解除他人的家属关系",
+  );
+  const { data: revokedBinding, error: revokeError } = await familyAuthorized.client.rpc(
+    "revoke_family_binding",
+    { p_binding_id: familyBinding.id },
+  );
+  if (revokeError || revokedBinding?.status !== "disabled") {
+    throw revokeError ?? new Error("已授权家属无法解除自己的家属关系。");
+  }
+  assertions += 1;
+  const { data: revokeAudit, error: revokeAuditError } = await admin
+    .from("audit_logs")
+    .select("id,action")
+    .eq("target_id", familyBinding.id)
+    .eq("action", "family_link.revoked")
+    .maybeSingle();
+  if (revokeAuditError || !revokeAudit) {
+    throw revokeAuditError ?? new Error("解除家属授权没有写入审计日志。");
+  }
+  cleanup.auditIds.push(revokeAudit.id);
+  assertions += 1;
+
+  console.log(`Verified ${assertions} RLS assertions: resident isolation, revocable family authorization, community and organization boundaries, protected clinical writes, scoped admin operations, legacy privacy, and role-escalation blocking.`);
 } finally {
   const deleteByIds = async (table, ids) => {
     if (ids.length) await admin.from(table).delete().in("id", ids);

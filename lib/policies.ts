@@ -1,4 +1,4 @@
-export const CURRENT_POLICY_VERSION = "2026-07-18";
+export const CURRENT_POLICY_VERSION = "2026-08-11";
 
 export const CONSENT_COPY = {
   privacy: {
@@ -8,12 +8,12 @@ export const CONSENT_COPY = {
   },
   sensitive_health: {
     title: "敏感健康信息处理",
-    description: "允许保存您主动提交的症状、指标、药品和报告资料，用于服务协同。",
+    description: "允许处理您主动提交的症状、指标、药品和报告资料；图片仅在识别期间临时处理，除非您另行确认，否则不写入档案。",
     required: false,
   },
   ai_processing: {
     title: "AI 辅助整理",
-    description: "允许 Claw 提取服务意图并整理给家医团队，不用于自动诊断、开方或调药。",
+    description: "允许 Claw 使用受托 AI 服务提取文字、服务意图并整理给家医团队，不用于自动诊断、开方或调药。",
     required: false,
   },
   notification: {

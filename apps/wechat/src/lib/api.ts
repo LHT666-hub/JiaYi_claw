@@ -103,6 +103,44 @@ export async function uploadVoice(
   return payload.data;
 }
 
+export type DocumentAnalysisResult = {
+  documentType: "lab_report" | "exam_report" | "prescription" | "medicine_package" | "discharge_summary" | "other";
+  visibleText: string[];
+  plainSummary: string[];
+  questionsForClinician: string[];
+  uncertainItems: string[];
+  confidence: "low" | "medium" | "high";
+  safetyNotice: string;
+  retained: false;
+};
+
+export async function uploadDocumentImage(
+  filePath: string,
+  retry = true,
+): Promise<DocumentAnalysisResult> {
+  const token = Taro.getStorageSync<string>(ACCESS_KEY);
+  const residentId = getCareSubjectId();
+  const response = await Taro.uploadFile({
+    url: `${API_BASE_URL}/api/v1/documents/analyze`,
+    filePath,
+    name: "image",
+    formData: residentId ? { residentId } : undefined,
+    header: {
+      "X-Client-Platform": "weapp",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (response.statusCode === 401 && retry && (await refreshSession()))
+    return uploadDocumentImage(filePath, false);
+  const payload =
+    typeof response.data === "string"
+      ? JSON.parse(response.data)
+      : response.data;
+  if (response.statusCode < 200 || response.statusCode >= 300)
+    throw new Error(payload?.error?.message ?? "图片识别失败");
+  return payload.data;
+}
+
 export function isLoggedIn() {
   return Boolean(Taro.getStorageSync(ACCESS_KEY));
 }

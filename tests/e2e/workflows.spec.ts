@@ -77,7 +77,7 @@ test("家属手机号 OTP 注册链路", async ({ page }) => {
           },
         ],
         consents: [],
-        policyVersion: "2026-07-18",
+        policyVersion: "2026-08-11",
       }),
     });
   });
@@ -141,6 +141,52 @@ test("工作人员使用受邀手机号进入独立工作台入口", async ({ pa
   await page.getByRole("button", { name: /验证并继续/ }).click();
   await expect(page).toHaveURL(/\/doctor/);
   expect(requestedPhone).toBe("13800000001");
+});
+
+test("居民解除家属授权后页面即时更新", async ({ page }) => {
+  let active = true;
+  let revokedBindingId = "";
+  await page.route("**/api/v1/family-links", async (route) => {
+    if (route.request().method() === "DELETE") {
+      revokedBindingId = route.request().postDataJSON().bindingId;
+      active = false;
+      await route.fulfill({
+        json: ok({
+          binding: {
+            id: revokedBindingId,
+            status: "disabled",
+          },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      json: ok({
+        role: "resident",
+        bindings: active
+          ? [
+              {
+                id: "12000000-0000-0000-0000-000000000001",
+                residentName: "张阿姨",
+                familyName: "小王",
+                relationship: "女儿",
+                status: "active",
+                isPrimary: true,
+              },
+            ]
+          : [],
+      }),
+    });
+  });
+
+  await page.goto("/family-link");
+  await expect(page.getByText("小王", { exact: true })).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "解除授权" }).click();
+  await expect.poll(() => revokedBindingId).toBe(
+    "12000000-0000-0000-0000-000000000001",
+  );
+  await expect(page.getByText("尚未建立家属关系")).toBeVisible();
 });
 
 test("居民提交预约并明确确认写操作", async ({ page }) => {
@@ -449,7 +495,7 @@ test("正式登录与首次建档保持移动端圆角视觉", async ({ page }) 
           },
         ],
         consents: [],
-        policyVersion: "2026-07-18",
+        policyVersion: "2026-08-11",
       }),
     }),
   );
@@ -480,7 +526,7 @@ test("居民语音先转写并确认文字", async ({ page }) => {
   );
   await page.goto("/ask");
   await page.getByRole("button", { name: "语音输入" }).click();
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[type="file"][accept="audio/*"]').setInputFiles({
     name: "resident-voice.wav",
     mimeType: "audio/wav",
     buffer: Buffer.from("RIFF-test-audio"),
@@ -492,6 +538,39 @@ test("居民语音先转写并确认文字", async ({ page }) => {
   await expect(
     page.getByPlaceholder("问服务、排班、活动或准备材料"),
   ).toHaveValue("我想预约明天下午的家庭医生");
+});
+
+test("居民拍摄报告后先核对临时识别结果", async ({ page }) => {
+  await mockAssistantSession(page);
+  let uploaded = false;
+  await page.route("**/api/v1/documents/analyze", async (route) => {
+    uploaded = route.request().method() === "POST";
+    await route.fulfill({
+      json: ok({
+        documentType: "lab_report",
+        visibleText: ["血红蛋白 120 g/L", "参考范围 115 - 150 g/L"],
+        plainSummary: ["图片中可见血红蛋白结果为 120 g/L。"],
+        questionsForClinician: ["这个结果需要结合哪些情况一起看？"],
+        uncertainItems: [],
+        confidence: "high",
+        safetyNotice: "识别结果可能有误，请以原始文件和医生核对为准。Claw 不提供诊断、处方或用药调整建议。",
+        retained: false,
+      }),
+    });
+  });
+  await page.goto("/ask");
+  await page.locator('input[type="file"][accept*="image/jpeg"]').setInputFiles({
+    name: "synthetic-report.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  });
+  await expect.poll(() => uploaded).toBe(true);
+  await expect(page.getByText("化验报告", { exact: true })).toBeVisible();
+  await expect(page.getByText("图片中可见血红蛋白结果为 120 g/L。"))
+    .toBeVisible();
+  await page.getByRole("button", { name: "核对文字并继续问 Claw" }).click();
+  await expect(page.getByPlaceholder("问服务、排班、活动或准备材料"))
+    .toHaveValue(/血红蛋白 120 g\/L/);
 });
 
 test("Claw 只生成待确认预约草稿，不直接写入", async ({ page }) => {

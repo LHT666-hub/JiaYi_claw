@@ -9,7 +9,7 @@ export default defineAppConfig({
   },
   networkTimeout: {
     request: 15000,
-    uploadFile: 30000,
+    uploadFile: 60000,
     downloadFile: 30000,
   },
   pages: [
@@ -44,10 +44,10 @@ export default defineAppConfig({
     backgroundColor: "#FFFFFF",
     borderStyle: "white",
     list: [
-      { pagePath: "pages/home/index", text: "首页" },
-      { pagePath: "pages/services/index", text: "服务" },
-      { pagePath: "pages/messages/index", text: "消息" },
-      { pagePath: "pages/me/index", text: "我的" },
+      { pagePath: "pages/home/index", text: "首页", iconPath: "assets/tabbar/home-default.png", selectedIconPath: "assets/tabbar/home-active.png" },
+      { pagePath: "pages/services/index", text: "服务", iconPath: "assets/tabbar/services-default.png", selectedIconPath: "assets/tabbar/services-active.png" },
+      { pagePath: "pages/messages/index", text: "消息", iconPath: "assets/tabbar/messages-default.png", selectedIconPath: "assets/tabbar/messages-active.png" },
+      { pagePath: "pages/me/index", text: "我的", iconPath: "assets/tabbar/me-default.png", selectedIconPath: "assets/tabbar/me-active.png" },
     ],
   },
 });

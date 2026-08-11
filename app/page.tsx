@@ -121,7 +121,7 @@ export default function HomePage() {
           <>
             <PrimaryClawCard
               onVoice={() => router.push("/ask?voice=1")}
-              onPhoto={() => router.push("/ask?q=帮我整理这份检查报告")}
+              onPhoto={() => router.push("/ask?photo=1")}
               onText={() => router.push("/ask")}
               onQuickQuestion={(question) =>
                 router.push(`/ask?q=${encodeURIComponent(question)}`)

@@ -33,6 +33,19 @@ if (app) {
   if (!app.permission?.["scope.record"]?.desc) errors.push("app.json: 缺少录音用途说明");
   if (app.sitemapLocation !== "sitemap.json") errors.push("app.json: 未声明隐私 sitemap");
   if (app.tabBar?.list?.length !== 4) errors.push("app.json: 居民端必须保留首页、服务、消息、我的四栏");
+  for (const item of app.tabBar?.list ?? []) {
+    for (const key of ["iconPath", "selectedIconPath"]) {
+      if (!item[key]) {
+        errors.push(`app.json: ${item.text ?? item.pagePath} 缺少 ${key}`);
+        continue;
+      }
+      try {
+        await stat(path.join(root, item[key]));
+      } catch {
+        errors.push(`app.json: 底栏图标 ${item[key]} 不存在`);
+      }
+    }
+  }
   for (const page of app.pages ?? []) {
     for (const extension of ["js", "json", "wxml"]) {
       try {

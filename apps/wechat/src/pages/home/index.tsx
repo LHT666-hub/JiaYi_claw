@@ -171,6 +171,13 @@ export default function HomePage() {
           </View>
           <View
             className="home-claw-shortcut pressable"
+            onClick={() => Taro.navigateTo({ url: "/pages/ask/index?photo=1" })}
+          >
+            <Text className="shortcut-symbol">拍</Text>
+            <Text>报告药盒</Text>
+          </View>
+          <View
+            className="home-claw-shortcut pressable"
             onClick={() => Taro.navigateTo({ url: "/pages/appointments/index" })}
           >
             <Text className="shortcut-symbol">约</Text>

@@ -222,7 +222,7 @@ export default function DemoCenterPage() {
         <SectionCard title="老师演示路径">
           <div className="space-y-4">
             {teacherDemoFlows.map((flow) => (
-              <div key={flow.title} className="rounded-[24px] border border-sage/20 bg-[linear-gradient(145deg,#EEF5EF_0%,#F8FBF6_100%)] p-4">
+              <div key={flow.title} className="rounded-[24px] border border-sage/20 bg-health-soft p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-navy">{flow.title}</p>
