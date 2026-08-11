@@ -1,6 +1,15 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import {
+  Bell,
+  BookHeart,
+  CircleCheckBig,
+  ClipboardCheck,
+  Megaphone,
+  MessageSquareText,
+  UsersRound,
+} from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest } from "../../lib/api";
 
@@ -14,15 +23,20 @@ type Message = {
   created_at: string;
 };
 
-const messageGlyphs: Record<string, string> = {
-  service_request: "办",
-  todo_status_changed: "办",
-  ask_todo_created: "问",
-  family_binding_created: "家",
-  group_notice: "讯",
-  course_recommended: "课",
-  system: "知",
-};
+function MessageGlyph({ type }: { type: string }) {
+  const props = { size: 22, strokeWidth: 2.1 } as const;
+  if (["service_request", "todo_status_changed"].includes(type))
+    return <ClipboardCheck {...props} color="#2F6C56" />;
+  if (type === "ask_todo_created")
+    return <MessageSquareText {...props} color="#365F8A" />;
+  if (type === "family_binding_created")
+    return <UsersRound {...props} color="#8B5E83" />;
+  if (type === "group_notice")
+    return <Megaphone {...props} color="#A0642B" />;
+  if (type === "course_recommended")
+    return <BookHeart {...props} color="#2F6C56" />;
+  return <Bell {...props} color="#365F8A" />;
+}
 
 export default function MessagesPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -147,7 +161,7 @@ export default function MessagesPage() {
               onClick={() => void markRead(item)}
             >
               <View className={`message-glyph message-${item.type}`}>
-                {messageGlyphs[item.type] ?? "知"}
+                <MessageGlyph type={item.type} />
               </View>
               <View className="grow">
                 <View className="message-title-line">
@@ -163,7 +177,7 @@ export default function MessagesPage() {
       ) : null}
       {!loading && !messages.length ? (
         <View className="messages-empty">
-          <View className="messages-empty-mark">✓</View>
+          <View className="messages-empty-mark"><CircleCheckBig size={28} color="#2F6C56" strokeWidth={1.9} /></View>
           <Text className="messages-empty-title">消息都处理好了</Text>
           <Text className="messages-empty-copy">
             预约进度、团队补充资料和活动通知会出现在这里。

@@ -1,6 +1,6 @@
 # 家医 Claw 产品与开源借鉴台账
 
-更新日期：2026-08-11
+更新日期：2026-08-12
 
 ## 核心判断
 
@@ -20,6 +20,9 @@
 | 上海分级诊疗政策 | 社区首诊与家庭医生上转协同；官方挂号和家医优先转诊是两条路径 | `care_networks`、`referral_routes`、官方入口与家医协助并列 | 不在代码中虚构合作医院、绿色通道或实时优先号源 |
 | Apple Health / HIG | 摘要优先、趋势突出、隐私控制；层级、和谐、克制动效和无障碍 | 小程序首页今日摘要、分段服务、语义色、按压反馈、减少动态效果 | 不复制 iOS 外观、Liquid Glass 或不存在的 HealthKit 趋势 |
 | iOS Design Agent Skill | 从字体、颜色、空间、动效和景深五维审查移动端 | 统一小程序层级、分组列表、语义色和目的明确的反馈 | SwiftUI 代码不进入 Taro 运行时 |
+| OpenHealth | 健康资料结构化后再进入上下文对话；居民掌握数据范围 | 报告识别先核对、健康事实确认后入档、首页展示最近记录 | AGPL 代码和通用诊断型对话不复制 |
+| OHC CARE | 多租户、真实 OTP、角色工作流、E2E 与真机测试是医疗产品基础设施 | 机构/社区隔离、工作人员邀请、居民队列、发布校验和真机矩阵 | 面向医院内部的完整 EHR 工作流不搬进居民小程序 |
+| lucide-react-taro | 为 Taro 提供一致、可访问、可按需打包的 Lucide 图标 | 登录和四个居民主栏目使用统一图标语义，保留 2 MB 包体门槛 | 不使用图标暗示不存在的诊断或实时号源 |
 
 ## 开源组件边界
 
@@ -41,6 +44,7 @@
 7. AI 授权按居民服务对象记录，撤回后立即停止后续 AI 处理。
 8. 正式环境默认不保存完整健康对话，只保留脱敏 Skill 运行和必要服务审计。
 9. 跨端连续性只恢复“查询排班、生成服务草稿、安全分流”等结构化轨迹，不恢复问题和回答原文。
+10. 长期记忆只来自居民或家医确认的结构化事实；不会把模型自行归纳的对话记忆当成病史。
 
 ## 明确不做
 
@@ -75,3 +79,6 @@
 - Apple Human Interface Guidelines: https://developer.apple.com/design/human-interface-guidelines
 - Apple Health: https://www.apple.com/health/
 - iOS Design Agent Skill: https://github.com/vermont42/iOS-Design-Agent-Skill
+- OpenHealth: https://github.com/OpenHealthForAll/open-health
+- OHC CARE: https://github.com/ohcnetwork/care_fe
+- lucide-react-taro: https://github.com/louisyoungx/lucide-react-taro

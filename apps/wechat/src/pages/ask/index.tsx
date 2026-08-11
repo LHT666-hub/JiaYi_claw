@@ -2,6 +2,15 @@ import { Button, Image, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useDidShow, useLoad } from "@tarojs/taro";
 import { useEffect, useMemo, useState } from "react";
 import {
+  Camera,
+  ChevronDown,
+  ChevronRight,
+  History,
+  Mic,
+  SendHorizontal,
+  X,
+} from "lucide-react-taro";
+import {
   apiRequest,
   type DocumentAnalysisResult,
   getCareSubjectId,
@@ -294,13 +303,13 @@ export default function AskPage() {
             className="continuity-head pressable"
             onClick={() => setActivityOpen((value) => !value)}
           >
-            <View className="continuity-icon">↻</View>
+            <View className="continuity-icon"><History size={24} color="#2F6C56" strokeWidth={2} /></View>
             <View className="grow">
               <Text className="subject-label">继续上次服务</Text>
               <Text className="continuity-title">{activities[0].title}</Text>
             </View>
             <Text className="continuity-count">{activities.length} 条</Text>
-            <Text className="continuity-chevron">{activityOpen ? "⌄" : "›"}</Text>
+            <View className="continuity-chevron">{activityOpen ? <ChevronDown size={20} color="rgba(16,42,67,.4)" /> : <ChevronRight size={20} color="rgba(16,42,67,.4)" />}</View>
           </View>
           {activityOpen ? (
             <View className="continuity-body">
@@ -374,7 +383,7 @@ export default function AskPage() {
               </Text>
               <Text className="document-review-privacy">图片不会保存到居民档案</Text>
             </View>
-            <Text
+            <View
               className="document-review-close"
               onClick={() => {
                 if (state === "analyzing") return;
@@ -382,8 +391,8 @@ export default function AskPage() {
                 setDocumentAnalysis(null);
               }}
             >
-              ×
-            </Text>
+              <X size={21} color="rgba(16,42,67,.58)" />
+            </View>
           </View>
           {state === "analyzing" ? (
             <View className="document-analyzing">
@@ -493,21 +502,24 @@ export default function AskPage() {
             disabled={state === "recording" || state === "transcribing" || state === "analyzing"}
             onClick={() => void chooseDocumentImage()}
           >
-            拍报告
+            <Camera size={20} color="#315B7D" strokeWidth={2.1} />
+            <Text>拍报告</Text>
           </Button>
           <Button
             className="voice-trigger pressable"
             disabled={state === "recording" || state === "transcribing" || state === "analyzing"}
             onClick={start}
           >
-            语音
+            <Mic size={20} color="#2F6C56" strokeWidth={2.1} />
+            <Text>语音</Text>
           </Button>
           <Button
             className="send-trigger pressable"
             disabled={!text.trim() || state === "asking"}
             onClick={() => void ask()}
           >
-            发送
+            <SendHorizontal size={20} color="#FFFFFF" strokeWidth={2.1} />
+            <Text>发送</Text>
           </Button>
         </View>
         {error ? <Text className="voice-error">{error}</Text> : null}

@@ -1,6 +1,22 @@
 import { Button, Picker, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import {
+  Bell,
+  Camera,
+  CalendarPlus,
+  ChevronRight,
+  ClipboardCheck,
+  Droplets,
+  Footprints,
+  HeartHandshake,
+  HeartPulse,
+  LockKeyhole,
+  Mic,
+  Scale,
+  ShieldCheck,
+  Stethoscope,
+} from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import {
   apiRequest,
@@ -45,7 +61,19 @@ type HomeData = {
   }>;
   schedules: Schedule[];
   notifications: Array<{ id: string; is_read: boolean }>;
+  healthSummary?: Array<{
+    id: string;
+    type: "blood_pressure" | "blood_glucose" | "weight" | "steps";
+    value: number;
+    secondaryValue: number | null;
+    unit: string;
+    measuredAt: string;
+    delta: number | null;
+    secondaryDelta: number | null;
+  }>;
 };
+
+type HealthSummaryItem = NonNullable<HomeData["healthSummary"]>[number];
 
 const statusLabels: Record<string, string> = {
   submitted: "已提交",
@@ -56,6 +84,21 @@ const statusLabels: Record<string, string> = {
   booked: "已预约",
   waitlisted: "候补中",
 };
+
+const healthLabels = {
+  blood_pressure: "血压",
+  blood_glucose: "血糖",
+  weight: "体重",
+  steps: "步数",
+} as const;
+
+function HealthIcon({ type }: { type: HealthSummaryItem["type"] }) {
+  const props = { size: 22, strokeWidth: 2.1 } as const;
+  if (type === "blood_pressure") return <HeartPulse {...props} color="#A64F45" />;
+  if (type === "blood_glucose") return <Droplets {...props} color="#8B5E83" />;
+  if (type === "weight") return <Scale {...props} color="#35617F" />;
+  return <Footprints {...props} color="#2F6C56" />;
+}
 
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
@@ -126,6 +169,35 @@ export default function HomePage() {
     void Taro.navigateTo({ url });
   }
 
+  function healthValue(item: HealthSummaryItem) {
+    if (item.type === "blood_pressure" && item.secondaryValue !== null)
+      return `${item.value}/${item.secondaryValue}`;
+    return Number.isInteger(item.value) ? String(item.value) : item.value.toFixed(1);
+  }
+
+  function healthTime(value: string) {
+    const date = new Date(value);
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) return "今天记录";
+    return `${date.getMonth() + 1}月${date.getDate()}日记录`;
+  }
+
+  function healthDelta(item: HealthSummaryItem) {
+    if (item.delta === null) return "首次记录";
+    if (item.type === "blood_pressure" && item.secondaryDelta !== null) {
+      if (Math.abs(item.delta) < 0.001 && Math.abs(item.secondaryDelta) < 0.001)
+        return "与上次相同";
+      const primary = Number.isInteger(item.delta) ? item.delta : Number(item.delta.toFixed(1));
+      const secondary = Number.isInteger(item.secondaryDelta)
+        ? item.secondaryDelta
+        : Number(item.secondaryDelta.toFixed(1));
+      return `较上次 ${primary > 0 ? "+" : ""}${primary}/${secondary > 0 ? "+" : ""}${secondary} ${item.unit}`;
+    }
+    if (Math.abs(item.delta) < 0.001) return "与上次相同";
+    const value = Number.isInteger(item.delta) ? item.delta : Number(item.delta.toFixed(1));
+    return `较上次 ${value > 0 ? "+" : ""}${value}${item.type === "steps" ? " 步" : ` ${item.unit}`}`;
+  }
+
   return (
     <View className="page home-page">
       <View className="home-topbar">
@@ -143,8 +215,10 @@ export default function HomePage() {
         <View
           className="home-message-button pressable"
           onClick={() => Taro.switchTab({ url: "/pages/messages/index" })}
+          role="button"
+          aria-label={unreadCount ? `消息，${unreadCount} 条未读` : "消息"}
         >
-          <Text>消息</Text>
+          <Bell size={21} color="#102A43" strokeWidth={2} />
           {unreadCount ? <View className="home-unread">{unreadCount}</View> : null}
         </View>
       </View>
@@ -184,7 +258,7 @@ export default function HomePage() {
 
       {data && data.access.level !== "verified" ? (
         <View className={`home-access-strip access-${data.access.bindingStatus}`}>
-          <View className="home-access-mark">核</View>
+          <View className="home-access-mark"><ShieldCheck size={20} color="#795427" strokeWidth={2.2} /></View>
           <View className="grow">
             <Text className="home-access-title">
               {data.access.bindingStatus === "pending" ? "社区登记待核验" : "家医服务尚未开通"}
@@ -200,26 +274,24 @@ export default function HomePage() {
           className={`home-now-card pressable ${requestNeedsAttention ? "attention" : ""}`}
           onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
         >
-          <View className="home-now-state">
-            <Text>{requestNeedsAttention ? "待" : "办"}</Text>
-          </View>
+          <View className="home-now-state"><ClipboardCheck size={24} color={requestNeedsAttention ? "#8C5D20" : "#2F6C56"} strokeWidth={2.1} /></View>
           <View className="grow">
             <Text className="home-now-kicker">{requestNeedsAttention ? "需要您处理" : "家医团队正在办理"}</Text>
             <Text className="home-now-title">{activeRequest.title}</Text>
             <Text className="home-now-copy">{statusLabels[activeRequest.status] ?? "团队处理中"} · 查看完整进度</Text>
           </View>
-          <Text className="home-now-arrow">›</Text>
+          <ChevronRight className="home-now-arrow" size={21} color="rgba(16,42,67,.3)" />
         </View>
       ) : null}
 
       <View className="home-claw-hero">
         <View className="home-claw-heading">
-          <View className="home-claw-mark">C</View>
+          <View className="home-claw-mark"><HeartHandshake size={25} color="#D6E8E2" strokeWidth={1.9} /></View>
           <View className="grow">
             <Text className="home-claw-eyebrow">家医 Claw</Text>
             <Text className="home-claw-title">有事，直接告诉我</Text>
           </View>
-          <Text className="home-claw-private">原文不入档</Text>
+          <View className="home-claw-private"><LockKeyhole size={13} color="rgba(255,255,255,.66)" /><Text>原文不入档</Text></View>
         </View>
         <Text className="home-claw-copy">
           查公开信息、整理就医资料；需要办理时由您确认，再交给家医团队。
@@ -228,30 +300,30 @@ export default function HomePage() {
           className="home-claw-primary pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/ask/index?voice=1" })}
         >
-          <Text className="home-claw-primary-icon">声</Text>
+          <View className="home-claw-primary-icon"><Mic size={20} color="#2F6C56" strokeWidth={2.2} /></View>
           <Text>开始语音咨询</Text>
-          <Text className="home-claw-primary-arrow">›</Text>
+          <ChevronRight className="home-claw-primary-arrow" size={20} color="rgba(16,42,67,.38)" />
         </Button>
         <View className="home-claw-shortcuts">
           <View
             className="home-claw-shortcut pressable"
             onClick={() => Taro.navigateTo({ url: "/pages/ask/index" })}
           >
-            <Text className="shortcut-symbol">问</Text>
+            <View className="shortcut-symbol"><HeartHandshake size={19} color="#FFFFFF" /></View>
             <Text>文字输入</Text>
           </View>
           <View
             className="home-claw-shortcut pressable"
             onClick={() => openProtectedFeature("/pages/ask/index?photo=1", "health")}
           >
-            <Text className="shortcut-symbol">拍</Text>
+            <View className="shortcut-symbol"><Camera size={19} color="#FFFFFF" /></View>
             <Text>拍报告药盒</Text>
           </View>
           <View
             className="home-claw-shortcut pressable"
             onClick={() => openProtectedFeature("/pages/appointments/index")}
           >
-            <Text className="shortcut-symbol">约</Text>
+            <View className="shortcut-symbol"><CalendarPlus size={19} color="#FFFFFF" /></View>
             <Text>预约协助</Text>
           </View>
         </View>
@@ -266,7 +338,7 @@ export default function HomePage() {
           className="summary-row pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
         >
-          <View className="summary-icon service">办</View>
+          <View className="summary-icon service"><ClipboardCheck size={23} color="#2F6C56" /></View>
           <View className="grow">
             <Text className="summary-kicker">正在办理</Text>
             <Text className="summary-title">
@@ -278,13 +350,13 @@ export default function HomePage() {
                 : "可以直接向 Claw 描述需求"}
             </Text>
           </View>
-          <Text className="summary-arrow">›</Text>
+          <ChevronRight className="summary-arrow" size={21} color="rgba(16,42,67,.3)" />
         </View>
         <View
           className="summary-row pressable"
           onClick={() => Taro.switchTab({ url: "/pages/services/index" })}
         >
-          <View className="summary-icon schedule">诊</View>
+          <View className="summary-icon schedule"><Stethoscope size={23} color="#365F8A" /></View>
           <View className="grow">
             <Text className="summary-kicker">近期坐班</Text>
             <Text className="summary-title">
@@ -296,9 +368,57 @@ export default function HomePage() {
               {nextSchedule?.institution?.name ? ` · ${nextSchedule.institution.name}` : ""}
             </Text>
           </View>
-          <Text className="summary-arrow">›</Text>
+          <ChevronRight className="summary-arrow" size={21} color="rgba(16,42,67,.3)" />
         </View>
       </View>
+
+      {data.access.canStoreHealthData ? (
+        <>
+          <View className="home-section-head">
+            <Text className="home-section-title">最近健康记录</Text>
+            <Text
+              className="home-section-link pressable"
+              onClick={() => openProtectedFeature("/pages/health-records/index", "health")}
+            >
+              全部记录 <ChevronRight size={14} color="#2F6C56" />
+            </Text>
+          </View>
+          {(data.healthSummary ?? []).length ? (
+            <View className="home-health-grid">
+              {(data.healthSummary ?? []).slice(0, 4).map((item) => (
+                <View
+                  key={item.id}
+                  className={`home-health-card health-${item.type} pressable`}
+                  onClick={() => openProtectedFeature("/pages/health-records/index", "health")}
+                >
+                  <View className="home-health-card-head">
+                    <View className="home-health-icon"><HealthIcon type={item.type} /></View>
+                    <Text className="home-health-label">{healthLabels[item.type]}</Text>
+                  </View>
+                  <View className="home-health-value-line">
+                    <Text className="home-health-value">{healthValue(item)}</Text>
+                    <Text className="home-health-unit">{item.unit}</Text>
+                  </View>
+                  <Text className="home-health-time">{healthTime(item.measuredAt)}</Text>
+                  <Text className="home-health-delta">{healthDelta(item)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View
+              className="home-health-empty pressable"
+              onClick={() => openProtectedFeature("/pages/health-records/index", "health")}
+            >
+              <View className="home-health-empty-icon"><HeartPulse size={23} color="#2F6C56" /></View>
+              <View className="grow">
+                <Text className="home-health-empty-title">还没有健康记录</Text>
+                <Text className="home-health-empty-copy">可手工记录血压、血糖、体重和步数</Text>
+              </View>
+              <ChevronRight size={20} color="rgba(16,42,67,.3)" />
+            </View>
+          )}
+        </>
+      ) : null}
 
       <View className="home-safety">
         <Text className="home-safety-title">紧急情况</Text>

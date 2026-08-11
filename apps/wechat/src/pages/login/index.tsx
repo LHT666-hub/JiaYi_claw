@@ -1,6 +1,16 @@
 import { Button, Checkbox, Image, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useCallback, useEffect, useState } from "react";
+import {
+  BookOpen,
+  ChevronRight,
+  LogIn,
+  MessageSquareText,
+  RefreshCw,
+  ShieldCheck,
+  UserRound,
+  UsersRound,
+} from "lucide-react-taro";
 import { apiRequest, isLoggedIn, saveSession } from "../../lib/api";
 import appIcon from "../../assets/brand/app-icon.png";
 
@@ -179,7 +189,7 @@ export default function LoginPage() {
 
       <View className="auth-entry">
         <View className="auth-entry-head">
-          <View className="auth-entry-mark">医</View>
+          <View className="auth-entry-mark"><ShieldCheck size={25} color="#2F6C56" strokeWidth={2} /></View>
           <View className="grow">
             <Text className="auth-welcome">连接您的家医服务</Text>
             <Text className="auth-intro">首次验证后，可选择居民本人或家属代办身份。</Text>
@@ -187,7 +197,7 @@ export default function LoginPage() {
         </View>
 
         {!capabilities && !capabilityError ? <View className="auth-channel-loading"><View /><View /></View> : null}
-        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后重试。" : "微信和短信登录正在完成机构配置。"}</Text><Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()}>刷新状态</Button></View> : null}
+        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请检查网络后重试。" : "微信和短信登录正在完成机构配置，公开服务信息仍可直接查询。"}</Text><Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()}><RefreshCw size={17} color="#102A43" /><Text>刷新状态</Text></Button></View> : null}
 
         {capabilities && (capabilities.wechat.available || capabilities.sms.available) ? (
           <>
@@ -208,7 +218,8 @@ export default function LoginPage() {
               disabled={!accepted || loading}
               onGetPhoneNumber={wechatLogin}
             >
-              微信手机号快捷登录
+              <LogIn size={21} color="#FFFFFF" strokeWidth={2.1} />
+              <Text>微信手机号快捷登录</Text>
             </Button>
             <Text className="auth-secure-note">手机号仅用于账号验证和服务联系</Text>
           </>
@@ -226,7 +237,8 @@ export default function LoginPage() {
             setOtp("");
           }}
         >
-          {smsOpen ? "收起短信登录" : "使用短信验证码登录"}
+          <MessageSquareText size={19} color="#557C6C" strokeWidth={2.1} />
+          <Text>{smsOpen ? "收起短信登录" : "使用短信验证码登录"}</Text>
         </Button> : null}
 
         {capabilities?.sms.available && (smsOpen || !capabilities.wechat.available) ? (
@@ -301,16 +313,16 @@ export default function LoginPage() {
           <View className="dev-preview">
             <Text className="dev-preview-label">本地开发预览</Text>
             <View className="dev-preview-actions">
-              <Button className="dev-preview-button pressable" loading={loading} onClick={() => void enterLocalPreview("resident")}>居民端</Button>
-              <Button className="dev-preview-button pressable" loading={loading} onClick={() => void enterLocalPreview("family")}>家属端</Button>
+              <Button className="dev-preview-button pressable" loading={loading} onClick={() => void enterLocalPreview("resident")}><UserRound size={18} color="#557C6C" /><Text>居民端</Text></Button>
+              <Button className="dev-preview-button pressable" loading={loading} onClick={() => void enterLocalPreview("family")}><UsersRound size={18} color="#557C6C" /><Text>家属端</Text></Button>
             </View>
           </View>
         ) : null}
       </View>
       <View className="auth-public-entry pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
-        <View className="auth-public-mark">查</View>
+        <View className="auth-public-mark"><BookOpen size={22} color="#2F6C56" strokeWidth={2} /></View>
         <View className="grow"><Text className="auth-public-title">先查询公开服务信息</Text><Text className="auth-public-copy">门诊时间、活动和办理方式，无需登录</Text></View>
-        <Text className="auth-public-arrow">›</Text>
+        <ChevronRight className="auth-public-arrow" size={20} color="rgba(16,42,67,.34)" />
       </View>
       <View className="auth-trust-row">
         <Text>机构核验</Text><View /><Text>授权可撤回</Text><View /><Text>操作可追踪</Text>

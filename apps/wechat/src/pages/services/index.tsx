@@ -1,6 +1,20 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import {
+  BookHeart,
+  CalendarCheck2,
+  ChevronRight,
+  ClipboardList,
+  FileHeart,
+  Hospital,
+  Megaphone,
+  Newspaper,
+  Pill,
+  Route,
+  Stethoscope,
+  UsersRound,
+} from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest, withCareSubject } from "../../lib/api";
 
@@ -74,16 +88,33 @@ const accessLabels: Record<string, string> = {
   information_only: "信息查询",
 };
 
-const serviceGlyphs: Record<string, string> = {
-  clinic_registration: "挂",
-  family_doctor_booking: "家",
-  referral_assistance: "转",
-  refill_request: "药",
-  dispense_status_query: "查",
-  followup_reminder: "访",
-  report_explanation: "报",
-  other: "办",
-};
+function ServiceGlyph({ type }: { type: string }) {
+  const colors: Record<string, string> = {
+    clinic_registration: "#365F8A",
+    family_doctor_booking: "#2F6C56",
+    referral_assistance: "#9A642C",
+    refill_request: "#985268",
+    dispense_status_query: "#985268",
+    followup_reminder: "#65558A",
+    report_explanation: "#376E75",
+  };
+  const props = { size: 23, color: colors[type] ?? "#2F6C56", strokeWidth: 2.1 } as const;
+  if (type === "clinic_registration") return <CalendarCheck2 {...props} />;
+  if (type === "family_doctor_booking") return <UsersRound {...props} />;
+  if (type === "referral_assistance") return <Route {...props} />;
+  if (["refill_request", "dispense_status_query"].includes(type)) return <Pill {...props} />;
+  if (type === "followup_reminder") return <FileHeart {...props} />;
+  if (type === "report_explanation") return <ClipboardList {...props} />;
+  return <Stethoscope {...props} />;
+}
+
+function ContentGlyph({ category }: { category: string }) {
+  const color = category === "activity" ? "#A0642B" : category === "health_classroom" ? "#2F6C56" : "#365F8A";
+  const props = { size: 22, color, strokeWidth: 2.1 } as const;
+  if (category === "health_classroom") return <BookHeart {...props} />;
+  if (category === "activity") return <Megaphone {...props} />;
+  return <Newspaper {...props} />;
+}
 
 function openVerifiedUrl(url: string) {
   void Taro.navigateTo({
@@ -156,7 +187,7 @@ export default function ServicesPage() {
       {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
 
       {data ? <><View className={`network-ribbon ${data.access.canSubmitService ? "" : "pending"}`}>
-        <View className="network-mark">医</View>
+        <View className="network-mark"><Hospital size={25} color="#2F6C56" strokeWidth={2} /></View>
         <View className="grow">
           <Text className="network-kicker">我的家医网络</Text>
           <Text className="network-name">
@@ -207,7 +238,7 @@ export default function ServicesPage() {
                   onClick={() => openService(item, data.access)}
                 >
                   <View className={`service-glyph service-${item.service_type}`}>
-                    {serviceGlyphs[item.service_type] ?? "办"}
+                    <ServiceGlyph type={item.service_type} />
                   </View>
                   <View className="grow">
                     <View className="row">
@@ -227,7 +258,7 @@ export default function ServicesPage() {
                         : item.availability_note ?? "以团队最终确认结果为准"}
                     </Text>
                   </View>
-                  <Text className="service-row-arrow">›</Text>
+                  <ChevronRight className="service-row-arrow" size={20} color="rgba(16,42,67,.3)" />
                 </View>
               ))
             ) : (
@@ -349,7 +380,7 @@ export default function ServicesPage() {
                   onClick={() => openVerifiedUrl(item.original_url)}
                 >
                   <View className={`content-category category-${item.category}`}>
-                    {item.category === "health_classroom" ? "课" : item.category === "activity" ? "活" : "讯"}
+                    <ContentGlyph category={item.category} />
                   </View>
                   <View className="grow">
                     <Text className="content-feed-title">{item.title}</Text>
@@ -358,7 +389,7 @@ export default function ServicesPage() {
                       {item.source_name} · 已审核
                     </Text>
                   </View>
-                  <Text className="service-row-arrow">›</Text>
+                  <ChevronRight className="service-row-arrow" size={20} color="rgba(16,42,67,.3)" />
                 </View>
               ))
             ) : (

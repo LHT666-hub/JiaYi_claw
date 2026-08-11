@@ -13,6 +13,7 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      ".next-dev/**",
       ".next-e2e/**",
       ".deploy-target/**",
       ".venv-whisper-wu/**",

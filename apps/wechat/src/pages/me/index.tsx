@@ -1,6 +1,15 @@
 import { Button, Text, View } from "@tarojs/components";
 import Taro, { useDidShow } from "@tarojs/taro";
 import { useState } from "react";
+import {
+  Bell,
+  ChevronRight,
+  FileText,
+  LifeBuoy,
+  LockKeyhole,
+  ShieldCheck,
+  UsersRound,
+} from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { apiRequest, clearSession, withCareSubject } from "../../lib/api";
 
@@ -26,6 +35,15 @@ const roleLabels: Record<string, string> = {
   resident: "居民本人",
   family: "家属代办人",
 };
+
+function SettingIcon({ type }: { type: string }) {
+  const props = { size: 22, strokeWidth: 2.1 } as const;
+  if (type === "support") return <LifeBuoy {...props} color="#2F6C56" />;
+  if (type === "privacy") return <ShieldCheck {...props} color="#365F8A" />;
+  if (type === "notification") return <Bell {...props} color="#8B5E83" />;
+  if (type === "security") return <LockKeyhole {...props} color="#A0642B" />;
+  return <FileText {...props} color="#52677A" />;
+}
 
 export default function MePage() {
   const [data, setData] = useState<Data | null>(null);
@@ -54,11 +72,11 @@ export default function MePage() {
   }
 
   const links = [
-    { glyph: "服", label: "帮助与反馈", note: "联系社区、微信客服和问题反馈", url: "/pages/support/index" },
-    { glyph: "权", label: "隐私与授权", note: "健康信息和 AI 处理范围", url: "/pages/privacy/index" },
-    { glyph: "知", label: "通知设置", note: "订阅消息与免打扰时间", url: "/pages/notification-settings/index" },
-    { glyph: "安", label: "账号与安全", note: "手机号、登录设备和注销", url: "/pages/account-security/index" },
-    { glyph: "法", label: "隐私政策与用户协议", note: "查看当前生效版本", url: "/pages/legal/index?doc=privacy" },
+    { icon: "support", label: "帮助与反馈", note: "联系社区、微信客服和问题反馈", url: "/pages/support/index" },
+    { icon: "privacy", label: "隐私与授权", note: "健康信息和 AI 处理范围", url: "/pages/privacy/index" },
+    { icon: "notification", label: "通知设置", note: "订阅消息与免打扰时间", url: "/pages/notification-settings/index" },
+    { icon: "security", label: "账号与安全", note: "手机号、登录设备和注销", url: "/pages/account-security/index" },
+    { icon: "legal", label: "隐私政策与用户协议", note: "查看当前生效版本", url: "/pages/legal/index?doc=privacy" },
   ];
 
   const phone = data?.profile.phone ?? "";
@@ -123,6 +141,7 @@ export default function MePage() {
           className="binding-action pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/family-link/index" })}
         >
+          <UsersRound size={19} color="#102A43" strokeWidth={2.1} />
           {data?.profile.role === "family" ? "管理服务对象" : "管理家属协助授权"}
         </Button>
       </View>
@@ -157,12 +176,12 @@ export default function MePage() {
             className="me-setting-row pressable"
             onClick={() => Taro.navigateTo({ url: item.url })}
           >
-            <View className="me-setting-glyph">{item.glyph}</View>
+            <View className="me-setting-glyph"><SettingIcon type={item.icon} /></View>
             <View className="grow">
               <Text className="me-setting-title">{item.label}</Text>
               <Text className="me-setting-note">{item.note}</Text>
             </View>
-            <Text className="me-setting-arrow">›</Text>
+            <ChevronRight className="me-setting-arrow" size={20} color="rgba(16,42,67,.3)" />
           </View>
         ))}
       </View>

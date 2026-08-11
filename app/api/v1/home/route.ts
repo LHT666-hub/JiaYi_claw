@@ -8,6 +8,7 @@ import {
   getVerifiedSchedules,
 } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { buildHealthSummary } from "@/lib/healthSummary";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
@@ -36,11 +37,18 @@ export async function GET(request: NextRequest) {
     catalogQuery = catalogCommunityId
       ? catalogQuery.or(`community_id.eq.${catalogCommunityId},community_id.is.null`)
       : catalogQuery.is("community_id", null);
-    const [requestsResult, notificationsResult, catalogResult, schedules, content] = await Promise.all([
+    const [requestsResult, notificationsResult, catalogResult, observationsResult, schedules, content] = await Promise.all([
       supabase.from("service_requests").select("id,title,summary,status,service_type,priority,created_at,updated_at,appointment_details(scheduled_at,institution_name,department_name,clinician_name,booking_reference)")
         .eq("resident_id", residentId).order("updated_at", { ascending: false }).limit(5),
       supabase.from("notifications").select("id,title,content,type,link_url,is_read,created_at").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(5),
       catalogQuery.order("created_at"),
+      access.canStoreHealthData
+        ? supabase.from("health_observations")
+          .select("id,observation_type,value,secondary_value,unit,measured_at")
+          .eq("resident_id", residentId)
+          .order("measured_at", { ascending: false })
+          .limit(40)
+        : Promise.resolve({ data: [], error: null }),
       access.canSubmitService
         ? getVerifiedSchedules({ supabase, institutionIds, limit: 6 })
         : Promise.resolve([]),
@@ -49,6 +57,7 @@ export async function GET(request: NextRequest) {
     if (requestsResult.error) throw requestsResult.error;
     if (notificationsResult.error) throw notificationsResult.error;
     if (catalogResult.error) throw catalogResult.error;
+    if (observationsResult.error) throw observationsResult.error;
     return apiOk({
       profile: { id: profile.id, displayName: profile.display_name, role: profile.role },
       residentId,
@@ -64,6 +73,7 @@ export async function GET(request: NextRequest) {
       serviceRequests: requestsResult.data ?? [],
       notifications: notificationsResult.data ?? [],
       serviceCatalog: catalogResult.data ?? [],
+      healthSummary: buildHealthSummary(observationsResult.data ?? []),
       schedules,
       content,
     }, traceId);

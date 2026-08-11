@@ -34,6 +34,10 @@
 - clinical-note-summarization and care-coordination files that reserve all rights were not copied.
 - Apple Health, Fitbit, Withings, OpenFoodFacts, ExerciseAPI, and Fitness Coach are not integrated in the first release.
 
+## Runtime UI Dependencies
+
+- `lucide-react-taro` 1.5.2 (ISC + upstream Lucide MIT) provides consistent, tree-shaken icons compatible with Taro and WeChat mini programs. Source: https://github.com/louisyoungx/lucide-react-taro. No icon is used to imply a clinical diagnosis or unavailable service.
+
 ## Design Research References (Not Vendored)
 
 - Apple Human Interface Guidelines and Apple Health are product/design references only. No Apple design assets, private APIs, or proprietary UI resources are distributed with this project.
