@@ -143,6 +143,37 @@ test("工作人员使用受邀手机号进入独立工作台入口", async ({ pa
   expect(requestedPhone).toBe("13800000001");
 });
 
+test("正式登录通道未配置时不提供无效验证码按钮", async ({ page }) => {
+  await page.route("**/api/v1/auth/capabilities", (route) =>
+    route.fulfill({
+      json: ok({
+        sms: {
+          available: false,
+          unavailableMessage: "短信登录正在开通，请稍后再试。",
+        },
+        staffSms: {
+          available: false,
+          unavailableMessage: "机构登录通道正在配置，请联系管理员。",
+        },
+        wechat: {
+          available: false,
+          unavailableMessage: "微信一键登录尚未完成配置。",
+        },
+        preferredResidentChannel: null,
+      }),
+    }),
+  );
+
+  await page.goto("/login");
+  await expect(page.getByText("登录通道暂未开放")).toBeVisible();
+  await expect(page.getByText("短信登录正在开通，请稍后再试。")).toBeVisible();
+  await expect(page.getByRole("button", { name: /获取验证码/ })).toHaveCount(0);
+
+  await page.goto("/staff/login");
+  await expect(page.getByText("机构登录通道正在配置，请联系管理员。")).toBeVisible();
+  await expect(page.getByRole("button", { name: /获取验证码/ })).toHaveCount(0);
+});
+
 test("居民解除家属授权后页面即时更新", async ({ page }) => {
   let active = true;
   let revokedBindingId = "";

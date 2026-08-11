@@ -28,6 +28,8 @@ type PhoneOtpCardProps = {
   title: string;
   subtitle: string;
   onVerified: (payload: VerifyPayload) => void;
+  availability?: "checking" | "available" | "unavailable";
+  unavailableMessage?: string | null;
 };
 
 export function PhoneOtpCard({
@@ -37,6 +39,8 @@ export function PhoneOtpCard({
   title,
   subtitle,
   onVerified,
+  availability = "available",
+  unavailableMessage,
 }: PhoneOtpCardProps) {
   const { showToast } = useToast();
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -131,7 +135,23 @@ export function PhoneOtpCard({
         </div>
       </div>
 
-      {step === "phone" ? (
+      {availability === "checking" ? (
+        <div className="mt-5 space-y-3" aria-label="正在检查登录通道">
+          <div className="h-[54px] animate-pulse rounded-[20px] bg-surface-tint" />
+          <div className="h-12 animate-pulse rounded-full bg-navy/10" />
+        </div>
+      ) : null}
+
+      {availability === "unavailable" ? (
+        <div className="mt-5 rounded-[22px] border border-amber/20 bg-[#F6EDDD] p-4">
+          <p className="text-sm font-semibold text-navy">登录通道暂未开放</p>
+          <p className="mt-2 text-xs leading-5 text-navy/58">
+            {unavailableMessage ?? "登录服务正在配置，请稍后再试。"}
+          </p>
+        </div>
+      ) : null}
+
+      {availability === "available" && step === "phone" ? (
         <div className="mt-5 space-y-4">
           <label className="block">
             <span className="text-sm font-semibold text-navy">手机号</span>
@@ -201,7 +221,7 @@ export function PhoneOtpCard({
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-      ) : (
+      ) : availability === "available" ? (
         <div className="mt-5 space-y-4">
           <div className="rounded-[22px] bg-health-soft px-4 py-3 text-sm leading-6 text-navy/68">
             验证码仅用于本次登录，请勿转发给任何人。
@@ -254,7 +274,7 @@ export function PhoneOtpCard({
             </button>
           </div>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }

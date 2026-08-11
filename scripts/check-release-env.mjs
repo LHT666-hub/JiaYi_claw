@@ -15,6 +15,10 @@ const required = [
   "TENCENT_SMS_APP_ID",
   "TENCENT_SMS_SIGN_NAME",
   "TENCENT_SMS_TEMPLATE_ID",
+  "SUPABASE_SEND_SMS_HOOK_SECRET",
+  "TENCENT_SMS_REGION",
+  "TENCENT_SMS_TEMPLATE_PARAM_KEYS",
+  "TENCENT_SMS_OTP_TTL_MINUTES",
   "CRON_SECRET",
   "CHANNEL_MESSAGE_ENCRYPTION_KEY",
   "KIMI_API_KEY",
@@ -61,6 +65,28 @@ if (
 }
 if (process.env.CRON_SECRET && process.env.CRON_SECRET.trim().length < 32)
   errors.push("CRON_SECRET: 至少 32 个字符");
+if (
+  process.env.SUPABASE_SEND_SMS_HOOK_SECRET &&
+  !/^(?:v1,)?whsec_[A-Za-z0-9_+/=-]{20,}$/.test(
+    process.env.SUPABASE_SEND_SMS_HOOK_SECRET.trim(),
+  )
+) {
+  errors.push("SUPABASE_SEND_SMS_HOOK_SECRET: 不是有效的 Standard Webhooks 密钥");
+}
+if (process.env.TENCENT_SMS_TEMPLATE_PARAM_KEYS) {
+  const keys = process.env.TENCENT_SMS_TEMPLATE_PARAM_KEYS.split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+  if (!keys.length || keys.some((key) => !["otp", "ttlMinutes"].includes(key))) {
+    errors.push("TENCENT_SMS_TEMPLATE_PARAM_KEYS: 仅允许 otp、ttlMinutes");
+  }
+}
+if (process.env.TENCENT_SMS_OTP_TTL_MINUTES) {
+  const ttl = Number(process.env.TENCENT_SMS_OTP_TTL_MINUTES);
+  if (!Number.isInteger(ttl) || ttl < 1 || ttl > 30) {
+    errors.push("TENCENT_SMS_OTP_TTL_MINUTES: 必须是 1 到 30 的整数");
+  }
+}
 if (
   process.env.CHANNEL_MESSAGE_ENCRYPTION_KEY &&
   !/^(?:[0-9a-fA-F]{64}|[A-Za-z0-9+/]{43}=?)$/.test(

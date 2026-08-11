@@ -16,6 +16,12 @@ type VerifyResult = {
   session: { accessToken: string; refreshToken: string };
 };
 
+type AuthCapabilities = {
+  sms: { available: boolean; unavailableMessage: string | null };
+  wechat: { available: boolean; unavailableMessage: string | null };
+  preferredResidentChannel: "wechat" | "sms" | null;
+};
+
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -26,6 +32,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [privacyAuthorizationNeeded, setPrivacyAuthorizationNeeded] =
     useState(false);
+  const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(null);
+  const [capabilityError, setCapabilityError] = useState(false);
 
   useEffect(
     () =>
@@ -41,7 +49,27 @@ export default function LoginPage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  useEffect(() => {
+    let active = true;
+    void apiRequest<AuthCapabilities>("/api/v1/auth/capabilities")
+      .then((result) => {
+        if (!active) return;
+        setCapabilities(result);
+        if (result.preferredResidentChannel === "sms") setSmsOpen(true);
+      })
+      .catch(() => {
+        if (active) setCapabilityError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function wechatLogin(event: { detail: { code?: string; errMsg?: string } }) {
+    if (!capabilities?.wechat.available) {
+      Taro.showToast({ title: capabilities?.wechat.unavailableMessage ?? "微信登录尚未开放", icon: "none" });
+      return;
+    }
     if (!accepted) {
       Taro.showToast({ title: "请先同意隐私政策与用户协议", icon: "none" });
       return;
@@ -70,6 +98,10 @@ export default function LoginPage() {
   }
 
   async function requestOtp() {
+    if (!capabilities?.sms.available) {
+      Taro.showToast({ title: capabilities?.sms.unavailableMessage ?? "短信登录尚未开放", icon: "none" });
+      return;
+    }
     if (!accepted) {
       Taro.showToast({ title: "请先同意隐私政策与用户协议", icon: "none" });
       return;
@@ -142,17 +174,12 @@ export default function LoginPage() {
       <View className="auth-entry">
         <Text className="auth-welcome">欢迎回来</Text>
         <Text className="auth-intro">验证手机号后，继续查看家医服务、预约进度与团队消息。</Text>
-        <Button
-          className="primary wechat-primary pressable"
-          openType="getPhoneNumber"
-          loading={loading}
-          onGetPhoneNumber={wechatLogin}
-        >
-          微信手机号一键登录
-        </Button>
-        <Text className="auth-secure-note">仅用于身份验证和家医服务联系</Text>
+        {!capabilities && !capabilityError ? <View className="auth-channel-loading"><View /><View /></View> : null}
+        {capabilities?.wechat.available ? <><Button className="primary wechat-primary pressable" openType="getPhoneNumber" loading={loading} onGetPhoneNumber={wechatLogin}>微信手机号一键登录</Button><Text className="auth-secure-note">仅用于身份验证和家医服务联系</Text></> : null}
+        {capabilities && !capabilities.wechat.available && capabilities.sms.available ? <View className="auth-channel-note"><Text className="auth-channel-note-title">短信验证登录</Text><Text>输入已登记的手机号，新用户验证后完成居民或家属建档。</Text></View> : null}
+        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后重试。" : "微信和短信登录正在完成机构配置。"}</Text></View> : null}
 
-        <Button
+        {capabilities?.sms.available && capabilities.wechat.available ? <Button
           className="sms-toggle pressable"
           onClick={() => {
             setSmsOpen((value) => !value);
@@ -161,9 +188,9 @@ export default function LoginPage() {
           }}
         >
           {smsOpen ? "收起短信登录" : "使用短信验证码"}
-        </Button>
+        </Button> : null}
 
-        {smsOpen ? (
+        {capabilities?.sms.available && (smsOpen || !capabilities.wechat.available) ? (
           <View className="sms-panel">
             <Text className="label">手机号</Text>
             <View className="phone-input">

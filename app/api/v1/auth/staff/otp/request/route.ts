@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { maskPhone, normalizeChinaPhone } from "@/lib/auth/phone";
+import { classifyOtpFailure } from "@/lib/auth/otpErrors";
 import {
   createSupabaseServerClient,
   createSupabaseServiceRoleClient,
@@ -44,15 +45,11 @@ export async function POST(request: Request) {
       traceId,
     );
   } catch (error) {
-    const invalidPhone =
-      error instanceof Error && error.message === "INVALID_PHONE";
-    return apiError(
-      "OTP_SEND_FAILED",
-      invalidPhone
-        ? "手机号格式不正确。"
-        : "验证码暂时没有发送成功，请稍后重试。",
-      invalidPhone ? 400 : 503,
+    const failure = classifyOtpFailure(error);
+    console.error("staff-otp-request-failed", {
       traceId,
-    );
+      category: failure.logCategory,
+    });
+    return apiError(failure.code, failure.message, failure.status, traceId);
   }
 }

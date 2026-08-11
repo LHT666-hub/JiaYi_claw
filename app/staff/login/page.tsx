@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Building2, ChevronLeft, ShieldCheck } from "lucide-react";
 import { PhoneOtpCard } from "@/components/auth/PhoneOtpCard";
+import { useAuthCapabilities } from "@/components/auth/useAuthCapabilities";
 
 export default function StaffLoginPage() {
   const router = useRouter();
+  const { capabilities, failed, loading } = useAuthCapabilities();
 
   return (
     <main className="min-h-screen bg-[#edf1ef] px-4 py-8 sm:py-12">
@@ -36,6 +38,8 @@ export default function StaffLoginPage() {
           verifyEndpoint="/api/v1/auth/staff/otp/verify"
           title="工作人员登录"
           subtitle="请输入机构邀请时登记的手机号"
+          availability={loading ? "checking" : capabilities?.staffSms.available ? "available" : "unavailable"}
+          unavailableMessage={failed ? "暂时无法核验机构登录通道，请稍后刷新页面。" : capabilities?.staffSms.unavailableMessage}
           onVerified={(payload) => {
             router.replace(payload.destination ?? "/doctor");
             router.refresh();

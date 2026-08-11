@@ -22,6 +22,7 @@
 
 - [ ] 在服务端配置 `WECHAT_MINIPROGRAM_APP_ID` 与 `WECHAT_MINIPROGRAM_APP_SECRET`。
 - [ ] 腾讯云创建短信应用、签名和 OTP 模板，配置 Supabase Send SMS Hook。
+- [ ] 按 [SMS_AUTH_HOOK.md](SMS_AUTH_HOOK.md) 验证 Hook 签名、模板变量顺序、5 秒超时和日志脱敏。
 - [ ] 验证手机号一键登录、短信备用登录、token 刷新和多设备退出。
 - [ ] 如启用企业微信，申请官方企业应用、客户联系/会话能力并配置回调域名。
 - [ ] 不使用个人微信挂机、模拟点击或非官方群消息自动化。

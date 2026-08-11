@@ -40,6 +40,14 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .footer-note { margin-top: 34px; text-align: center; }
 .wechat-primary { margin-top: 28px; background: #2f6c56; box-shadow: 0 16px 34px rgba(47,108,86,.2); }
 .auth-secure-note { display: block; margin-top: 14px; color: rgba(16,42,67,.42); text-align: center; font-size: 21px; }
+.auth-channel-loading { margin-top: 28px; }
+.auth-channel-loading view { height: 82px; border-radius: 999px; background: #eef2f1; animation: auth-channel-pulse 1.3s ease-in-out infinite; }
+.auth-channel-loading view + view { width: 64%; height: 24px; margin: 14px auto 0; }
+.auth-channel-note, .auth-channel-unavailable { margin-top: 26px; padding: 21px 22px; border-radius: 25px; font-size: 21px; line-height: 1.6; }
+.auth-channel-note { background: #eef5f3; color: rgba(16,42,67,.6); }
+.auth-channel-unavailable { border: 1px solid rgba(168,120,45,.24); background: #f6eddd; color: rgba(16,42,67,.62); }
+.auth-channel-note-title { display: block; margin-bottom: 5px; color: #102a43; font-size: 24px; font-weight: 750; }
+@keyframes auth-channel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 .sms-toggle { margin-top: 24px; border: 0; background: transparent; color: #557c6c; font-size: 24px; font-weight: 700; }
 .sms-toggle::after { border: 0; }
 .sms-panel { margin-top: 18px; padding: 24px; border: 1px solid #dce4e2; border-radius: 28px; background: #f8faf9; animation: auth-panel-enter .2s ease-out both; }
