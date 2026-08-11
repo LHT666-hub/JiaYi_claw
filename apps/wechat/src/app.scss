@@ -419,6 +419,11 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .privacy-dialog-cancel, .privacy-dialog-agree { margin: 0; border-radius: 999px; font-size: 26px; font-weight: 700; }
 .privacy-dialog-cancel { border: 1px solid #dce4e2; background: #f8faf9; color: #102a43; }
 .privacy-dialog-agree { border: 0; background: #102a43; color: #fff; }
+.global-privacy-mask { z-index: 99999; padding: 30px; box-sizing: border-box; }
+.global-privacy-dialog { position: relative; width: 100%; max-width: 640px; padding-top: 34px; }
+.global-privacy-mark { width: 72px; height: 72px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border-radius: 24px; background: #e5efec; color: #2f6c56; font-size: 19px; font-weight: 850; }
+.global-privacy-links { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; color: #2f6c56; font-size: 20px; font-weight: 760; }
+.global-privacy-footnote { display: block; margin-top: 16px; color: rgba(16,42,67,.38); text-align: center; font-size: 17px; line-height: 1.45; }
 
 .pressable { transition: transform .16s ease, opacity .16s ease, box-shadow .16s ease; }
 .pressable:active { transform: scale(.975); opacity: .92; }

@@ -51,6 +51,8 @@ for (const key of [
         errors.push(`${key}: 正式环境必须使用 HTTPS`);
       if (["localhost", "127.0.0.1", "example.invalid"].includes(url.hostname))
         errors.push(`${key}: 不能使用本地或占位域名`);
+      if (key === "TARO_APP_API_BASE_URL" && (url.pathname !== "/" || url.search || url.hash))
+        errors.push(`${key}: 必须只填写 API 域名，不能附带路径、查询参数或锚点`);
     } catch {
       errors.push(`${key}: 不是有效 URL`);
     }
@@ -97,17 +99,24 @@ if (
     "CHANNEL_MESSAGE_ENCRYPTION_KEY: 应为 32 字节十六进制或 Base64 密钥",
   );
 }
-if (process.env.WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP) {
+function validateSubscriptionFieldMap(key) {
+  if (!process.env[key]) return;
   try {
-    const map = JSON.parse(process.env.WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP);
-    for (const key of ["title", "status", "updatedAt", "note"]) {
-      if (!/^(thing|phrase|time|date|character_string)\d+$/.test(map[key] ?? "")) {
-        errors.push(`WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP: ${key} 字段映射无效`);
+    const map = JSON.parse(process.env[key]);
+    for (const field of ["title", "status", "updatedAt", "note"]) {
+      if (!/^(thing|phrase|time|date|character_string)\d+$/.test(map[field] ?? "")) {
+        errors.push(`${key}: ${field} 字段映射无效`);
       }
     }
   } catch {
-    errors.push("WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP: 不是有效 JSON");
+    errors.push(`${key}: 不是有效 JSON`);
   }
+}
+validateSubscriptionFieldMap("WECHAT_SUBSCRIBE_SERVICE_FIELD_MAP");
+if (process.env.WECHAT_SUBSCRIBE_FOLLOWUP_TEMPLATE_ID?.trim()) {
+  if (!process.env.WECHAT_SUBSCRIBE_FOLLOWUP_FIELD_MAP?.trim())
+    errors.push("WECHAT_SUBSCRIBE_FOLLOWUP_FIELD_MAP: 配置随访模板时必须提供字段映射");
+  validateSubscriptionFieldMap("WECHAT_SUBSCRIBE_FOLLOWUP_FIELD_MAP");
 }
 
 for (const key of [

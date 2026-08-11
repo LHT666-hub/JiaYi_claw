@@ -11,6 +11,8 @@ export type PendingPrivacyAuthorization = {
   referrer: string;
 };
 
+export const PRIVACY_AGREE_BUTTON_ID = "jiayi-global-privacy-agree";
+
 let installed = false;
 let pendingResolve: PrivacyResolve | null = null;
 let pendingRequest: PendingPrivacyAuthorization | null = null;

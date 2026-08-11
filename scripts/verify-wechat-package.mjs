@@ -69,6 +69,10 @@ if (app) {
         errors.push(`${page}.${extension}: 页面编译产物缺失`);
       }
     }
+    const pageConfig = await readJson(`${page}.json`);
+    if (!pageConfig?.navigationBarTitleText?.trim()) {
+      errors.push(`${page}.json: 缺少正式页面标题`);
+    }
   }
 }
 if (!sitemap?.rules?.some((rule) => rule.action === "disallow" && rule.page === "*")) {
@@ -91,6 +95,17 @@ for (const marker of ["/pages/public-info/index", "publicInfoId"]) {
 }
 for (const marker of ["/pages/support/index", "/api/v1/feedback", "sendMessageTitle"]) {
   if (!javascript.includes(marker)) errors.push(`生产包缺少客服反馈闭环标记：${marker}`);
+}
+for (const marker of [
+  "onNeedPrivacyAuthorization",
+  "agreePrivacyAuthorization",
+  "openPrivacyContract",
+  "exposureAuthorization",
+]) {
+  if (!javascript.includes(marker)) errors.push(`生产包缺少全局隐私授权标记：${marker}`);
+}
+for (const marker of ["requestSubscribeMessage", "/api/v1/wechat/subscriptions"]) {
+  if (!javascript.includes(marker)) errors.push(`生产包缺少微信订阅消息闭环标记：${marker}`);
 }
 
 if (strict) {

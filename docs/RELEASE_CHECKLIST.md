@@ -46,7 +46,7 @@
 
 ## 6. 正式环境变量
 
-从 `.env.production.example` 创建 `.env.production.local`，至少包括：
+从仓库根目录的 `.env.production.example` 创建 `.env.production.local`，并按 [WECHAT_RELEASE_RUNBOOK.md](WECHAT_RELEASE_RUNBOOK.md) 操作，至少包括：
 
 - 正式 App/API/Supabase HTTPS 地址和密钥。
 - 微信 AppID/Secret、腾讯云短信配置。
@@ -72,6 +72,8 @@ npm run build:release
 ```
 
 - [ ] 用微信开发者工具导入 `apps/wechat`，确认正式 AppID 和 `urlCheck=true`。
+- [ ] 微信后台的 request/uploadFile/downloadFile 合法域名均包含 `https://lht11.me`。
+- [ ] 首次调用手机号、录音或图片能力时出现全局隐私弹窗；拒绝后仍可查询公开信息。
 - [ ] 使用至少一台 iPhone 和一台 Android 真机测试 375/390/430 宽度及系统大字体。
 - [ ] 完成居民、家属、工作人员、内容审核、预约/转诊和注销六条正式环境闭环。
 - [x] 完成 110 条中文 Agent 安全评测和 30 条真实 HTTP 回归，高风险漏拦截为 0。
