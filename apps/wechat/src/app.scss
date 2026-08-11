@@ -675,6 +675,53 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .health-history-row { display: flex; align-items: flex-start; gap: 15px; padding: 20px; }
 .health-history-row + .health-history-row { border-top: 1px solid #e5ebe9; }
 .health-history-mark { width: 54px; height: 54px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 18px; background: #e8f0ee; color: #2f6c56; font-size: 20px; font-weight: 800; }
+
+/* Resident support and accountable feedback */
+.support-page { background: #eef2f1; }
+.support-heading { padding: 4px 2px 20px; }
+.support-contact-card { padding: 24px; border: 1px solid rgba(47,108,86,.14); border-radius: 34px; background: #e5efec; box-shadow: 0 18px 42px rgba(16,42,67,.075); }
+.support-contact-head { display: flex; align-items: center; gap: 16px; }
+.support-contact-mark { width: 64px; height: 64px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 22px; background: #2f6c56; color: #fff; font-size: 20px; font-weight: 800; box-shadow: 0 11px 24px rgba(47,108,86,.2); }
+.support-contact-kicker { display: block; color: rgba(16,42,67,.46); font-size: 18px; font-weight: 700; }
+.support-contact-name { display: block; margin-top: 5px; color: #102a43; font-size: 25px; font-weight: 780; line-height: 1.35; }
+.support-contact-state { flex-shrink: 0; padding: 6px 11px; border-radius: 999px; background: rgba(255,255,255,.68); color: rgba(16,42,67,.46); font-size: 17px; font-weight: 800; }
+.support-contact-state.active { color: #2f6c56; }
+.support-contact-address { display: block; margin-top: 16px; color: rgba(16,42,67,.56); font-size: 20px; line-height: 1.55; }
+.support-contact-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+.support-call, .support-wechat { min-width: 0; margin: 0; border-radius: 999px; font-size: 20px; font-weight: 760; }
+.support-call { border: 1px solid rgba(47,108,86,.16); background: #fff; color: #2f6c56; }
+.support-wechat { border: 0; background: #102a43; color: #fff; box-shadow: 0 10px 24px rgba(16,42,67,.16); }
+.support-call[disabled] { opacity: .48; }
+.support-hours { display: block; margin-top: 15px; color: rgba(16,42,67,.43); font-size: 18px; line-height: 1.55; }
+.support-section-head { display: flex; justify-content: space-between; margin: 30px 2px 13px; }
+.support-section-title { display: block; color: #102a43; font-size: 28px; font-weight: 780; }
+.support-section-note { display: block; margin-top: 5px; color: rgba(16,42,67,.42); font-size: 18px; }
+.support-help-surface { overflow: hidden; border: 1px solid #dce4e2; border-radius: 30px; background: #fff; box-shadow: 0 16px 38px rgba(16,42,67,.06); }
+.support-help-row { display: flex; align-items: center; gap: 14px; padding: 21px 20px; }
+.support-help-row + .support-help-row { border-top: 1px solid #e5ebe9; }
+.support-help-title { display: block; color: #102a43; font-size: 24px; font-weight: 750; }
+.support-help-note { display: block; margin-top: 5px; color: rgba(16,42,67,.45); font-size: 18px; }
+.support-help-arrow { color: rgba(16,42,67,.3); font-size: 34px; }
+.support-feedback-surface { padding: 24px; border: 1px solid #dce4e2; border-radius: 32px; background: #fff; box-shadow: 0 18px 42px rgba(16,42,67,.07); }
+.support-field-label { display: block; color: rgba(16,42,67,.62); font-size: 19px; font-weight: 750; }
+.support-category { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 18px; border: 1px solid #dce4e2; border-radius: 20px; background: #f5f7f6; color: #102a43; font-size: 21px; font-weight: 700; }
+.feedback-label { margin-top: 20px; }
+.support-textarea { width: 100%; min-height: 210px; box-sizing: border-box; margin-top: 10px; padding: 17px; border: 1px solid #dce4e2; border-radius: 22px; background: #f5f7f6; color: #102a43; font-size: 21px; line-height: 1.6; }
+.support-counter { margin-top: 7px; color: rgba(16,42,67,.34); text-align: right; font-size: 17px; }
+.support-contact-permission { display: flex; align-items: center; gap: 18px; margin-top: 20px; padding: 18px 0; border-top: 1px solid #e5ebe9; }
+.support-permission-title { display: block; color: #102a43; font-size: 22px; font-weight: 750; }
+.support-permission-note { display: block; margin-top: 5px; color: rgba(16,42,67,.46); font-size: 18px; line-height: 1.5; }
+.support-submit { margin-top: 8px; border: 0; border-radius: 999px; background: #102a43; color: #fff; font-size: 23px; font-weight: 760; box-shadow: 0 13px 28px rgba(16,42,67,.18); }
+.support-submit[disabled] { box-shadow: none; opacity: .42; }
+.support-submitted { display: flex; align-items: center; gap: 16px; }
+.support-submitted-mark { width: 58px; height: 58px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 19px; background: #e5efec; color: #2f6c56; font-size: 26px; font-weight: 800; }
+.support-submitted-title { display: block; color: #102a43; font-size: 24px; font-weight: 780; }
+.support-submitted-note { display: block; margin-top: 5px; color: rgba(16,42,67,.48); font-size: 18px; line-height: 1.55; }
+.support-submit-again { flex-shrink: 0; color: #2f6c56; font-size: 19px; font-weight: 750; }
+.support-operator { display: flex; flex-direction: column; gap: 5px; margin-top: 24px; padding: 0 6px; color: rgba(16,42,67,.35); font-size: 17px; line-height: 1.55; }
+.privacy-required { flex-shrink: 0; padding: 7px 12px; border-radius: 999px; background: #e5efec; color: #2f6c56; font-size: 17px; font-weight: 800; }
+.privacy-account-note { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 18px 20px; border: 1px solid #dce4e2; border-radius: 24px; background: rgba(255,255,255,.72); color: rgba(16,42,67,.5); font-size: 18px; line-height: 1.5; }
+.privacy-account-link { flex-shrink: 0; color: #2f6c56; font-weight: 750; }
 .health-history-mark.blood_pressure { background: #e9eef5; color: #365f8a; }
 .health-history-mark.blood_glucose { background: #f6eedf; color: #9a642c; }
 .health-history-mark.steps { background: #ece9f5; color: #65558a; }

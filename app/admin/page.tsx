@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, BookOpen, ClipboardList, MessageCircleMore, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
+import { Activity, BookOpen, ClipboardList, MessageCircleMore, MessageSquareWarning, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
 
 type Metrics = { serviceRequests: number; pendingRequests: number; staff: number; publishedContent: number; contentToReview: number; factsToReview: number; verifiedSchedules: number; activeChannels: number };
 export default function AdminPage() {
@@ -16,6 +16,7 @@ export default function AdminPage() {
     { href: "/admin/care-network", label: "分级诊疗网络", detail: "机构、医生、排班与转诊路线", icon: Stethoscope },
     { href: "/admin/content-sources", label: "官方内容来源", detail: "公众号与网站采集送审", icon: BookOpen },
     { href: "/admin/channels", label: "企业微信渠道", detail: "官方回调、绑定与群通知", icon: MessageCircleMore },
+    { href: "/admin/feedback", label: "居民反馈", detail: "问题受理、联系授权和处理结论", icon: MessageSquareWarning },
     { href: "/admin/readiness", label: "上线准备度", detail: "数据库、登录、消息、AI 与运营阻断项", icon: Activity },
     { href: "/public-info", label: "公开信息", detail: "查看居民可查询的信息", icon: BookOpen },
   ];

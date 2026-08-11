@@ -70,8 +70,11 @@ export default function HomePage() {
   }
 
   useDidShow(() => {
-    if (!isLoggedIn()) void Taro.navigateTo({ url: "/pages/login/index" });
-    else void load();
+    if (!isLoggedIn()) {
+      void Taro.reLaunch({ url: "/pages/login/index" });
+      return;
+    }
+    void load();
   });
 
   async function switchSubject(index: number) {

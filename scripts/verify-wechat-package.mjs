@@ -42,6 +42,7 @@ if (app) {
     "pages/appointments/index",
     "pages/progress/index",
     "pages/health-records/index",
+    "pages/support/index",
     "pages/public-info/index",
     "pages/browser/index",
   ]) {
@@ -87,6 +88,9 @@ for (const marker of ["本地开发预览", "/api/v1/auth/dev-session", "DEV_LOG
 }
 for (const marker of ["/pages/public-info/index", "publicInfoId"]) {
   if (!javascript.includes(marker)) errors.push(`生产包缺少访客公开信息闭环标记：${marker}`);
+}
+for (const marker of ["/pages/support/index", "/api/v1/feedback", "sendMessageTitle"]) {
+  if (!javascript.includes(marker)) errors.push(`生产包缺少客服反馈闭环标记：${marker}`);
 }
 
 if (strict) {

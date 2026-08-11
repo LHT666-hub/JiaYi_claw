@@ -69,6 +69,7 @@ declare module "lucide-react" {
   export const KeyRound: LucideIcon;
   export const LogIn: LucideIcon;
   export const LoaderCircle: LucideIcon;
+  export const LifeBuoy: LucideIcon;
   export const LockKeyhole: LucideIcon;
   export const MessageCircle: LucideIcon;
   export const MessageCircleMore: LucideIcon;

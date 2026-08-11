@@ -85,10 +85,15 @@ export async function apiRequest<T>(
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     data?: unknown;
     idempotencyKey?: string;
+    auth?: "required" | "optional";
   } = {},
   retry = true,
 ): Promise<T> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
+  if (!token && options.auth !== "optional") {
+    await expireSession();
+    throw sessionExpiredError();
+  }
   let response;
   try {
     response = await Taro.request({
@@ -107,10 +112,13 @@ export async function apiRequest<T>(
   } catch {
     throw networkError();
   }
-  if (response.statusCode === 401 && token) {
-    if (retry && (await refreshSession())) return apiRequest<T>(path, options, false);
-    await expireSession();
-    throw sessionExpiredError();
+  if (response.statusCode === 401) {
+    if (token && retry && (await refreshSession()))
+      return apiRequest<T>(path, options, false);
+    if (options.auth !== "optional") {
+      await expireSession();
+      throw sessionExpiredError();
+    }
   }
   if (response.statusCode < 200 || response.statusCode >= 300)
     throw apiErrorFromPayload(response.data, response.statusCode);
@@ -122,6 +130,10 @@ export async function uploadVoice(
   retry = true,
 ): Promise<{ text: string; requiresConfirmation: boolean }> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
+  if (!token) {
+    await expireSession();
+    throw sessionExpiredError();
+  }
   let response;
   try {
     response = await Taro.uploadFile({
@@ -166,6 +178,10 @@ export async function uploadDocumentImage(
   retry = true,
 ): Promise<DocumentAnalysisResult> {
   const token = Taro.getStorageSync<string>(ACCESS_KEY);
+  if (!token) {
+    await expireSession();
+    throw sessionExpiredError();
+  }
   const residentId = getCareSubjectId();
   let response;
   try {

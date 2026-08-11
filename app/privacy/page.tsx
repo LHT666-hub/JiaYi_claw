@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
@@ -13,21 +14,25 @@ const scopes = [
     id: "privacy",
     title: "基础隐私政策",
     description: "账号、联系方式和服务记录的必要处理。",
+    required: true,
   },
   {
     id: "sensitive_health",
     title: "敏感健康信息",
     description: "健康指标、用药和居民主动提交的健康情况。",
+    required: false,
   },
   {
     id: "ai_processing",
     title: "AI 辅助整理",
     description: "仅用于信息分类、公开信息检索和接诊前摘要。",
+    required: false,
   },
   {
     id: "notification",
     title: "服务通知",
     description: "预约进度、补充资料和处理结果提醒。",
+    required: false,
   },
 ] as const;
 
@@ -98,21 +103,28 @@ export default function PrivacyPage() {
                   {scope.description}
                 </p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={Boolean(grants[scope.id])}
-                disabled={!residentId}
-                onClick={() => void toggle(scope.id, !grants[scope.id])}
-                className={`relative h-7 w-12 rounded-full transition disabled:opacity-40 ${grants[scope.id] ? "bg-success" : "bg-navy/20"}`}
-              >
-                <span
-                  className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${grants[scope.id] ? "left-6" : "left-1"}`}
-                />
-              </button>
+              {scope.required ? (
+                <span className="shrink-0 rounded-full bg-health-soft px-3 py-1 text-xs font-semibold text-sage">账号必需</span>
+              ) : (
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(grants[scope.id])}
+                  disabled={!residentId}
+                  onClick={() => void toggle(scope.id, !grants[scope.id])}
+                  className={`relative h-7 w-12 rounded-full transition disabled:opacity-40 ${grants[scope.id] ? "bg-success" : "bg-navy/20"}`}
+                >
+                  <span
+                    className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${grants[scope.id] ? "left-6" : "left-1"}`}
+                  />
+                </button>
+              )}
             </div>
           ))}
         </div>
+        <Link href="/account-security" className="block rounded-[24px] border border-line bg-surface-card px-4 py-3 text-sm font-semibold text-navy">
+          不再同意基础政策？前往账号与安全申请注销
+        </Link>
       </main>
     </PhoneShell>
   );

@@ -31,6 +31,7 @@ const cleanup = {
   notificationIds: [],
   outboxIds: [],
   wechatIdentityIds: [],
+  feedbackIds: [],
 };
 
 async function createAccount(label, role, organizationId, communityId) {
@@ -162,6 +163,7 @@ try {
   const staffA2 = await createAccount("staff-a2", "doctor", primaryOrganization.id, secondaryCommunityId);
   const staffB = await createAccount("staff-b", "doctor", otherOrganizationId, otherCommunityId);
   const adminA = await createAccount("admin-a", "admin", primaryOrganization.id, primaryCommunity.id);
+  const communityA = await createAccount("community-a", "community", primaryOrganization.id, primaryCommunity.id);
 
   const { data: familyBinding, error: bindingError } = await admin
     .from("family_bindings")
@@ -178,6 +180,40 @@ try {
   const dataA = await seedResidentData(residentA.id, residentA.id, primaryOrganization.id, primaryCommunity.id, "A");
   const dataA2 = await seedResidentData(residentA2.id, residentA2.id, primaryOrganization.id, secondaryCommunityId, "A2");
   const dataB = await seedResidentData(residentB.id, residentB.id, otherOrganizationId, otherCommunityId, "B");
+
+  const feedbackAId = await insertOne("user_feedback", {
+    organization_id: primaryOrganization.id,
+    community_id: primaryCommunity.id,
+    user_id: residentA.id,
+    resident_id: residentA.id,
+    category: "service",
+    content: "RLS 本社区居民反馈内容",
+    idempotency_key: `verify-feedback-a-${suffix}`,
+  }, "feedbackIds");
+  const feedbackA2Id = await insertOne("user_feedback", {
+    organization_id: primaryOrganization.id,
+    community_id: secondaryCommunityId,
+    user_id: residentA2.id,
+    resident_id: residentA2.id,
+    category: "bug",
+    content: "RLS 同机构其他社区反馈内容",
+    idempotency_key: `verify-feedback-a2-${suffix}`,
+  }, "feedbackIds");
+  const feedbackBId = await insertOne("user_feedback", {
+    organization_id: otherOrganizationId,
+    community_id: otherCommunityId,
+    user_id: residentB.id,
+    resident_id: residentB.id,
+    category: "privacy",
+    content: "RLS 其他机构居民反馈内容",
+    idempotency_key: `verify-feedback-b-${suffix}`,
+  }, "feedbackIds");
+  await admin.from("user_feedback_events").insert({
+    feedback_id: feedbackAId,
+    actor_id: residentA.id,
+    action: "submitted",
+    to_status: "open",
+  });
 
   const { error: claimError } = await staffA.client.rpc("transition_service_request", {
     p_request_id: dataA.requestId,
@@ -358,6 +394,17 @@ try {
   await expectVisible(adminA.client, "notifications", notificationBId, false, "管理员不能跨机构读取居民通知");
   await expectVisible(adminA.client, "outbox_events", outboxBId, false, "管理员不能跨机构读取通知队列");
   await expectVisible(adminA.client, "wechat_identities", wechatIdentityBId, false, "管理员不能跨机构读取微信身份");
+  await expectVisible(residentA.client, "user_feedback", feedbackAId, true, "居民可读取自己的反馈");
+  await expectVisible(residentA.client, "user_feedback", feedbackA2Id, false, "居民不能读取其他居民反馈");
+  await expectVisible(communityA.client, "user_feedback", feedbackAId, true, "社区工作人员可读取本社区反馈");
+  await expectVisible(communityA.client, "user_feedback", feedbackA2Id, false, "社区工作人员不能跨社区读取反馈");
+  await expectVisible(communityA.client, "user_feedback", feedbackBId, false, "社区工作人员不能跨机构读取反馈");
+  await expectVisible(adminA.client, "user_feedback", feedbackA2Id, true, "机构管理员可读取同机构反馈");
+  await expectVisible(adminA.client, "user_feedback", feedbackBId, false, "机构管理员不能跨机构读取反馈");
+  const { data: ownFeedbackEvents, error: ownFeedbackEventsError } = await residentA.client
+    .from("user_feedback_events").select("id").eq("feedback_id", feedbackAId);
+  if (ownFeedbackEventsError || !ownFeedbackEvents?.length) throw ownFeedbackEventsError ?? new Error("居民无法读取自己的反馈事件。");
+  assertions += 1;
 
   await expectDenied(
     () => residentA.client.from("health_observations").insert({
@@ -370,6 +417,40 @@ try {
     }),
     "居民不能给其他居民写健康记录",
   );
+  await expectDenied(
+    () => residentA.client.from("user_feedback").insert({
+      organization_id: primaryOrganization.id,
+      community_id: primaryCommunity.id,
+      user_id: residentA.id,
+      category: "other",
+      content: "客户端不能绕过反馈接口直接写入",
+      idempotency_key: `direct-feedback-${suffix}`,
+    }),
+    "居民客户端不能绕过反馈接口直接写入",
+  );
+  await expectDenied(
+    () => staffA.client.rpc("update_user_feedback", {
+      p_feedback_id: feedbackAId,
+      p_status: "in_progress",
+      p_resolution_note: null,
+    }),
+    "医生不能绕过管理接口处理居民反馈",
+  );
+  await expectDenied(
+    () => communityA.client.rpc("update_user_feedback", {
+      p_feedback_id: feedbackA2Id,
+      p_status: "in_progress",
+      p_resolution_note: null,
+    }),
+    "社区工作人员不能跨社区处理反馈",
+  );
+  const { data: updatedFeedback, error: updateFeedbackError } = await communityA.client.rpc("update_user_feedback", {
+    p_feedback_id: feedbackAId,
+    p_status: "in_progress",
+    p_resolution_note: null,
+  });
+  if (updateFeedbackError || updatedFeedback?.status !== "in_progress") throw updateFeedbackError ?? new Error("社区工作人员无法处理本社区反馈。");
+  assertions += 1;
   await expectDenied(
     () => familyUnrelated.client.from("health_observations").insert({
       resident_id: residentA.id,
@@ -532,6 +613,7 @@ try {
   await deleteByIds("outbox_events", cleanup.outboxIds);
   await deleteByIds("notifications", cleanup.notificationIds);
   await deleteByIds("wechat_identities", cleanup.wechatIdentityIds);
+  await deleteByIds("user_feedback", cleanup.feedbackIds);
   await deleteByIds("family_link_codes", cleanup.familyLinkCodeIds);
   await deleteByIds("ask_logs", cleanup.askLogIds);
   await deleteByIds("doctor_todos", cleanup.todoIds);

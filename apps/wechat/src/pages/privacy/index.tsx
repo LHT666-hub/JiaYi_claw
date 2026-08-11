@@ -14,21 +14,25 @@ const scopes = [
     id: "privacy",
     title: "基础隐私政策",
     description: "账号、联系方式和服务记录的必要处理。",
+    required: true,
   },
   {
     id: "sensitive_health",
     title: "敏感健康信息",
     description: "健康指标、用药和主动提交的健康情况。",
+    required: false,
   },
   {
     id: "ai_processing",
     title: "AI 辅助整理",
     description: "用于信息分类、公开信息检索和接诊前摘要。",
+    required: false,
   },
   {
     id: "notification",
     title: "服务通知",
     description: "预约进度、资料补充和处理结果提醒。",
+    required: false,
   },
 ] as const;
 
@@ -107,14 +111,22 @@ export default function PrivacyPage() {
               <Text className="label">{scope.title}</Text>
               <Text className="muted">{scope.description}</Text>
             </View>
-            <Switch
-              checked={Boolean(grants[scope.id])}
-              color="#2f6c56"
-              disabled={!data}
-              onChange={(event) => void toggle(scope.id, event.detail.value)}
-            />
+            {scope.required ? (
+              <Text className="privacy-required">账号必需</Text>
+            ) : (
+              <Switch
+                checked={Boolean(grants[scope.id])}
+                color="#2f6c56"
+                disabled={!data}
+                onChange={(event) => void toggle(scope.id, event.detail.value)}
+              />
+            )}
           </View>
         ))}
+      </View>
+      <View className="privacy-account-note">
+        <Text>如不再同意基础隐私政策，可停止使用并申请注销账号。</Text>
+        <Text className="privacy-account-link" onClick={() => Taro.navigateTo({ url: "/pages/account-security/index" })}>前往账号与安全 ›</Text>
       </View>
     </View>
   );

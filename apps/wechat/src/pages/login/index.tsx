@@ -1,7 +1,7 @@
 import { Button, Checkbox, Image, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useCallback, useEffect, useState } from "react";
-import { apiRequest, saveSession } from "../../lib/api";
+import { apiRequest, isLoggedIn, saveSession } from "../../lib/api";
 import {
   resolvePrivacyAuthorization,
   subscribePrivacyAuthorization,
@@ -35,6 +35,10 @@ export default function LoginPage() {
   const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(null);
   const [capabilityError, setCapabilityError] = useState(false);
 
+  useEffect(() => {
+    if (isLoggedIn()) void Taro.switchTab({ url: "/pages/home/index" });
+  }, []);
+
   useEffect(
     () =>
       subscribePrivacyAuthorization((request) =>
@@ -53,7 +57,7 @@ export default function LoginPage() {
     setCapabilityError(false);
     setCapabilities(null);
     try {
-      const result = await apiRequest<AuthCapabilities>("/api/v1/auth/capabilities");
+      const result = await apiRequest<AuthCapabilities>("/api/v1/auth/capabilities", { auth: "optional" });
       setCapabilities(result);
       if (result.preferredResidentChannel === "sms") setSmsOpen(true);
     } catch {
@@ -84,6 +88,7 @@ export default function LoginPage() {
       const data = await apiRequest<VerifyResult>("/api/v1/auth/wechat/verify", {
         method: "POST",
         data: { loginCode: login.code, phoneCode: event.detail.code },
+        auth: "optional",
       });
       saveSession(data.session);
       Taro.showToast({ title: "登录成功", icon: "success" });
@@ -108,7 +113,7 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      await apiRequest("/api/v1/auth/otp/request", { method: "POST", data: { phone } });
+      await apiRequest("/api/v1/auth/otp/request", { method: "POST", data: { phone }, auth: "optional" });
       setSent(true);
       setCountdown(60);
       Taro.showToast({ title: "验证码已发送", icon: "success" });
@@ -125,6 +130,7 @@ export default function LoginPage() {
       const data = await apiRequest<VerifyResult>("/api/v1/auth/otp/verify", {
         method: "POST",
         data: { phone, token: otp },
+        auth: "optional",
       });
       saveSession(data.session);
       Taro.showToast({ title: "登录成功", icon: "success" });
@@ -145,6 +151,7 @@ export default function LoginPage() {
       const data = await apiRequest<VerifyResult>("/api/v1/auth/dev-session", {
         method: "POST",
         data: { role },
+        auth: "optional",
       });
       saveSession(data.session);
       Taro.showToast({ title: role === "resident" ? "已进入居民预览" : "已进入家属预览", icon: "success" });

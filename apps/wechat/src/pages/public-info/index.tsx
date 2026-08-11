@@ -38,7 +38,10 @@ export default function PublicInfoPage() {
     setLoading(true);
     setError("");
     try {
-      const data = await apiRequest<{ items: PublicInfoItem[] }>(`/api/v1/public-info?q=${encodeURIComponent(normalized)}`);
+      const data = await apiRequest<{ items: PublicInfoItem[] }>(
+        `/api/v1/public-info?q=${encodeURIComponent(normalized)}`,
+        { auth: "optional" },
+      );
       setItems(data.items);
       setSearched(true);
     } catch (reason) {

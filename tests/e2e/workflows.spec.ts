@@ -867,3 +867,94 @@ test("登录前可以阅读隐私政策和用户协议", async ({ page }) => {
     page.getByText("平台不提供诊断、处方、停药、换药", { exact: false }),
   ).toBeVisible();
 });
+
+test("居民在所属社区提交可追踪的问题反馈", async ({ page }) => {
+  let submittedBody: Record<string, unknown> = {};
+  let idempotencyKey = "";
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({
+      json: ok({
+        profile: { display_name: "张阿姨" },
+        residentId: "10000000-0000-0000-0000-000000000001",
+        network: {
+          name: "海湾镇家医协作网络",
+          community: {
+            name: "海湾镇社区卫生服务中心",
+            service_phone: "021-12345678",
+            address: "上海市奉贤区海湾镇",
+          },
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/v1/feedback", async (route) => {
+    submittedBody = route.request().postDataJSON();
+    idempotencyKey = route.request().headers()["idempotency-key"] ?? "";
+    await route.fulfill({
+      json: ok({
+        feedback: { id: "92000000-0000-0000-0000-000000000001" },
+        duplicate: false,
+      }),
+    });
+  });
+
+  await page.goto("/support");
+  await expect(page.getByRole("heading", { name: "海湾镇社区卫生服务中心" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /拨打 021-12345678/ })).toHaveAttribute(
+    "href",
+    "tel:021-12345678",
+  );
+  await page.getByLabel("问题类型").selectOption("bug");
+  await page.getByLabel("具体情况").fill("我在预约确认页点击后没有看到新的进度，请工作人员帮忙核查。");
+  await page.getByLabel("允许工作人员联系我").check();
+  await page.getByRole("button", { name: "提交给服务团队" }).click();
+
+  await expect(page.getByText("反馈已经收到")).toBeVisible();
+  expect(submittedBody).toMatchObject({
+    category: "bug",
+    contactAllowed: true,
+    residentId: "10000000-0000-0000-0000-000000000001",
+    pagePath: "/support",
+  });
+  expect(idempotencyKey).toMatch(/^feedback:/);
+});
+
+test("社区工作人员处理居民反馈并记录结论", async ({ page }) => {
+  let patchBody: Record<string, unknown> = {};
+  await page.route("**/api/v1/admin/feedback**", async (route) => {
+    if (route.request().method() === "PATCH") {
+      patchBody = route.request().postDataJSON();
+      await route.fulfill({ json: ok({ feedback: { id: patchBody.id, status: "resolved" } }) });
+      return;
+    }
+    await route.fulfill({
+      json: ok({
+        feedback: [{
+          id: "92000000-0000-0000-0000-000000000001",
+          category: "bug",
+          content: "我在预约确认页点击后没有看到新的进度，请工作人员帮忙核查。",
+          contact_allowed: true,
+          page_path: "/support",
+          status: "open",
+          resolution_note: null,
+          created_at: "2026-08-12T02:00:00.000Z",
+          updated_at: "2026-08-12T02:00:00.000Z",
+          user: { display_name: "张阿姨", phone: "13800138000" },
+          resident: { display_name: "张阿姨" },
+        }],
+      }),
+    });
+  });
+
+  await page.goto("/admin/feedback");
+  await expect(page.getByText("13800138000")).toBeVisible();
+  await page.getByPlaceholder(/记录核查结果/).fill("已核查服务申请，进度通知已重新发送。 ");
+  await page.getByRole("button", { name: "标记解决" }).click();
+
+  await expect(page.getByText("我在预约确认页点击后没有看到新的进度")).toHaveCount(0);
+  expect(patchBody).toMatchObject({
+    id: "92000000-0000-0000-0000-000000000001",
+    status: "resolved",
+    resolutionNote: "已核查服务申请，进度通知已重新发送。",
+  });
+});

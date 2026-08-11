@@ -5,8 +5,9 @@ import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !serviceRoleKey || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(url)) {
+if (!url || !anonKey || !serviceRoleKey || !/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(url)) {
   throw new Error("verify:operations only runs against the local Supabase stack.");
 }
 if (!existsSync(resolve(".next/BUILD_ID"))) {
@@ -21,7 +22,7 @@ const baseUrl = `http://127.0.0.1:${port}`;
 let userId = "";
 let server;
 let serverOutput = "";
-const cleanup = { contentIds: [], publicInfoIds: [], outboxIds: [], notificationIds: [] };
+const cleanup = { contentIds: [], publicInfoIds: [], outboxIds: [], notificationIds: [], feedbackIds: [] };
 
 function appendServerOutput(chunk) {
   serverOutput = `${serverOutput}${chunk.toString()}`.slice(-8000);
@@ -78,6 +79,13 @@ try {
   });
   if (userError || !auth.user) throw userError ?? new Error("Unable to create operations verification user.");
   userId = auth.user.id;
+  const residentClient = createClient(url, anonKey, { auth: { persistSession: false } });
+  const { data: residentAuth, error: residentAuthError } = await residentClient.auth.signInWithPassword({
+    email: `verify-operations-${suffix}@example.local`,
+    password,
+  });
+  if (residentAuthError || !residentAuth.session) throw residentAuthError ?? new Error("Unable to sign in operations verification user.");
+  const residentAuthorization = `Bearer ${residentAuth.session.access_token}`;
 
   const now = Date.now();
   const contentRows = [
@@ -239,6 +247,62 @@ try {
     throw new Error("An unauthenticated visitor could resolve an arbitrary service link.");
   }
 
+  const revokeBasePrivacyResponse = await fetch(`${baseUrl}/api/v1/consents`, {
+    method: "POST",
+    headers: { authorization: residentAuthorization, "content-type": "application/json" },
+    body: JSON.stringify({
+      scope: "privacy",
+      policyVersion: "2026-08-11",
+      granted: false,
+    }),
+  });
+  const revokeBasePrivacy = await revokeBasePrivacyResponse.json();
+  if (revokeBasePrivacyResponse.status !== 409 || revokeBasePrivacy?.error?.code !== "BASE_PRIVACY_REQUIRED") {
+    throw new Error("Base account privacy consent could be silently revoked instead of using account deletion.");
+  }
+
+  const feedbackKey = `verify-feedback:${suffix}`;
+  const feedbackRequest = {
+    method: "POST",
+    headers: {
+      authorization: residentAuthorization,
+      "content-type": "application/json",
+      "idempotency-key": feedbackKey,
+    },
+    body: JSON.stringify({
+      category: "service",
+      content: "运营验收：预约页面提交后需要明确显示处理进度。",
+      contactAllowed: true,
+      pagePath: "/pages/support/index",
+    }),
+  };
+  const feedbackResponse = await fetch(`${baseUrl}/api/v1/feedback`, feedbackRequest);
+  const feedback = await feedbackResponse.json();
+  if (feedbackResponse.status !== 201 || !feedback?.data?.feedback?.id || feedback.data.duplicate) {
+    throw new Error(`Resident feedback was not created: ${JSON.stringify(feedback)}`);
+  }
+  cleanup.feedbackIds.push(feedback.data.feedback.id);
+  const duplicateFeedbackResponse = await fetch(`${baseUrl}/api/v1/feedback`, feedbackRequest);
+  const duplicateFeedback = await duplicateFeedbackResponse.json();
+  if (!duplicateFeedbackResponse.ok || !duplicateFeedback?.data?.duplicate || duplicateFeedback.data.feedback.id !== feedback.data.feedback.id) {
+    throw new Error("Feedback idempotency did not return the original submission.");
+  }
+  const { data: feedbackEvents, error: feedbackEventsError } = await admin
+    .from("user_feedback_events")
+    .select("id,action,to_status")
+    .eq("feedback_id", feedback.data.feedback.id);
+  if (feedbackEventsError || feedbackEvents?.length !== 1 || feedbackEvents[0].action !== "submitted") {
+    throw feedbackEventsError ?? new Error("Feedback submission event was not audited exactly once.");
+  }
+  const { data: feedbackNotifications, error: feedbackNotificationsError } = await admin
+    .from("notifications")
+    .select("id")
+    .eq("metadata->>feedbackId", feedback.data.feedback.id);
+  if (feedbackNotificationsError || !feedbackNotifications?.length) {
+    throw feedbackNotificationsError ?? new Error("Feedback did not create an accountable notification receipt.");
+  }
+  cleanup.notificationIds.push(...feedbackNotifications.map((item) => item.id));
+
   const unauthorized = await callWorker("Bearer wrong-secret");
   if (unauthorized.response.status !== 403 || unauthorized.body?.error?.code !== "WORKER_FORBIDDEN") {
     throw new Error("Outbox worker accepted an invalid cron credential.");
@@ -282,7 +346,7 @@ try {
     throw replayedError ?? countError ?? new Error(`Idempotent replay mismatch: ${JSON.stringify({ replayed, notificationCount })}`);
   }
 
-  console.log("Verified: expired content stayed out of resident and guest feeds; reviewed public sources opened without login while tampering was blocked; cron auth was enforced; delivery was idempotent and dead-lettered on the fifth failure.");
+  console.log("Verified: expired content stayed out of resident and guest feeds; reviewed public sources resisted tampering; resident feedback was idempotent and audited; base privacy required account deletion; cron delivery was idempotent and dead-lettered on the fifth failure.");
 } finally {
   if (server && server.exitCode === null) {
     server.kill();
@@ -292,6 +356,7 @@ try {
     ]);
   }
   await deleteByIds("notifications", cleanup.notificationIds);
+  await deleteByIds("user_feedback", cleanup.feedbackIds);
   await deleteByIds("outbox_events", cleanup.outboxIds);
   await deleteByIds("public_info_entries", cleanup.publicInfoIds);
   await deleteByIds("content_items", cleanup.contentIds);

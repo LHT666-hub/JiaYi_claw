@@ -19,6 +19,7 @@ export default function VerifiedBrowserPage() {
       }`;
       void apiRequest<{ url: string }>(
         publicInfoId ? resolvePath : withCareSubject(resolvePath),
+        { auth: publicInfoId ? "optional" : "required" },
       )
         .then((result) => setUrl(result.url))
         .catch((reason) => {

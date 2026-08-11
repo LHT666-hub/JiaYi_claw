@@ -71,6 +71,14 @@ export async function POST(request: NextRequest) {
   const parsed = consentInput.safeParse(await request.json().catch(() => null));
   if (!parsed.success)
     return apiError("INVALID_CONSENT", "授权信息不完整。", 400, traceId);
+  if (parsed.data.scope === "privacy" && !parsed.data.granted) {
+    return apiError(
+      "BASE_PRIVACY_REQUIRED",
+      "基础隐私政策是账号运行必需项；如不再使用，请在账号与安全中申请注销。",
+      409,
+      traceId,
+    );
+  }
   const residentId =
     profile.role === "resident" ? profile.id : parsed.data.residentId;
   if (!residentId)

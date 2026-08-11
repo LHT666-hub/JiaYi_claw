@@ -48,6 +48,7 @@ export default function MePage() {
   }
 
   const links = [
+    { glyph: "服", label: "帮助与反馈", note: "联系社区、微信客服和问题反馈", url: "/pages/support/index" },
     { glyph: "权", label: "隐私与授权", note: "健康信息和 AI 处理范围", url: "/pages/privacy/index" },
     { glyph: "知", label: "通知设置", note: "订阅消息与免打扰时间", url: "/pages/notification-settings/index" },
     { glyph: "安", label: "账号与安全", note: "手机号、登录设备和注销", url: "/pages/account-security/index" },
