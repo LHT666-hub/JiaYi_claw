@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -16,14 +16,7 @@ export default function LoginPage() {
   const { showToast } = useToast();
   const devLoginEnabled = process.env.NEXT_PUBLIC_DEV_LOGIN === "true";
   const { capabilities, failed, loading: capabilityLoading, retry } = useAuthCapabilities();
-  const [showcaseVisible, setShowcaseVisible] = useState(false);
   const [showcaseLoading, setShowcaseLoading] = useState(false);
-
-  useEffect(() => {
-    setShowcaseVisible(
-      new URLSearchParams(window.location.search).get("showcase") === "1",
-    );
-  }, []);
 
   async function enterDevelopmentSession(
     role: "resident" | "family" | "doctor" | "admin",
@@ -114,7 +107,7 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {devLoginEnabled && showcaseVisible ? (
+        {devLoginEnabled ? (
           <section className="mt-5 rounded-[28px] border border-dashed border-sage/45 bg-health-soft/75 p-4">
             <p className="flex items-center gap-2 text-xs font-semibold text-navy">
               <LogIn className="h-4 w-4 text-sage" />

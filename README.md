@@ -39,7 +39,7 @@ npm run bootstrap:local
 npm run dev:web -- -p 3000 -H 0.0.0.0
 ```
 
-电脑访问 `http://127.0.0.1:3000/login`；同一局域网手机访问电脑 IPv4 地址的 `3000` 端口。
+电脑访问 `http://127.0.0.1:3000/login`；同一局域网手机访问电脑 IPv4 地址的 `3000` 端口。本地登录页会直接显示居民、家属、医生和管理员展示入口；每次执行本地数据库重置后，需要重新运行 `npm run bootstrap:local` 初始化这些测试账号。
 
 本地固定 OTP 仅用于 localhost Supabase。生产必须关闭 `AUTH_TEST_MODE`，并通过 Supabase Send SMS Hook 接入腾讯云短信。
 短信签名、Hook URL、模板变量与验收步骤见 [腾讯云短信与 Supabase OTP 接入](docs/SMS_AUTH_HOOK.md)。
