@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { healthObservationSchema } from "./index";
 
 const base = {
-  measuredAt: "2026-08-12T01:00:00.000Z",
+  measuredAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
   note: null,
 };
 
@@ -51,6 +51,17 @@ describe("health observation contract", () => {
       value: 5.6,
       secondaryValue: null,
       unit: "mg/dL",
+    }).success).toBe(false);
+  });
+
+  it("rejects a measurement timestamp in the future", () => {
+    expect(healthObservationSchema.safeParse({
+      type: "weight",
+      value: 66,
+      secondaryValue: null,
+      unit: "kg",
+      measuredAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      note: null,
     }).success).toBe(false);
   });
 });

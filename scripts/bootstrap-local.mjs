@@ -93,6 +93,17 @@ for (const account of accounts) {
   if (profileError) throw profileError;
 }
 
+const { error: careBindingError } = await supabase
+  .from("resident_care_bindings")
+  .update({
+    status: "active",
+    verified_at: new Date().toISOString(),
+    verified_by: ids.get("admin"),
+    verification_note: "本地开发账号自动核验",
+  })
+  .eq("resident_id", ids.get("resident"));
+if (careBindingError) throw careBindingError;
+
 const { error: bindingError } = await supabase.from("family_bindings").upsert(
   {
     resident_id: ids.get("resident"),
@@ -131,5 +142,5 @@ const { error: consentError } = await supabase
 if (consentError) throw consentError;
 
 console.log(
-  `Local accounts ready: ${accounts.length}; family binding ready: 1; consent records ready: ${consentRows.length}.`,
+  `Local accounts ready: ${accounts.length}; verified care binding ready: 1; family binding ready: 1; consent records ready: ${consentRows.length}.`,
 );

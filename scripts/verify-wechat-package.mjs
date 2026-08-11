@@ -73,6 +73,9 @@ if (app) {
     if (!pageConfig?.navigationBarTitleText?.trim()) {
       errors.push(`${page}.json: 缺少正式页面标题`);
     }
+    if (page === "pages/health-records/index" && pageConfig?.enablePullDownRefresh !== true) {
+      errors.push(`${page}.json: 健康记录必须支持下拉刷新`);
+    }
   }
 }
 if (!sitemap?.rules?.some((rule) => rule.action === "disallow" && rule.page === "*")) {
@@ -82,10 +85,16 @@ if (!sitemap?.rules?.some((rule) => rule.action === "disallow" && rule.page === 
 const files = await walk(root).catch(() => []);
 let totalBytes = 0;
 let javascript = "";
+let markup = "";
 for (const file of files) {
   totalBytes += (await stat(file)).size;
   if (file.endsWith(".js")) javascript += await readFile(file, "utf8");
+  if (file.endsWith(".wxml")) markup += await readFile(file, "utf8");
 }
+const compiledContent = `${javascript}\n${markup}`.replace(
+  /\\u([0-9a-fA-F]{4})/g,
+  (_, code) => String.fromCharCode(Number.parseInt(code, 16)),
+);
 if (totalBytes > 2 * 1024 * 1024) errors.push(`主包体积 ${(totalBytes / 1024 / 1024).toFixed(2)} MB，超过 2 MB 门限`);
 for (const marker of ["本地开发预览", "/api/v1/auth/dev-session", "DEV_LOGIN_ENABLED"]) {
   if (javascript.includes(marker)) errors.push(`生产包泄漏开发入口标记：${marker}`);
@@ -106,6 +115,14 @@ for (const marker of [
 }
 for (const marker of ["requestSubscribeMessage", "/api/v1/wechat/subscriptions"]) {
   if (!javascript.includes(marker)) errors.push(`生产包缺少微信订阅消息闭环标记：${marker}`);
+}
+for (const marker of [
+  "/api/v1/health-observations",
+  "近期变化",
+  "测量时间",
+  "删除这条手工记录",
+]) {
+  if (!compiledContent.includes(marker)) errors.push(`生产包缺少健康记录闭环标记：${marker}`);
 }
 
 if (strict) {

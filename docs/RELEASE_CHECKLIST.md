@@ -63,6 +63,7 @@
 npm run check:all
 npm run verify:onboarding
 npm run verify:operations
+npm run verify:health-observations
 npm run verify:rls
 npm run verify:release-compliance
 npm run verify:wechat-notifications
@@ -78,6 +79,7 @@ npm run build:release
 - [ ] 完成居民、家属、工作人员、内容审核、预约/转诊和注销六条正式环境闭环。
 - [x] 完成 110 条中文 Agent 安全评测和 30 条真实 HTTP 回归，高风险漏拦截为 0。
 - [x] 从空数据库执行全部迁移，并通过 70 条跨居民、家属授权撤销、社区、机构、居民反馈、临床写入和经办认领 RLS 断言。
+- [x] 通过 7 条健康记录生命周期断言，覆盖居民删除、家属授权撤回、越权拒绝、确认来源不可删除和审计证据。
 - [x] 验证过期内容下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
 - [ ] 真实普通话和上海话语音集分别统计字错率；不达门槛时默认提供文字输入。
 - [ ] 使用脱敏的真实报告、处方和药盒图片验证文字准确率、不确定项提示、4 MB 限制、图片不落盘及居民确认后再进入 Claw。

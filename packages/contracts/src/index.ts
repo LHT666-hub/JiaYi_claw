@@ -156,6 +156,9 @@ export const healthObservationSchema = z.object({
   measuredAt: z.string().datetime(),
   note: z.string().trim().max(300).nullable().default(null),
 }).superRefine((observation, context) => {
+  if (Date.parse(observation.measuredAt) > Date.now() + 5 * 60 * 1000) {
+    context.addIssue({ code: "custom", path: ["measuredAt"], message: "测量时间不能晚于当前时间" });
+  }
   const ranges: Record<typeof observation.type, [number, number]> = {
     blood_pressure: [40, 300],
     blood_glucose: [0.5, 50],

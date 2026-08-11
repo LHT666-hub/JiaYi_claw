@@ -709,13 +709,41 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .health-subject-state { padding: 6px 11px; border-radius: 999px; background: #e5efec; color: #2f6c56; font-size: 17px; font-weight: 800; }
 .health-latest-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
 .health-latest-item { min-width: 0; padding: 20px; border: 1px solid #dce4e2; border-radius: 27px; background: #fff; box-shadow: 0 12px 28px rgba(16,42,67,.05); }
+.health-latest-item.selected { border-right-color: rgba(16,42,67,.24); border-bottom-color: rgba(16,42,67,.24); border-left-color: rgba(16,42,67,.24); box-shadow: 0 16px 34px rgba(16,42,67,.1); transform: translateY(-2px); }
 .health-latest-item.blood_pressure { border-top: 5px solid #557ba1; }
 .health-latest-item.blood_glucose { border-top: 5px solid #9a642c; }
 .health-latest-item.weight { border-top: 5px solid #2f6c56; }
 .health-latest-item.steps { border-top: 5px solid #65558a; }
+.health-latest-head { display: flex; align-items: center; gap: 9px; }
+.health-latest-icon { width: 40px; height: 40px; display: flex; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 14px; background: #edf3f1; }
+.health-latest-item.blood_pressure .health-latest-icon { background: #edf1f6; }
+.health-latest-item.blood_glucose .health-latest-icon { background: #f8f0e3; }
+.health-latest-item.steps .health-latest-icon { background: #f0edf7; }
 .health-latest-label { display: block; color: rgba(16,42,67,.46); font-size: 18px; font-weight: 750; }
 .health-latest-value { display: block; margin-top: 9px; overflow: hidden; color: #102a43; font-family: Georgia, serif; font-size: 34px; font-variant-numeric: tabular-nums; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
 .health-latest-unit { display: block; margin-top: 3px; color: rgba(16,42,67,.38); font-size: 17px; }
+.health-trend-surface { margin-top: 22px; padding: 24px; overflow: hidden; border: 1px solid #dce4e2; border-radius: 32px; background: #fff; box-shadow: 0 18px 42px rgba(16,42,67,.07); }
+.health-trend-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.health-trend-unit { padding: 6px 10px; border-radius: 999px; background: #eef3f1; color: rgba(16,42,67,.54); font-size: 16px; font-weight: 750; }
+.health-trend-legend { display: flex; align-items: center; gap: 18px; margin-top: 17px; color: rgba(16,42,67,.5); font-size: 16px; }
+.health-trend-legend > view { display: flex; align-items: center; gap: 7px; }
+.trend-legend-dot { width: 10px; height: 10px; border-radius: 999px; background: #a64f45; }
+.trend-legend-dot.secondary { border-radius: 2px; background: #365f8a; transform: rotate(45deg); }
+.health-trend-chart { display: flex; width: 100%; height: 224px; gap: 8px; margin-top: 18px; }
+.health-chart-scale { width: 38px; height: 150px; display: flex; flex-shrink: 0; flex-direction: column; justify-content: space-between; padding-top: 3px; color: rgba(16,42,67,.35); font-size: 14px; font-variant-numeric: tabular-nums; }
+.health-chart-scroll { min-width: 0; flex: 1; }
+.health-chart-columns { min-width: 100%; height: 224px; display: flex; align-items: stretch; gap: 8px; }
+.health-chart-column { width: 60px; height: 224px; display: flex; flex-shrink: 0; flex-direction: column; align-items: center; }
+.health-chart-plot { position: relative; width: 100%; height: 150px; flex-shrink: 0; border-bottom: 1px solid #dfe6e4; background-image: linear-gradient(to bottom, rgba(16,42,67,.055) 1px, transparent 1px); background-size: 100% 50%; }
+.health-chart-point { position: absolute; left: 50%; width: 12px; height: 12px; border: 3px solid #fff; border-radius: 999px; background: #a64f45; box-shadow: 0 2px 7px rgba(16,42,67,.2); transform: translate(-50%, 50%); }
+.health-chart-point.secondary { width: 10px; height: 10px; border-radius: 3px; background: #365f8a; transform: translate(-50%, 50%) rotate(45deg); }
+.health-chart-bar { position: absolute; right: 13px; bottom: 0; left: 13px; min-height: 10px; border-radius: 8px 8px 3px 3px; background: #65558a; opacity: .82; }
+.health-chart-value { display: block; width: 100%; margin-top: 8px; overflow: hidden; color: #102a43; text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+.health-chart-date { display: block; margin-top: 3px; color: rgba(16,42,67,.38); font-size: 14px; }
+.health-trend-note { display: block; margin-top: 2px; color: rgba(16,42,67,.42); font-size: 16px; line-height: 1.5; }
+.health-trend-empty { display: flex; align-items: center; gap: 14px; margin-top: 18px; padding: 18px; border-radius: 22px; background: #f3f6f5; }
+.health-trend-empty-title { display: block; color: #102a43; font-size: 20px; font-weight: 760; }
+.health-trend-empty-copy { display: block; margin-top: 4px; color: rgba(16,42,67,.46); font-size: 17px; }
 .health-entry-surface { margin-top: 22px; padding: 24px; border: 1px solid #dce4e2; border-radius: 32px; background: #fff; box-shadow: 0 18px 42px rgba(16,42,67,.07); }
 .health-entry-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .health-entry-kicker { display: block; color: #2f6c56; font-size: 18px; font-weight: 800; }
@@ -726,6 +754,8 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .health-type.selected { border-color: #102a43; background: #102a43; color: #fff; box-shadow: 0 10px 22px rgba(16,42,67,.16); }
 .health-type-mark { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 13px; background: #eef3f1; color: #2f6c56; font-size: 18px; font-weight: 800; }
 .health-type.selected .health-type-mark { background: rgba(255,255,255,.12); color: #fff; }
+.health-time-row { display: grid; grid-template-columns: 1.35fr 1fr; gap: 10px; margin: 10px 0 20px; }
+.health-time-picker { height: 68px; display: flex; align-items: center; gap: 10px; box-sizing: border-box; padding: 0 15px; border: 1px solid #dce4e2; border-radius: 20px; background: #f5f7f6; color: #102a43; font-size: 19px; font-variant-numeric: tabular-nums; font-weight: 720; }
 .health-value-row { display: flex; gap: 12px; }
 .health-value-input { display: flex; height: 82px; align-items: center; gap: 10px; margin: 10px 0 20px; padding: 0 17px; border: 1px solid #dce4e2; border-radius: 22px; background: #f5f7f6; }
 .health-value-input input { min-width: 0; flex: 1; color: #102a43; font-size: 28px; font-variant-numeric: tabular-nums; font-weight: 750; }
@@ -792,6 +822,9 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .health-history-title { display: block; color: #102a43; font-size: 23px; font-weight: 760; }
 .health-history-meta { display: block; margin-top: 5px; color: rgba(16,42,67,.42); font-size: 17px; }
 .health-history-note { display: block; margin-top: 7px; color: rgba(16,42,67,.56); font-size: 18px; line-height: 1.5; }
+.health-history-side { display: flex; flex-shrink: 0; flex-direction: column; align-items: flex-end; gap: 9px; }
 .health-history-reading { flex-shrink: 0; text-align: right; }
 .health-history-reading text:first-child { display: block; color: #102a43; font-family: Georgia, serif; font-size: 28px; font-variant-numeric: tabular-nums; font-weight: 760; }
 .health-history-reading text:last-child { display: block; margin-top: 3px; color: rgba(16,42,67,.38); font-size: 16px; }
+.health-delete { height: 38px; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0; padding: 0 10px; border: 0; border-radius: 999px; background: #fbefed; color: #a44a3f; font-size: 15px; font-weight: 760; line-height: 38px; }
+.health-load-more { margin-top: 14px; border: 1px solid #dce4e2; border-radius: 999px; background: rgba(255,255,255,.82); color: #365f8a; font-size: 18px; font-weight: 750; }
