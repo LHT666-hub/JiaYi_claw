@@ -2,6 +2,7 @@ import { healthObservationSchema } from "@jiayi/contracts";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { resolveCareSubject } from "@/lib/careSubjects";
+import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
 export async function GET(request: NextRequest) {
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
       supabase,
       request.nextUrl.searchParams.get("residentId"),
     );
+    await assertVerifiedResidentCareBinding(residentId, supabase);
     const { data, error } = await supabase
       .from("health_observations")
       .select("*")
@@ -26,10 +28,11 @@ export async function GET(request: NextRequest) {
       : apiOk({ residentId, careSubject: selected, observations: data ?? [] }, traceId);
   } catch (error) {
     const message = readErrorMessage(error);
-    const forbidden = /FORBIDDEN|BOUND_RESIDENT_REQUIRED/.test(message);
+    const verificationRequired = message.includes("CARE_BINDING_VERIFICATION_REQUIRED");
+    const forbidden = verificationRequired || /FORBIDDEN|BOUND_RESIDENT_REQUIRED/.test(message);
     return apiError(
-      forbidden ? "RESIDENT_SCOPE_FORBIDDEN" : "HEALTH_OBSERVATION_LIST_FAILED",
-      forbidden ? "请先绑定需要协助的居民。" : message,
+      verificationRequired ? "CARE_BINDING_VERIFICATION_REQUIRED" : forbidden ? "RESIDENT_SCOPE_FORBIDDEN" : "HEALTH_OBSERVATION_LIST_FAILED",
+      verificationRequired ? "家医签约关系核验后才能读取健康记录。" : forbidden ? "请先绑定需要协助的居民。" : message,
       forbidden ? 403 : 500,
       traceId,
     );
@@ -50,6 +53,7 @@ export async function POST(request: NextRequest) {
       supabase,
       typeof body?.residentId === "string" ? body.residentId : null,
     );
+    await assertVerifiedResidentCareBinding(residentId, supabase);
     const { data, error } = await supabase
       .from("health_observations")
       .insert({
@@ -69,10 +73,11 @@ export async function POST(request: NextRequest) {
     return apiOk({ observation: data }, traceId, 201);
   } catch (error) {
     const message = readErrorMessage(error);
-    const forbidden = /FORBIDDEN|BOUND_RESIDENT_REQUIRED/.test(message);
+    const verificationRequired = message.includes("CARE_BINDING_VERIFICATION_REQUIRED");
+    const forbidden = verificationRequired || /FORBIDDEN|BOUND_RESIDENT_REQUIRED/.test(message);
     return apiError(
-      forbidden ? "RESIDENT_SCOPE_FORBIDDEN" : "HEALTH_OBSERVATION_CREATE_FAILED",
-      forbidden ? "无权为该居民添加健康记录。" : message,
+      verificationRequired ? "CARE_BINDING_VERIFICATION_REQUIRED" : forbidden ? "RESIDENT_SCOPE_FORBIDDEN" : "HEALTH_OBSERVATION_CREATE_FAILED",
+      verificationRequired ? "家医签约关系核验后才能保存健康记录。" : forbidden ? "无权为该居民添加健康记录。" : message,
       forbidden ? 403 : 500,
       traceId,
     );

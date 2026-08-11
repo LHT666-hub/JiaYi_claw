@@ -40,6 +40,11 @@ type CatalogItem = {
   availability_note: string | null;
 };
 type ServiceData = {
+  access?: {
+    bindingStatus: "pending" | "active" | "revoked" | "unbound";
+    canSubmitService: boolean;
+    message: string;
+  };
   network: null | {
     name: string;
     description?: string | null;
@@ -91,7 +96,7 @@ const accessModeLabels: Record<CatalogItem["access_mode"], string> = {
   information_only: "信息查询",
 };
 
-function ServiceCatalogCard({ item }: { item: CatalogItem }) {
+function ServiceCatalogCard({ item, canSubmitService }: { item: CatalogItem; canSubmitService: boolean }) {
   const presentation = servicePresentation[item.service_type] ?? {
     href: "/appointments",
     icon: Stethoscope,
@@ -99,6 +104,7 @@ function ServiceCatalogCard({ item }: { item: CatalogItem }) {
   const usesOfficialLink =
     (item.access_mode === "official_link" || item.access_mode === "hybrid") &&
     Boolean(item.official_url);
+  const locked = !canSubmitService && !usesOfficialLink;
   const body = (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -106,7 +112,7 @@ function ServiceCatalogCard({ item }: { item: CatalogItem }) {
           <presentation.icon className="h-5 w-5" />
         </span>
         <span className="rounded-full bg-health-soft px-2.5 py-1 text-[10px] font-semibold text-sage">
-          {accessModeLabels[item.access_mode]}
+          {locked ? "核验后开放" : accessModeLabels[item.access_mode]}
         </span>
       </div>
       <p className="mt-3 text-sm font-semibold text-navy">{item.name}</p>
@@ -139,6 +145,10 @@ function ServiceCatalogCard({ item }: { item: CatalogItem }) {
     <a href={item.official_url!} target="_blank" rel="noreferrer" className={className}>
       {body}
     </a>
+  ) : locked ? (
+    <div className={`${className} cursor-not-allowed opacity-75`} aria-disabled="true">
+      {body}
+    </div>
   ) : (
     <Link href={presentation.href} className={className}>
       {body}
@@ -168,6 +178,7 @@ export default function ServicesPage() {
       .catch(() => setError("网络连接失败。"));
   }, [router]);
   const institutions = data?.network?.institutions ?? [];
+  const canSubmitService = data?.access?.canSubmitService ?? true;
   const content = useMemo(() => data?.content ?? [], [data]);
   const visibleContent =
     active === "classroom"
@@ -185,6 +196,12 @@ export default function ServicesPage() {
           </p>
         </header>
         <CareSubjectSwitcher compact />
+        {data?.access && !data.access.canSubmitService ? (
+          <div className="mt-4 rounded-[22px] bg-[#F7F1E6] px-4 py-3 text-sm leading-6 text-[#795427]">
+            <p className="font-semibold">社区登记待核验</p>
+            <p className="mt-1 text-xs opacity-75">{data.access.message}</p>
+          </div>
+        ) : null}
         {error ? (
           <div className="mt-5 rounded-md border border-danger/20 bg-risk-soft p-4 text-sm text-danger">
             {error}
@@ -213,10 +230,10 @@ export default function ServicesPage() {
                 <div>
                   <p className="text-xs text-navy/45">我的家医网络</p>
                   <h2 className="mt-1 font-semibold text-navy">
-                    {data?.network?.name ?? "尚未绑定"}
+                    {data?.network?.name ?? (data?.access?.bindingStatus === "pending" ? "社区登记核验中" : "尚未绑定")}
                   </h2>
                   <p className="mt-2 text-sm text-navy/60">
-                    {data?.network?.community?.name ?? "请联系社区工作人员"}
+                    {data?.network?.community?.name ?? data?.access?.message ?? "请联系社区工作人员"}
                   </p>
                 </div>
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-health-muted text-sage">
@@ -238,7 +255,7 @@ export default function ServicesPage() {
               {(data?.serviceCatalog ?? []).length ? (
                 <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {(data?.serviceCatalog ?? []).map((item) => {
-                    return <ServiceCatalogCard key={item.id} item={item} />;
+                    return <ServiceCatalogCard key={item.id} item={item} canSubmitService={canSubmitService} />;
                   })}
                 </div>
               ) : (
@@ -351,12 +368,12 @@ export default function ServicesPage() {
                             <ExternalLink className="h-3.5 w-3.5" />
                           </a>
                         ) : null}
-                        <Link
+                        {canSubmitService ? <Link
                           href="/appointments?type=referral_assistance"
                           className="rounded-full border border-line px-3 py-2 text-xs font-semibold text-navy"
                         >
                           请家医协助
-                        </Link>
+                        </Link> : null}
                       </div>
                     </article>
                   ))}

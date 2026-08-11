@@ -14,6 +14,12 @@ type Data = {
   observations: unknown[];
   serviceRequests: unknown[];
   channelBindings: unknown[];
+  access: null | {
+    bindingStatus: "pending" | "active" | "revoked" | "unbound";
+    canSubmitService: boolean;
+    canStoreHealthData: boolean;
+    message: string;
+  };
 };
 
 const roleLabels: Record<string, string> = {
@@ -60,6 +66,19 @@ export default function MePage() {
     ? `${phone.slice(0, 3)}****${phone.slice(-4)}`
     : phone;
 
+  function openHealthRecords() {
+    if (!data?.access?.canStoreHealthData) {
+      void Taro.showModal({
+        title: "健康记录暂未开放",
+        content: data?.access?.message ?? "家医团队核验签约关系后即可使用。",
+        showCancel: false,
+        confirmText: "我知道了",
+      });
+      return;
+    }
+    void Taro.navigateTo({ url: "/pages/health-records/index" });
+  }
+
   return (
     <View className="page me-page">
       {loading && !data ? <PageSkeleton rows={4} /> : null}
@@ -79,7 +98,9 @@ export default function MePage() {
             {maskedPhone ? ` · ${maskedPhone}` : ""}
           </Text>
         </View>
-        <View className="me-verified">已认证</View>
+        <View className={`me-verified ${data.access?.canSubmitService ? "active" : "pending"}`}>
+          {data.access?.canSubmitService ? "签约已核验" : "账号已登录"}
+        </View>
       </View>
 
       <View className="binding-panel">
@@ -87,15 +108,16 @@ export default function MePage() {
           <View>
             <Text className="binding-kicker">家医服务绑定</Text>
             <Text className="binding-name">
-              {data?.network?.name ?? "尚未绑定家医网络"}
+              {data?.network?.name ?? (data.access?.bindingStatus === "pending" ? "社区登记核验中" : "尚未绑定家医网络")}
             </Text>
           </View>
-          <View className={`binding-state ${data?.network ? "active" : ""}`}>
-            {data?.network ? "服务中" : "待绑定"}
+          <View className={`binding-state ${data.access?.canSubmitService ? "active" : ""}`}>
+            {data.access?.canSubmitService ? "服务中" : data.access?.bindingStatus === "pending" ? "待核验" : "未开通"}
           </View>
         </View>
         <Text className="binding-community">
-          {data?.network?.community?.name ?? "请联系社区工作人员"} · 协作机构 {data?.network?.institutions?.length ?? 0} 家
+          {data?.network?.community?.name ?? data.access?.message ?? "请联系社区工作人员"}
+          {data?.network ? ` · 协作机构 ${data.network.institutions?.length ?? 0} 家` : ""}
         </Text>
         <Button
           className="binding-action pressable"
@@ -114,7 +136,7 @@ export default function MePage() {
           <Text className="me-data-label">服务记录</Text>
         </View>
         <View className="me-data-divider" />
-        <View className="me-data-item pressable" onClick={() => Taro.navigateTo({ url: "/pages/health-records/index" })}>
+        <View className="me-data-item pressable" onClick={openHealthRecords}>
           <Text className="me-data-value">{data?.observations.length ?? 0}</Text>
           <Text className="me-data-label">健康记录</Text>
         </View>

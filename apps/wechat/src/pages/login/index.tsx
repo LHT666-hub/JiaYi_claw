@@ -34,6 +34,8 @@ export default function LoginPage() {
     useState(false);
   const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(null);
   const [capabilityError, setCapabilityError] = useState(false);
+  const phoneValid = /^1[3-9]\d{9}$/.test(phone);
+  const otpValid = /^\d{6}$/.test(otp);
 
   useEffect(() => {
     if (isLoggedIn()) void Taro.switchTab({ url: "/pages/home/index" });
@@ -111,6 +113,10 @@ export default function LoginPage() {
       Taro.showToast({ title: "请先同意隐私政策与用户协议", icon: "none" });
       return;
     }
+    if (!phoneValid) {
+      Taro.showToast({ title: "请输入正确的 11 位手机号", icon: "none" });
+      return;
+    }
     setLoading(true);
     try {
       await apiRequest("/api/v1/auth/otp/request", { method: "POST", data: { phone }, auth: "optional" });
@@ -125,6 +131,14 @@ export default function LoginPage() {
   }
 
   async function verify() {
+    if (!accepted) {
+      Taro.showToast({ title: "请先同意隐私政策与用户协议", icon: "none" });
+      return;
+    }
+    if (!otpValid) {
+      Taro.showToast({ title: "请输入 6 位短信验证码", icon: "none" });
+      return;
+    }
     setLoading(true);
     try {
       const data = await apiRequest<VerifyResult>("/api/v1/auth/otp/verify", {
@@ -175,16 +189,49 @@ export default function LoginPage() {
           aria-label="家医 Claw"
         />
         <Text className="brand-title">家医 Claw</Text>
-        <Text className="brand-subtitle">海湾镇家医服务与分级诊疗协同入口</Text>
+        <Text className="brand-subtitle">海湾镇居民家医服务入口</Text>
       </View>
 
       <View className="auth-entry">
-        <Text className="auth-welcome">欢迎回来</Text>
-        <Text className="auth-intro">验证手机号后，继续查看家医服务、预约进度与团队消息。</Text>
+        <View className="auth-entry-head">
+          <View className="auth-entry-mark">医</View>
+          <View className="grow">
+            <Text className="auth-welcome">连接您的家医服务</Text>
+            <Text className="auth-intro">首次验证后，可选择居民本人或家属代办身份。</Text>
+          </View>
+        </View>
+
         {!capabilities && !capabilityError ? <View className="auth-channel-loading"><View /><View /></View> : null}
-        {capabilities?.wechat.available ? <><Button className="primary wechat-primary pressable" openType="getPhoneNumber" loading={loading} onGetPhoneNumber={wechatLogin}>微信手机号一键登录</Button><Text className="auth-secure-note">仅用于身份验证和家医服务联系</Text></> : null}
-        {capabilities && !capabilities.wechat.available && capabilities.sms.available ? <View className="auth-channel-note"><Text className="auth-channel-note-title">短信验证登录</Text><Text>输入已登记的手机号，新用户验证后完成居民或家属建档。</Text></View> : null}
         {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><Text className="auth-channel-note-title">登录通道暂未开放</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后重试。" : "微信和短信登录正在完成机构配置。"}</Text><Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()}>刷新状态</Button></View> : null}
+
+        {capabilities && (capabilities.wechat.available || capabilities.sms.available) ? (
+          <>
+            <View className="consent-row" onClick={() => setAccepted((value) => !value)}>
+              <Checkbox value="base-policy" checked={accepted} color="#2f6c56" />
+              <Text>我已阅读并同意<Text className="legal-inline" onClick={(event) => { event.stopPropagation(); Taro.navigateTo({ url: "/pages/legal/index?doc=privacy" }); }}>《隐私政策》</Text>和<Text className="legal-inline" onClick={(event) => { event.stopPropagation(); Taro.navigateTo({ url: "/pages/legal/index?doc=agreement" }); }}>《用户协议》</Text></Text>
+            </View>
+            <Text className="auth-consent-note">健康信息、AI 辅助和通知将在首次建档时分别征得同意。</Text>
+          </>
+        ) : null}
+
+        {capabilities?.wechat.available ? (
+          <>
+            <Button
+              className="primary wechat-primary pressable"
+              openType="getPhoneNumber"
+              loading={loading}
+              disabled={!accepted || loading}
+              onGetPhoneNumber={wechatLogin}
+            >
+              微信手机号快捷登录
+            </Button>
+            <Text className="auth-secure-note">手机号仅用于账号验证和服务联系</Text>
+          </>
+        ) : null}
+
+        {capabilities?.sms.available && capabilities.wechat.available ? (
+          <View className="auth-divider"><View className="divider-line" /><Text>或</Text><View className="divider-line" /></View>
+        ) : null}
 
         {capabilities?.sms.available && capabilities.wechat.available ? <Button
           className="sms-toggle pressable"
@@ -194,11 +241,12 @@ export default function LoginPage() {
             setOtp("");
           }}
         >
-          {smsOpen ? "收起短信登录" : "使用短信验证码"}
+          {smsOpen ? "收起短信登录" : "使用短信验证码登录"}
         </Button> : null}
 
         {capabilities?.sms.available && (smsOpen || !capabilities.wechat.available) ? (
           <View className="sms-panel">
+            {!capabilities.wechat.available ? <View className="sms-panel-head"><Text className="sms-panel-title">手机号验证</Text><Text className="sms-panel-copy">新用户验证后再完成居民或家属建档</Text></View> : null}
             <Text className="label">手机号</Text>
             <View className="phone-input">
               <Text className="country-code">+86</Text>
@@ -225,17 +273,17 @@ export default function LoginPage() {
                   </Text>
                 </View>
                 <Input
-                  className="input otp-input"
-                  type="number"
-                  maxlength={10}
+                   className="input otp-input"
+                   type="number"
+                   maxlength={6}
                   value={otp}
                   onInput={(event) => setOtp(event.detail.value.replace(/\D/g, ""))}
                   placeholder="请输入短信验证码"
                 />
                 <Button
-                  className="primary pressable"
-                  loading={loading}
-                  disabled={otp.length < 6}
+                   className="primary pressable"
+                   loading={loading}
+                   disabled={!accepted || !otpValid || loading}
                   onClick={verify}
                 >
                   验证并继续
@@ -253,9 +301,9 @@ export default function LoginPage() {
               </>
             ) : (
               <Button
-                className="secondary pressable"
-                loading={loading}
-                disabled={phone.length !== 11}
+                 className="secondary pressable"
+                 loading={loading}
+                 disabled={!accepted || !phoneValid || loading}
                 onClick={requestOtp}
               >
                 获取验证码
@@ -263,15 +311,6 @@ export default function LoginPage() {
             )}
           </View>
         ) : null}
-
-        <View className="consent-row" onClick={() => setAccepted((value) => !value)}>
-          <Checkbox value="base-policy" checked={accepted} color="#2f6c56" />
-          <Text>我已阅读并同意隐私政策与用户协议。健康信息授权将在登录后单独确认。</Text>
-        </View>
-        <View className="legal-links">
-          <Text onClick={() => Taro.navigateTo({ url: "/pages/legal/index?doc=privacy" })}>隐私政策</Text>
-          <Text onClick={() => Taro.navigateTo({ url: "/pages/legal/index?doc=agreement" })}>用户协议</Text>
-        </View>
 
         {DEV_LOGIN_ENABLED ? (
           <View className="dev-preview">
@@ -285,10 +324,13 @@ export default function LoginPage() {
       </View>
       <View className="auth-public-entry pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
         <View className="auth-public-mark">查</View>
-        <View className="grow"><Text className="auth-public-title">暂不登录，查询公开服务信息</Text><Text className="auth-public-copy">门诊时间、活动与办理方式，只读查询不留健康资料</Text></View>
+        <View className="grow"><Text className="auth-public-title">先查询公开服务信息</Text><Text className="auth-public-copy">门诊时间、活动和办理方式，无需登录</Text></View>
         <Text className="auth-public-arrow">›</Text>
       </View>
-      <View className="subtitle footer-note">平台提供服务导航、资料整理和人工协同，不替代医生诊疗。</View>
+      <View className="auth-trust-row">
+        <Text>机构核验</Text><View /><Text>授权可撤回</Text><View /><Text>操作可追踪</Text>
+      </View>
+      <View className="subtitle footer-note">服务导航、资料整理与人工协同，不替代医生诊疗。</View>
       {privacyAuthorizationNeeded ? (
         <View className="privacy-mask">
           <View className="privacy-dialog">

@@ -44,6 +44,11 @@ type ContentItem = {
 };
 
 type Data = {
+  access: {
+    bindingStatus: "pending" | "active" | "revoked" | "unbound";
+    canSubmitService: boolean;
+    message: string;
+  };
   network: null | {
     name: string;
     community?: { name?: string };
@@ -86,9 +91,18 @@ function openVerifiedUrl(url: string) {
   });
 }
 
-function openService(item: ServiceItem) {
+function openService(item: ServiceItem, access: Data["access"]) {
   if (item.access_mode === "official_link" && item.official_url) {
     openVerifiedUrl(item.official_url);
+    return;
+  }
+  if (!access.canSubmitService) {
+    void Taro.showModal({
+      title: "签约关系待核验",
+      content: access.message,
+      showCancel: false,
+      confirmText: "我知道了",
+    });
     return;
   }
   void Taro.navigateTo({
@@ -141,19 +155,19 @@ export default function ServicesPage() {
       ) : null}
       {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
 
-      {data ? <><View className="network-ribbon">
+      {data ? <><View className={`network-ribbon ${data.access.canSubmitService ? "" : "pending"}`}>
         <View className="network-mark">医</View>
         <View className="grow">
           <Text className="network-kicker">我的家医网络</Text>
           <Text className="network-name">
-            {data?.network?.name ?? "尚未绑定家医协作网络"}
+            {data?.network?.name ?? (data.access.bindingStatus === "pending" ? "社区登记核验中" : "尚未绑定家医协作网络")}
           </Text>
           <Text className="network-community">
-            {data?.network?.community?.name ?? "请联系社区工作人员完成绑定"}
+            {data?.network?.community?.name ?? data.access.message}
           </Text>
         </View>
         <Text className="network-count">
-          {data?.network?.institutions?.length ?? 0} 家机构
+          {data.access.canSubmitService ? `${data?.network?.institutions?.length ?? 0} 家机构` : "待核验"}
         </Text>
       </View>
 
@@ -189,8 +203,8 @@ export default function ServicesPage() {
               data.serviceCatalog.map((item) => (
                 <View
                   key={item.id}
-                  className="service-list-row pressable"
-                  onClick={() => openService(item)}
+                  className={`service-list-row pressable ${!data.access.canSubmitService && item.access_mode !== "official_link" ? "locked" : ""}`}
+                  onClick={() => openService(item, data.access)}
                 >
                   <View className={`service-glyph service-${item.service_type}`}>
                     {serviceGlyphs[item.service_type] ?? "办"}
@@ -199,7 +213,9 @@ export default function ServicesPage() {
                     <View className="row">
                       <Text className="service-row-title">{item.name}</Text>
                       <Text className="service-mode-badge">
-                        {accessLabels[item.access_mode ?? "team_assisted"] ?? "家医协助"}
+                        {!data.access.canSubmitService && item.access_mode !== "official_link"
+                          ? "核验后开放"
+                          : accessLabels[item.access_mode ?? "team_assisted"] ?? "家医协助"}
                       </Text>
                     </View>
                     <Text className="service-row-copy">
@@ -298,11 +314,11 @@ export default function ServicesPage() {
                     <Button
                       className="schedule-action pressable"
                       size="mini"
-                      onClick={() =>
-                        Taro.navigateTo({
-                          url: "/pages/appointments/index?type=clinic_registration&from=schedule",
-                        })
-                      }
+                      onClick={() => openService({
+                        id: item.id,
+                        service_type: "clinic_registration",
+                        name: "家医预约协助",
+                      }, data.access)}
                     >
                       请家医协助
                     </Button>

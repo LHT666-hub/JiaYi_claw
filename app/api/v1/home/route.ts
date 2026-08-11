@@ -1,7 +1,12 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { resolveCareSubject } from "@/lib/careSubjects";
-import { getCareNetworkForResident, getPublishedContent, getVerifiedSchedules } from "@/lib/db/carePlatform";
+import {
+  getCareNetworkForResident,
+  getPublishedContent,
+  getResidentCareAccess,
+  getVerifiedSchedules,
+} from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
 export async function GET(request: NextRequest) {
@@ -16,7 +21,10 @@ export async function GET(request: NextRequest) {
       request.nextUrl.searchParams.get("residentId"),
     );
     const residentId = careSubject.residentId;
-    const network = await getCareNetworkForResident(residentId, supabase);
+    const { binding, access } = await getResidentCareAccess(residentId, supabase);
+    const network = access.canSubmitService
+      ? await getCareNetworkForResident(residentId, supabase)
+      : null;
     const institutionIds = (network?.institutions ?? []).map((item: Record<string, unknown>) => item.id as string);
     const catalogOrganizationId = network?.organization_id ?? profile.organization_id;
     const catalogCommunityId = network?.community_id ?? profile.community_id;
@@ -33,7 +41,9 @@ export async function GET(request: NextRequest) {
         .eq("resident_id", residentId).order("updated_at", { ascending: false }).limit(5),
       supabase.from("notifications").select("id,title,content,type,link_url,is_read,created_at").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(5),
       catalogQuery.order("created_at"),
-      getVerifiedSchedules({ supabase, institutionIds, limit: 6 }),
+      access.canSubmitService
+        ? getVerifiedSchedules({ supabase, institutionIds, limit: 6 })
+        : Promise.resolve([]),
       getPublishedContent({ supabase, communityId: network?.community_id ?? profile.community_id, limit: 6 }),
     ]);
     if (requestsResult.error) throw requestsResult.error;
@@ -44,6 +54,12 @@ export async function GET(request: NextRequest) {
       residentId,
       careSubject: careSubject.selected,
       careSubjects: careSubject.subjects,
+      access,
+      careBinding: binding ? {
+        id: binding.id,
+        status: binding.status,
+        communityId: binding.community_id,
+      } : null,
       network,
       serviceRequests: requestsResult.data ?? [],
       notifications: notificationsResult.data ?? [],

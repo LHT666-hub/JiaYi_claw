@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { createServiceRequest, listServiceRequests } from "@/lib/db/serviceRequests";
+import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import { processOutboxEvents } from "@/lib/notifications/processOutbox";
 
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
       supabase,
       parsed.data.residentId ?? null,
     );
+    await assertVerifiedResidentCareBinding(careSubject.residentId, supabase);
     const result = await createServiceRequest({
       input: { ...parsed.data, residentId: careSubject.residentId },
       idempotencyKey,
@@ -56,7 +58,13 @@ export async function POST(request: NextRequest) {
     return apiOk(result, traceId, result.deduplicated ? 200 : 201);
   } catch (error) {
     const message = readErrorMessage(error);
-    const forbidden = /FORBIDDEN|ROLE/.test(message);
-    return apiError(forbidden ? "FORBIDDEN" : "SERVICE_REQUEST_CREATE_FAILED", message, forbidden ? 403 : 500, traceId);
+    const verificationRequired = message.includes("CARE_BINDING_VERIFICATION_REQUIRED");
+    const forbidden = verificationRequired || /FORBIDDEN|ROLE/.test(message);
+    return apiError(
+      verificationRequired ? "CARE_BINDING_VERIFICATION_REQUIRED" : forbidden ? "FORBIDDEN" : "SERVICE_REQUEST_CREATE_FAILED",
+      verificationRequired ? "家医团队核验您的社区签约关系后，才能提交预约或转诊协助。" : message,
+      forbidden ? 403 : 500,
+      traceId,
+    );
   }
 }

@@ -1,5 +1,6 @@
 import type { TypedSupabaseClient } from "@/lib/supabase/types";
 import type { ProfileRow } from "@/lib/types";
+import { getCareAccess, requireVerifiedCareAccess } from "@/lib/careAccess";
 
 export async function resolveResidentScope(
   profile: ProfileRow,
@@ -47,6 +48,28 @@ export async function getCareNetworkForResident(residentId: string, supabase: Ty
     return { ...(institution as Record<string, unknown>), network_role: member.network_role, sort_order: member.sort_order };
   }).filter(Boolean).sort((a: Record<string, unknown>, b: Record<string, unknown>) => Number(a.sort_order) - Number(b.sort_order));
   return { ...network, community, institutions, primary_practitioner_id: data.primary_practitioner_id };
+}
+
+export async function getResidentCareBinding(residentId: string, supabase: TypedSupabaseClient) {
+  const { data, error } = await supabase.from("resident_care_bindings").select(
+    "id,resident_id,care_network_id,community_id,primary_practitioner_id,status,created_at,updated_at",
+  ).eq("resident_id", residentId).order("updated_at", { ascending: false }).limit(10);
+  if (error) throw new Error(error.message);
+  const bindings = data ?? [];
+  return bindings.find((item: Record<string, unknown>) => item.status === "active")
+    ?? bindings.find((item: Record<string, unknown>) => item.status === "pending")
+    ?? bindings[0]
+    ?? null;
+}
+
+export async function getResidentCareAccess(residentId: string, supabase: TypedSupabaseClient) {
+  const binding = await getResidentCareBinding(residentId, supabase);
+  return { binding, access: getCareAccess(binding?.status) };
+}
+
+export async function assertVerifiedResidentCareBinding(residentId: string, supabase: TypedSupabaseClient) {
+  const binding = await getResidentCareBinding(residentId, supabase);
+  return { binding, access: requireVerifiedCareAccess(binding?.status) };
 }
 
 export async function getVerifiedSchedules(params: {

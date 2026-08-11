@@ -103,7 +103,7 @@ export default function OnboardingPage() {
         method: "POST",
         data: { displayName: displayName.trim(), role, communityId, consents },
       });
-      Taro.showToast({ title: "服务档案已建立", icon: "success" });
+      Taro.showToast({ title: role === "resident" ? "社区登记已提交" : "代办档案已建立", icon: "success" });
       setTimeout(() => role === "family"
         ? Taro.redirectTo({ url: "/pages/family-link/index" })
         : Taro.switchTab({ url: "/pages/home/index" }), 300);
@@ -235,7 +235,7 @@ export default function OnboardingPage() {
         {step > 0 ? <Button className="onboarding-back pressable" onClick={() => setStep((value) => value - 1)}>上一步</Button> : null}
         {step < steps.length - 1
           ? <Button className="primary grow pressable" onClick={next}>继续</Button>
-          : <Button className="primary grow pressable" loading={saving} disabled={!consents.privacy} onClick={complete}>同意并完成建档</Button>}
+          : <Button className="primary grow pressable" loading={saving} disabled={!consents.privacy} onClick={complete}>{role === "resident" ? "同意并提交社区登记" : "同意并完成建档"}</Button>}
       </View>
       <Text className="onboarding-footnote">平台提供服务导航、资料整理和人工协同，不替代医生诊疗。</Text>
     </View>

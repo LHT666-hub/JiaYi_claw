@@ -26,11 +26,21 @@ async function createTestAccount(label) {
 }
 
 try {
-  const { data: community, error: communityError } = await admin.from("communities").select("id").eq("slug", "haiwan-town").single();
+  const { data: community, error: communityError } = await admin.from("communities").select("id,organization_id").eq("slug", "haiwan-town").single();
   if (communityError) throw communityError;
 
   const resident = await createTestAccount("resident");
   const family = await createTestAccount("family");
+  const communityStaff = await createTestAccount("community");
+
+  const { error: staffProfileError } = await admin.from("profiles").update({
+    display_name: "核验社区工作人员",
+    role: "community",
+    organization_id: community.organization_id,
+    community_id: community.id,
+    onboarding_completed_at: new Date().toISOString(),
+  }).eq("id", communityStaff.user.id);
+  if (staffProfileError) throw staffProfileError;
 
   const { error: escalationError } = await resident.client.from("profiles").update({ role: "admin" }).eq("id", resident.user.id);
   if (!escalationError) throw new Error("Profile privilege escalation was not blocked.");
@@ -44,6 +54,35 @@ try {
     p_consents: baseConsents,
   });
   if (residentOnboardingError) throw residentOnboardingError;
+
+  const { data: pendingCareBinding, error: pendingBindingError } = await resident.client
+    .from("resident_care_bindings")
+    .select("id,status,verified_at")
+    .eq("resident_id", resident.user.id)
+    .eq("status", "pending")
+    .single();
+  if (pendingBindingError || !pendingCareBinding || pendingCareBinding.verified_at) {
+    throw pendingBindingError ?? new Error("New resident care binding was not queued for verification.");
+  }
+
+  const { error: selfReviewError } = await resident.client.rpc("review_resident_care_binding", {
+    p_binding_id: pendingCareBinding.id,
+    p_decision: "active",
+    p_note: "居民不得自行核验",
+  });
+  if (!selfReviewError) throw new Error("Resident was able to self-verify a care binding.");
+
+  const { data: verifiedCareBinding, error: reviewError } = await communityStaff.client.rpc(
+    "review_resident_care_binding",
+    {
+      p_binding_id: pendingCareBinding.id,
+      p_decision: "active",
+      p_note: "自动化测试核验",
+    },
+  );
+  if (reviewError || verifiedCareBinding?.status !== "active" || !verifiedCareBinding?.verified_at) {
+    throw reviewError ?? new Error("Community staff could not verify the resident care binding.");
+  }
 
   const { error: familyOnboardingError } = await family.client.rpc("complete_public_onboarding", {
     p_display_name: "验证家属",
@@ -72,7 +111,7 @@ try {
   const { count, error: consentError } = await admin.from("consents").select("id", { count: "exact", head: true }).in("user_id", [resident.user.id, family.user.id]);
   if (consentError || count !== 9) throw consentError ?? new Error(`Expected 9 consent records, received ${count}.`);
 
-  console.log("Verified: role escalation blocked; resident/family onboarding completed; one-time family link activated; consent rows audited.");
+  console.log("Verified: role escalation blocked; new resident binding stayed pending until community review; resident/family onboarding completed; one-time family link activated; consent rows audited.");
 } finally {
   for (const id of createdUserIds) await admin.auth.admin.deleteUser(id);
 }

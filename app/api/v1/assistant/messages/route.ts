@@ -8,6 +8,7 @@ import {
   presentAssistantActivity,
 } from "@/lib/assistant/activity";
 import { resolveCareSubject } from "@/lib/careSubjects";
+import { getResidentCareAccess } from "@/lib/db/carePlatform";
 import { inferServiceRequestFromQuestion } from "@/lib/agent";
 import { getGuardrailReply } from "@/lib/faq";
 import { CURRENT_POLICY_VERSION } from "@/lib/policies";
@@ -79,6 +80,31 @@ export async function POST(request: NextRequest) {
       auth.profile.role === "family" ? 409 : 403,
       traceId,
     );
+  }
+  const careState = await getResidentCareAccess(careSubject.residentId, auth.supabase);
+  if (!careState.access.canSubmitService) {
+    const safetyReply = getGuardrailReply(parsed.data.question);
+    const publicMatches = safetyReply ? [] : await searchPublicInfo(parsed.data.question);
+    const publicReply = publicMatches[0] ? buildVerifiedPublicInfoReply(publicMatches[0]) : null;
+    const reply = safetyReply ?? publicReply;
+    if (!reply) {
+      return apiError(
+        "CARE_BINDING_VERIFICATION_REQUIRED",
+        `${careState.access.message} 当前仍可查询已审核的排班、活动和办事信息。`,
+        403,
+        traceId,
+      );
+    }
+    return apiOk({
+      reply,
+      skillIds: safetyReply ? ["safety-triage"] : ["public-info-qa"],
+      actions: buildAssistantActions({ question: parsed.data.question, reply, serviceRequest: null }),
+      careSubject: careSubject.selected,
+      writePerformed: false,
+      activity: null,
+      rawTranscriptStored: false,
+      access: careState.access,
+    }, traceId);
   }
   {
     const { data: aiConsent, error: consentError } = await auth.supabase
