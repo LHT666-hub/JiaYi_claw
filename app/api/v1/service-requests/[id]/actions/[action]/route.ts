@@ -24,10 +24,11 @@ export async function POST(
     const message = readErrorMessage(error);
     const forbidden = /FORBIDDEN|UNAUTHENTICATED/.test(message);
     const invalid = /INVALID_SERVICE_TRANSITION/.test(message);
+    const assignedToOther = /SERVICE_ASSIGNED_TO_OTHER/.test(message);
     return apiError(
-      forbidden ? "FORBIDDEN" : invalid ? "INVALID_TRANSITION" : "SERVICE_ACTION_FAILED",
-      invalid ? "当前状态不能执行这个操作，请刷新进度后重试。" : message,
-      forbidden ? 403 : invalid ? 409 : 500,
+      forbidden ? "FORBIDDEN" : assignedToOther ? "ALREADY_ASSIGNED" : invalid ? "INVALID_TRANSITION" : "SERVICE_ACTION_FAILED",
+      assignedToOther ? "该申请已由其他工作人员认领，请刷新队列。" : invalid ? "当前状态不能执行这个操作，请刷新进度后重试。" : message,
+      forbidden ? 403 : assignedToOther || invalid ? 409 : 500,
       traceId,
     );
   }

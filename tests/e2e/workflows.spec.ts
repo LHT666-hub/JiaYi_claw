@@ -175,10 +175,17 @@ test("工作人员受理服务申请", async ({ page }) => {
     priority: "low",
     service_type: "clinic_registration",
     created_at: "2026-07-11T00:00:00Z",
+    updated_at: "2026-07-11T00:00:00Z",
+    assigned_to: status === "submitted" ? null : "staff-1",
     resident: { id: "r1", display_name: "张阿姨", phone: "13800138000" },
+    assignee: status === "submitted" ? null : { id: "staff-1", display_name: "李医生", role: "doctor" },
+    service_request_events: [],
   });
   await page.route("**/api/v1/staff/work-queue", (route) =>
-    route.fulfill({ json: ok({ requests: [item()] }) }),
+    route.fulfill({ json: ok({ profile: { id: "staff-1", role: "doctor", displayName: "李医生" }, requests: [item()] }) }),
+  );
+  await page.route("**/api/v1/residents/r1/clinical-brief", (route) =>
+    route.fulfill({ json: ok({ briefs: [{ id: "brief-1", summary: "居民希望高血压复诊，未提供近期血压。", structured_content: {}, source_refs: [], skill_id: "clinician-previsit-summary", skill_version: "1.0.0-cn.1", created_at: "2026-07-11T00:00:00Z" }] }) }),
   );
   await page.route(
     "**/api/v1/service-requests/*/actions/accept",
@@ -188,9 +195,11 @@ test("工作人员受理服务申请", async ({ page }) => {
     },
   );
   await page.goto("/workbench/requests");
-  await expect(page.getByText("张阿姨")).toBeVisible();
-  await page.getByRole("button", { name: "受理", exact: true }).click();
-  await expect(page.getByText("已受理")).toBeVisible();
+  await expect(page.getByText("张阿姨", { exact: true })).toBeVisible();
+  await expect(page.getByText("居民希望高血压复诊，未提供近期血压。")).toBeVisible();
+  await page.getByRole("button", { name: /受理申请/ }).click();
+  await page.getByRole("button", { name: /确认并更新状态/ }).click();
+  await expect(page.getByText("团队已受理").first()).toBeVisible();
 });
 
 test("公开信息回答展示来源与核验状态", async ({ page }) => {

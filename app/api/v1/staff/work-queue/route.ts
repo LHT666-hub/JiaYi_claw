@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (!canAccessWorkbench(profile.role)) return apiError("FORBIDDEN", "当前账号没有工作台权限。", 403, traceId);
   try {
-    return apiOk({ requests: await listStaffWorkQueue(profile, supabase) }, traceId);
+    return apiOk({
+      profile: { id: profile.id, role: profile.role, displayName: profile.display_name },
+      requests: await listStaffWorkQueue(profile, supabase),
+    }, traceId);
   } catch (error) {
     return apiError("WORK_QUEUE_FAILED", readErrorMessage(error), 500, traceId);
   }

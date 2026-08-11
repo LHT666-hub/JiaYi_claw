@@ -1,5 +1,17 @@
 export default defineAppConfig({
   __usePrivacyCheck__: true,
+  lazyCodeLoading: "requiredComponents",
+  sitemapLocation: "sitemap.json",
+  permission: {
+    "scope.record": {
+      desc: "用于将您主动录制的语音转写为文字，录音仅在本次识别过程中临时使用。",
+    },
+  },
+  networkTimeout: {
+    request: 15000,
+    uploadFile: 30000,
+    downloadFile: 30000,
+  },
   pages: [
     "pages/home/index",
     "pages/services/index",
@@ -21,15 +33,16 @@ export default defineAppConfig({
   ],
   window: {
     backgroundTextStyle: "light",
-    navigationBarBackgroundColor: "#FFF4E2",
+    navigationBarBackgroundColor: "#EEF2F1",
     navigationBarTitleText: "家医 Claw",
     navigationBarTextStyle: "black",
-    backgroundColor: "#F3DDC2",
+    backgroundColor: "#EEF2F1",
   },
   tabBar: {
     color: "#66788A",
     selectedColor: "#102A43",
-    backgroundColor: "#FFF8ED",
+    backgroundColor: "#FFFFFF",
+    borderStyle: "white",
     list: [
       { pagePath: "pages/home/index", text: "首页" },
       { pagePath: "pages/services/index", text: "服务" },

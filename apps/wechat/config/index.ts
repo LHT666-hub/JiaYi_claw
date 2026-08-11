@@ -11,6 +11,10 @@ const createConfig: UserConfigFn = async (merge, { command, mode }) => {
     framework: "react",
     compiler: "webpack5",
     cache: { enable: true },
+    copy: {
+      patterns: [{ from: "src/sitemap.json", to: "dist/sitemap.json" }],
+      options: {},
+    },
     mini: { postcss: { pxtransform: { enable: true }, cssModules: { enable: false } } },
   };
   const envConfig = (await import(`./${mode || command}.ts`)).default;

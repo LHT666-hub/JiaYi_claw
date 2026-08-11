@@ -233,7 +233,7 @@ export async function listServiceRequests(
 export async function listStaffWorkQueue(profile: ProfileRow, supabase: TypedSupabaseClient) {
   let query = supabase
     .from("service_requests")
-    .select("*, appointment_details(*), service_request_events(*), resident:profiles!service_requests_resident_id_fkey(id, display_name, phone)")
+    .select("*, appointment_details(*), service_request_events(*), resident:profiles!service_requests_resident_id_fkey(id, display_name, phone), assignee:profiles!service_requests_assigned_to_fkey(id, display_name, role)")
     .not("status", "in", "(failed,completed,cancelled)")
     .order("priority", { ascending: false })
     .order("created_at", { ascending: true })

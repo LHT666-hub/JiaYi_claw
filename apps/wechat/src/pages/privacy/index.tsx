@@ -8,7 +8,7 @@ import {
   withCareSubject,
 } from "../../lib/api";
 
-const CURRENT_POLICY_VERSION = "2026-07-18";
+declare const POLICY_VERSION: string;
 const scopes = [
   {
     id: "privacy",
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
         data: {
           residentId: getCareSubjectId() || undefined,
           scope,
-          policyVersion: CURRENT_POLICY_VERSION,
+          policyVersion: POLICY_VERSION,
           granted,
         },
       });

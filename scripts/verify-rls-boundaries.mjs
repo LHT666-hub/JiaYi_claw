@@ -158,6 +158,7 @@ try {
   const familyAuthorized = await createAccount("family-authorized", "family", primaryOrganization.id, primaryCommunity.id);
   const familyUnrelated = await createAccount("family-unrelated", "family", primaryOrganization.id, primaryCommunity.id);
   const staffA = await createAccount("staff-a", "doctor", primaryOrganization.id, primaryCommunity.id);
+  const staffA3 = await createAccount("staff-a3", "nurse", primaryOrganization.id, primaryCommunity.id);
   const staffA2 = await createAccount("staff-a2", "doctor", primaryOrganization.id, secondaryCommunityId);
   const staffB = await createAccount("staff-b", "doctor", otherOrganizationId, otherCommunityId);
   const adminA = await createAccount("admin-a", "admin", primaryOrganization.id, primaryCommunity.id);
@@ -173,6 +174,69 @@ try {
   const dataA = await seedResidentData(residentA.id, residentA.id, primaryOrganization.id, primaryCommunity.id, "A");
   const dataA2 = await seedResidentData(residentA2.id, residentA2.id, primaryOrganization.id, secondaryCommunityId, "A2");
   const dataB = await seedResidentData(residentB.id, residentB.id, otherOrganizationId, otherCommunityId, "B");
+
+  const { error: claimError } = await staffA.client.rpc("transition_service_request", {
+    p_request_id: dataA.requestId,
+    p_action: "accept",
+    p_note: "RLS 经办人认领验证",
+    p_details: {},
+  });
+  if (claimError) throw claimError;
+  const { error: requestInfoError } = await staffA.client.rpc("transition_service_request", {
+    p_request_id: dataA.requestId,
+    p_action: "request_info",
+    p_note: "请补充最近检查日期",
+    p_details: {},
+  });
+  if (requestInfoError) throw requestInfoError;
+  const { error: supplementError } = await residentA.client.rpc("transition_service_request", {
+    p_request_id: dataA.requestId,
+    p_action: "submit",
+    p_note: "居民已补充最近检查日期",
+    p_details: {},
+  });
+  if (supplementError) throw supplementError;
+  await expectDenied(
+    () => staffA3.client.rpc("transition_service_request", {
+      p_request_id: dataA.requestId,
+      p_action: "accept",
+      p_note: "其他工作人员重复认领",
+      p_details: {},
+    }),
+    "已认领申请不能被其他工作人员并发处理",
+  );
+  const { data: claimedRequest, error: claimedRequestError } = await admin
+    .from("service_requests")
+    .select("assigned_to,assigned_role")
+    .eq("id", dataA.requestId)
+    .single();
+  if (claimedRequestError || claimedRequest.assigned_to !== staffA.id || claimedRequest.assigned_role !== "doctor") {
+    throw claimedRequestError ?? new Error("服务申请没有原子记录经办人。");
+  }
+  assertions += 1;
+  const { data: activeAssignment, error: assignmentError } = await admin
+    .from("service_assignments")
+    .select("assigned_to,active")
+    .eq("service_request_id", dataA.requestId)
+    .eq("active", true)
+    .single();
+  if (assignmentError || activeAssignment.assigned_to !== staffA.id) throw assignmentError ?? new Error("活动经办记录不正确。");
+  assertions += 1;
+  const { data: residentOutbox, error: residentOutboxError } = await admin
+    .from("outbox_events")
+    .select("id,recipient_id,payload")
+    .eq("aggregate_id", dataA.requestId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+  if (residentOutboxError || residentOutbox.recipient_id !== staffA.id || residentOutbox.payload?.actorRole !== "resident") {
+    throw residentOutboxError ?? new Error("居民补充资料没有通知原经办人。");
+  }
+  assertions += 1;
+  const { data: generatedOutbox } = await admin.from("outbox_events").select("id").eq("aggregate_id", dataA.requestId);
+  cleanup.outboxIds.push(...(generatedOutbox ?? []).map((item) => item.id));
+  const { data: generatedAudit } = await admin.from("audit_logs").select("id").eq("target_id", dataA.requestId).like("action", "service_request.%");
+  cleanup.auditIds.push(...(generatedAudit ?? []).map((item) => item.id));
 
   const inviteBId = await insertOne("staff_invites", {
     organization_id: otherOrganizationId,

@@ -65,6 +65,7 @@ npm run verify:operations
 npm run verify:rls
 npm run verify:release-compliance
 npm run verify:wechat-notifications
+npm run verify:wechat-package
 npm run test:e2e
 npm run build:release
 ```
@@ -73,10 +74,11 @@ npm run build:release
 - [ ] 使用至少一台 iPhone 和一台 Android 真机测试 375/390/430 宽度及系统大字体。
 - [ ] 完成居民、家属、工作人员、内容审核、预约/转诊和注销六条正式环境闭环。
 - [x] 完成 110 条中文 Agent 安全评测和 30 条真实 HTTP 回归，高风险漏拦截为 0。
-- [x] 从空数据库执行全部迁移，并通过 48 条跨居民、家属、社区、机构和临床写入 RLS 断言。
+- [x] 从空数据库执行全部迁移，并通过 52 条跨居民、家属、社区、机构、临床写入和经办认领 RLS 断言。
 - [x] 验证过期内容下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
 - [ ] 真实普通话和上海话语音集分别统计字错率；不达门槛时默认提供文字输入。
 - [ ] 确认无 Demo 字样、体验账号、静态医生/号源或 localStorage 业务数据。
+- [ ] 按 `docs/WECHAT_DEVICE_ACCEPTANCE.md` 完成逐项真机验收并归档证据。
 
 ## 8. 微信提交材料
 

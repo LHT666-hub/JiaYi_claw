@@ -62,12 +62,13 @@ npm run build:all
 - `verify:onboarding`：角色提权、首次建档、家属一次性授权和同意记录。
 - `verify:operations`：以生产构建验证内容到期下架、cron 鉴权、通知幂等和第 5 次失败进入死信。
 - `verify:assistant-continuity`：验证居民/家属会话隔离、未授权拒绝、无原文存储和清除级联。
-- `verify:rls`：48 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入和旧表隐私边界。
+- `verify:rls`：52 条真实 JWT 断言，覆盖跨居民、家属授权、跨社区、跨机构、临床写入、经办认领和旧表隐私边界。
 - `verify:release-compliance`：通知偏好、注销冷静期、撤销、到期匿名化和健康数据删除。
 - `verify:wechat-notifications`：订阅授权、通知偏好和审计原子写入，以及并发授权领取。
 - `eval:ask`：通过真实 HTTP 接口回归公开信息边界、急症、调药、提示注入和方言表达。
 - `test:e2e`：居民、家属、工作人员、内容审核、语音、隐私和移动端视觉闭环。
 - `build:all`：Next.js 与微信小程序生产编译。
+- `verify:wechat-package`：检查小程序页面产物、包体、录音隐私声明、搜索屏蔽和开发入口泄漏。
 
 ## 正式发布
 
@@ -81,6 +82,7 @@ npm run build:release
 发布门禁会拒绝以下情况：测试/演示模式、HTTP 或本地域名、`touristappid`、缺少短信/微信/AI/语音配置、无运营主体和隐私联系人、弱 cron 或消息加密密钥。
 
 完整外部资质、部署与微信审核步骤见 [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md)。
+真机逐项验收与证据要求见 [docs/WECHAT_DEVICE_ACCEPTANCE.md](docs/WECHAT_DEVICE_ACCEPTANCE.md)。
 
 ## 语音识别
 
