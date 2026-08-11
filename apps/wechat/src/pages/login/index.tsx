@@ -276,6 +276,11 @@ export default function LoginPage() {
           </View>
         ) : null}
       </View>
+      <View className="auth-public-entry pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
+        <View className="auth-public-mark">查</View>
+        <View className="grow"><Text className="auth-public-title">暂不登录，查询公开服务信息</Text><Text className="auth-public-copy">门诊时间、活动与办理方式，只读查询不留健康资料</Text></View>
+        <Text className="auth-public-arrow">›</Text>
+      </View>
       <View className="subtitle footer-note">平台提供服务导航、资料整理和人工协同，不替代医生诊疗。</View>
       {privacyAuthorizationNeeded ? (
         <View className="privacy-mask">

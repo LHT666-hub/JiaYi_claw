@@ -42,6 +42,8 @@ if (app) {
     "pages/appointments/index",
     "pages/progress/index",
     "pages/health-records/index",
+    "pages/public-info/index",
+    "pages/browser/index",
   ]) {
     if (!app.pages?.includes(requiredPage)) errors.push(`app.json: 缺少正式居民页面 ${requiredPage}`);
   }
@@ -82,6 +84,9 @@ for (const file of files) {
 if (totalBytes > 2 * 1024 * 1024) errors.push(`主包体积 ${(totalBytes / 1024 / 1024).toFixed(2)} MB，超过 2 MB 门限`);
 for (const marker of ["本地开发预览", "/api/v1/auth/dev-session", "DEV_LOGIN_ENABLED"]) {
   if (javascript.includes(marker)) errors.push(`生产包泄漏开发入口标记：${marker}`);
+}
+for (const marker of ["/pages/public-info/index", "publicInfoId"]) {
+  if (!javascript.includes(marker)) errors.push(`生产包缺少访客公开信息闭环标记：${marker}`);
 }
 
 if (strict) {

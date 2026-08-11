@@ -21,7 +21,7 @@ const baseUrl = `http://127.0.0.1:${port}`;
 let userId = "";
 let server;
 let serverOutput = "";
-const cleanup = { contentIds: [], outboxIds: [], notificationIds: [] };
+const cleanup = { contentIds: [], publicInfoIds: [], outboxIds: [], notificationIds: [] };
 
 function appendServerOutput(chunk) {
   serverOutput = `${serverOutput}${chunk.toString()}`.slice(-8000);
@@ -116,6 +116,45 @@ try {
   const expiredContentId = content.find((item) => item.title === "RLS 已过期内容")?.id;
   const activeContentId = content.find((item) => item.title === "RLS 有效内容")?.id;
 
+  const publicInfoRows = [
+    {
+      organization_id: organization.id,
+      community_id: community.id,
+      title: `访客公开资料 ${suffix}`,
+      category: "service_hours",
+      content: "仅用于验证未登录公开资料查询。",
+      keywords: [`visitor-${suffix}`],
+      source_name: "operations verification",
+      source_url: `https://example.local/public-info-${suffix}`,
+      verified_at: new Date(now).toISOString(),
+      expires_at: new Date(now + 86_400_000).toISOString(),
+      status: "published",
+    },
+    {
+      organization_id: organization.id,
+      community_id: community.id,
+      title: `过期访客资料 ${suffix}`,
+      category: "service_hours",
+      content: "This item must not reach unauthenticated visitors.",
+      keywords: [`visitor-expired-${suffix}`],
+      source_name: "operations verification",
+      source_url: `https://example.local/public-info-expired-${suffix}`,
+      verified_at: new Date(now - 86_400_000).toISOString(),
+      expires_at: new Date(now - 60_000).toISOString(),
+      status: "published",
+    },
+  ];
+  const { data: publicInfo, error: publicInfoError } = await admin
+    .from("public_info_entries")
+    .insert(publicInfoRows)
+    .select("id,title,source_url");
+  if (publicInfoError || !publicInfo || publicInfo.length !== 2) {
+    throw publicInfoError ?? new Error("Unable to seed public information lifecycle rows.");
+  }
+  cleanup.publicInfoIds.push(...publicInfo.map((item) => item.id));
+  const activePublicInfo = publicInfo.find((item) => item.title.startsWith("访客公开资料"));
+  const expiredPublicInfo = publicInfo.find((item) => item.title.startsWith("过期访客资料"));
+
   const validRequestId = randomUUID();
   const outboxRows = [
     {
@@ -166,6 +205,40 @@ try {
     throw new Error("Expired content leaked into the resident feed.");
   }
 
+  const publicSearchResponse = await fetch(
+    `${baseUrl}/api/v1/public-info?q=${encodeURIComponent(`visitor-${suffix}`)}`,
+  );
+  const publicSearch = await publicSearchResponse.json();
+  if (
+    !publicSearchResponse.ok ||
+    !activePublicInfo ||
+    !publicSearch?.data?.items?.some((item) => item.id === activePublicInfo.id) ||
+    publicSearch.data.items.some((item) => item.id === expiredPublicInfo?.id)
+  ) {
+    throw new Error("Unauthenticated public information visibility did not honor review expiry.");
+  }
+  const resolvePublicSourceResponse = await fetch(
+    `${baseUrl}/api/v1/links/resolve?publicInfoId=${encodeURIComponent(activePublicInfo.id)}&url=${encodeURIComponent(activePublicInfo.source_url)}`,
+  );
+  const resolvePublicSource = await resolvePublicSourceResponse.json();
+  if (!resolvePublicSourceResponse.ok || resolvePublicSource?.data?.sourceType !== "public_info") {
+    throw new Error(`Reviewed public source was not available to a visitor: ${JSON.stringify(resolvePublicSource)}`);
+  }
+  const tamperedPublicSourceResponse = await fetch(
+    `${baseUrl}/api/v1/links/resolve?publicInfoId=${encodeURIComponent(activePublicInfo.id)}&url=${encodeURIComponent("https://evil.example/phishing")}`,
+  );
+  const tamperedPublicSource = await tamperedPublicSourceResponse.json();
+  if (tamperedPublicSourceResponse.status !== 403 || tamperedPublicSource?.error?.code !== "PUBLIC_INFO_SOURCE_MISMATCH") {
+    throw new Error("A visitor could replace the reviewed public information source URL.");
+  }
+  const arbitraryLinkResponse = await fetch(
+    `${baseUrl}/api/v1/links/resolve?url=${encodeURIComponent("https://hospital.example/registration")}`,
+  );
+  const arbitraryLink = await arbitraryLinkResponse.json();
+  if (arbitraryLinkResponse.status !== 401 || arbitraryLink?.error?.code !== "UNAUTHENTICATED") {
+    throw new Error("An unauthenticated visitor could resolve an arbitrary service link.");
+  }
+
   const unauthorized = await callWorker("Bearer wrong-secret");
   if (unauthorized.response.status !== 403 || unauthorized.body?.error?.code !== "WORKER_FORBIDDEN") {
     throw new Error("Outbox worker accepted an invalid cron credential.");
@@ -209,7 +282,7 @@ try {
     throw replayedError ?? countError ?? new Error(`Idempotent replay mismatch: ${JSON.stringify({ replayed, notificationCount })}`);
   }
 
-  console.log("Verified: expired content stayed out of the resident feed; cron auth was enforced; valid delivery was idempotent; the fifth failed claim entered dead-letter with an error reason.");
+  console.log("Verified: expired content stayed out of resident and guest feeds; reviewed public sources opened without login while tampering was blocked; cron auth was enforced; delivery was idempotent and dead-lettered on the fifth failure.");
 } finally {
   if (server && server.exitCode === null) {
     server.kill();
@@ -220,6 +293,7 @@ try {
   }
   await deleteByIds("notifications", cleanup.notificationIds);
   await deleteByIds("outbox_events", cleanup.outboxIds);
+  await deleteByIds("public_info_entries", cleanup.publicInfoIds);
   await deleteByIds("content_items", cleanup.contentIds);
   if (userId) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
 }

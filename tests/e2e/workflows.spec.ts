@@ -174,6 +174,48 @@ test("正式登录通道未配置时不提供无效验证码按钮", async ({ pa
   await expect(page.getByRole("button", { name: /获取验证码/ })).toHaveCount(0);
 });
 
+test("未登录居民可以查询已审核公开信息", async ({ page }) => {
+  await page.route("**/api/v1/auth/capabilities", (route) =>
+    route.fulfill({
+      json: ok({
+        sms: { available: false, unavailableMessage: "短信登录正在开通" },
+        staffSms: { available: false, unavailableMessage: "机构登录正在配置" },
+        wechat: { available: false, unavailableMessage: "微信登录尚未配置" },
+        preferredResidentChannel: null,
+      }),
+    }),
+  );
+  await page.route("**/api/v1/public-info*", (route) =>
+    route.fulfill({
+      json: ok({
+        items: [{
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          title: "海湾镇社区门诊时间",
+          category: "门诊服务",
+          content: "工作日门诊安排以机构当天公告为准。",
+          sourceName: "海湾镇社区卫生服务中心",
+          sourceUrl: "https://hospital.example/service-hours",
+          verifiedAt: "2026-08-12T01:00:00.000Z",
+          stale: false,
+        }],
+        query: "门诊时间",
+        verifiedCount: 1,
+      }),
+    }),
+  );
+
+  await page.goto("/login");
+  await page.getByRole("link", { name: /暂不登录，查询公开信息/ }).click();
+  await expect(page).toHaveURL(/\/public-info/);
+  await page.getByRole("button", { name: "门诊时间" }).click();
+  await expect(page.getByText("海湾镇社区门诊时间")).toBeVisible();
+  await expect(page.getByText("工作日门诊安排以机构当天公告为准。")).toBeVisible();
+  await expect(page.getByRole("link", { name: /海湾镇社区卫生服务中心/ })).toHaveAttribute(
+    "href",
+    "https://hospital.example/service-hours",
+  );
+});
+
 test("居民解除家属授权后页面即时更新", async ({ page }) => {
   let active = true;
   let revokedBindingId = "";
@@ -303,7 +345,7 @@ test("公开信息回答展示来源与核验状态", async ({ page }) => {
   await page.getByRole("button", { name: "搜索公开信息" }).click();
   await expect(page.getByText("接种门诊时间")).toBeVisible();
   await expect(page.getByText(/海湾镇社区卫生服务中心/)).toBeVisible();
-  await expect(page.getByText("有效")).toBeVisible();
+  await expect(page.getByText("已核验")).toBeVisible();
 });
 
 test("居民从社区网络进入分级转诊协助", async ({ page }) => {
@@ -501,6 +543,7 @@ test("居民端保持原版圆角手机视觉", async ({ page }) => {
 test("正式登录与首次建档保持移动端圆角视觉", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/login");
+  await expect(page.getByPlaceholder("请输入中国大陆手机号")).toBeVisible();
   const loginShell = page.locator(".resident-ui").locator("..");
   await expect(loginShell).toHaveCSS("border-radius", "42px");
   await expect(loginShell).toHaveScreenshot("resident-login-shell.png", {

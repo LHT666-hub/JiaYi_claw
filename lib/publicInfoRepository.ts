@@ -52,6 +52,22 @@ function localRecords(): PublicInfoRecord[] {
   });
 }
 
+function fromDatabaseRow(item: Record<string, unknown>): PublicInfoRecord {
+  return {
+    id: item.id as string,
+    title: item.title as string,
+    category: item.category as string,
+    content: item.content as string,
+    keywords: (item.keywords as string[]) ?? [],
+    sourceName: item.source_name as string,
+    sourceUrl: item.source_url as string,
+    verifiedAt: item.verified_at as string,
+    expiresAt: (item.expires_at as string | null) ?? null,
+    status: "published",
+    stale: isStale(item.verified_at as string, item.expires_at as string | null),
+  };
+}
+
 export async function searchPublicInfo(query: string) {
   const supabase = createSupabasePublicServerClient();
   if (supabase) {
@@ -63,19 +79,7 @@ export async function searchPublicInfo(query: string) {
       .limit(100);
     if (data?.length) {
       return data
-        .map((item) => ({
-          id: item.id as string,
-          title: item.title as string,
-          category: item.category as string,
-          content: item.content as string,
-          keywords: (item.keywords as string[]) ?? [],
-          sourceName: item.source_name as string,
-          sourceUrl: item.source_url as string,
-          verifiedAt: item.verified_at as string,
-          expiresAt: (item.expires_at as string | null) ?? null,
-          status: "published" as const,
-          stale: isStale(item.verified_at as string, item.expires_at as string | null),
-        }))
+        .map((item) => fromDatabaseRow(item))
         .map((item) => ({ item, score: score(item, query) }))
         .filter(({ score: itemScore }) => !query || itemScore > 0)
         .sort((a, b) => b.score - a.score)
@@ -119,5 +123,16 @@ export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
 }
 
 export async function getPublicInfoById(id: string) {
-  return (await searchPublicInfo("")).find((item) => item.id === id) ?? null;
+  const supabase = createSupabasePublicServerClient();
+  if (supabase) {
+    const { data } = await supabase
+      .from("public_info_entries")
+      .select("id, title, category, content, keywords, source_name, source_url, verified_at, expires_at, status")
+      .eq("id", id)
+      .eq("status", "published")
+      .maybeSingle();
+    if (data) return fromDatabaseRow(data);
+  }
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return null;
+  return localRecords().find((item) => item.id === id) ?? null;
 }

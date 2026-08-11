@@ -38,6 +38,11 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .text-button { margin-top: 14px; border: 0; background: transparent; color: #6f9996; font-size: 25px; }
 .text-button::after { border: 0; }
 .footer-note { margin-top: 34px; text-align: center; }
+.auth-public-entry { display: flex; align-items: center; gap: 16px; margin-top: 22px; padding: 19px 20px; border: 1px solid rgba(47,108,86,.18); border-radius: 28px; background: rgba(238,245,243,.88); text-align: left; box-shadow: 0 12px 30px rgba(16,42,67,.045); }
+.auth-public-mark { width: 58px; height: 58px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 20px; background: #fff; color: #2f6c56; font-size: 21px; font-weight: 800; box-shadow: 0 8px 20px rgba(16,42,67,.055); }
+.auth-public-title { display: block; color: #102a43; font-size: 24px; font-weight: 750; }
+.auth-public-copy { display: block; margin-top: 5px; color: rgba(16,42,67,.5); font-size: 19px; line-height: 1.5; }
+.auth-public-arrow { flex-shrink: 0; color: rgba(16,42,67,.32); font-size: 38px; }
 .wechat-primary { margin-top: 28px; background: #2f6c56; box-shadow: 0 16px 34px rgba(47,108,86,.2); }
 .auth-secure-note { display: block; margin-top: 14px; color: rgba(16,42,67,.42); text-align: center; font-size: 21px; }
 .auth-channel-loading { margin-top: 28px; }
@@ -304,6 +309,10 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .public-info-page { padding-bottom: 70px; }
 .public-search { display: grid; grid-template-columns: 1fr 138px; gap: 12px; margin-bottom: 26px; }
 .public-search-field { min-width: 0; height: 88px; display: flex; align-items: center; gap: 14px; padding: 0 20px; border: 1px solid #dce4e2; border-radius: 28px; background: #fff; box-shadow: 0 12px 30px rgba(16,42,67,.055); box-sizing: border-box; }
+.public-guest-note { display: flex; align-items: center; gap: 18px; margin: 22px 0; padding: 19px 20px; border: 1px solid rgba(47,108,86,.18); border-radius: 28px; background: #eef5f3; }
+.public-guest-title { display: block; color: #102a43; font-size: 23px; font-weight: 760; }
+.public-guest-copy { display: block; margin-top: 5px; color: rgba(16,42,67,.52); font-size: 19px; line-height: 1.5; }
+.public-guest-login { width: auto; flex-shrink: 0; margin: 0; padding: 7px 18px; border: 0; border-radius: 999px; background: #fff; color: #2f6c56; font-size: 20px; font-weight: 760; box-shadow: 0 8px 20px rgba(16,42,67,.055); }
 .public-search-field input { flex: 1; min-width: 0; font-size: 26px; }
 .public-search-mark { width: 45px; height: 45px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: #e5efec; color: #2f6c56; font-size: 18px; font-weight: 800; }
 .public-search-button { height: 88px; display: flex; align-items: center; justify-content: center; margin: 0; border: 0; border-radius: 999px; background: #102a43; color: #fff; font-size: 25px; font-weight: 760; box-shadow: 0 14px 30px rgba(16,42,67,.14); }

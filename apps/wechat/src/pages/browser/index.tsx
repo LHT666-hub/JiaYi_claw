@@ -10,13 +10,15 @@ export default function VerifiedBrowserPage() {
 
   useLoad((params) => {
     const candidate = decodeURIComponent(params.url ?? "");
+    const publicInfoId = params.publicInfoId?.trim() ?? "";
     try {
       const parsed = new URL(candidate);
       if (parsed.protocol !== "https:") throw new Error("HTTPS_REQUIRED");
+      const resolvePath = `/api/v1/links/resolve?url=${encodeURIComponent(parsed.toString())}${
+        publicInfoId ? `&publicInfoId=${encodeURIComponent(publicInfoId)}` : ""
+      }`;
       void apiRequest<{ url: string }>(
-        withCareSubject(
-          `/api/v1/links/resolve?url=${encodeURIComponent(parsed.toString())}`,
-        ),
+        publicInfoId ? resolvePath : withCareSubject(resolvePath),
       )
         .then((result) => setUrl(result.url))
         .catch((reason) => {

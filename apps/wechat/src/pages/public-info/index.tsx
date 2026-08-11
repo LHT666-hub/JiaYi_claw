@@ -1,7 +1,7 @@
 import { Button, Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { useState } from "react";
-import { apiRequest } from "../../lib/api";
+import { apiRequest, isLoggedIn } from "../../lib/api";
 
 type PublicInfoItem = {
   id: string;
@@ -21,6 +21,7 @@ function formatDate(value: string) {
 }
 
 export default function PublicInfoPage() {
+  const guest = !isLoggedIn();
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<PublicInfoItem[]>([]);
   const [searched, setSearched] = useState(false);
@@ -52,16 +53,23 @@ export default function PublicInfoPage() {
       Taro.showToast({ title: "该资料暂无原文入口", icon: "none" });
       return;
     }
-    void Taro.navigateTo({ url: `/pages/browser/index?url=${encodeURIComponent(item.sourceUrl)}` });
+    void Taro.navigateTo({
+      url: `/pages/browser/index?url=${encodeURIComponent(item.sourceUrl)}&publicInfoId=${encodeURIComponent(item.id)}`,
+    });
   }
 
   return (
     <View className="page public-info-page">
       <View className="page-heading">
-        <Text className="eyebrow">海湾镇公开服务信息</Text>
+        <Text className="eyebrow">{guest ? "无需登录 · 只读查询" : "海湾镇公开服务信息"}</Text>
         <Text className="title">查时间、地点和办理方式</Text>
         <Text className="subtitle">答案只来自机构审核过的资料，过期内容不会当作事实回答。</Text>
       </View>
+
+      {guest ? <View className="public-guest-note">
+        <View className="grow"><Text className="public-guest-title">当前为访客查询</Text><Text className="public-guest-copy">不会保存健康资料。登录后才能预约、代办和查看进度。</Text></View>
+        <Button className="public-guest-login pressable" onClick={() => Taro.reLaunch({ url: "/pages/login/index" })}>去登录</Button>
+      </View> : null}
 
       <View className="public-search">
         <View className="public-search-field"><Text className="public-search-mark">查</Text><Input value={query} confirmType="search" onConfirm={() => void search()} onInput={(event) => setQuery(event.detail.value)} placeholder="例如：接种门诊什么时候开" /></View>
@@ -78,7 +86,7 @@ export default function PublicInfoPage() {
 
       {error ? <View className="settings-state compact"><Text className="settings-state-title">暂时无法查询</Text><Text className="settings-state-copy">{error}</Text><Button className="secondary pressable" onClick={() => void search()}>重新查询</Button></View> : null}
 
-      {searched && !loading && !error && !items.length ? <View className="settings-empty"><View className="settings-empty-mark">无</View><Text className="settings-empty-title">没有找到已核验资料</Text><Text className="settings-empty-copy">换一个更短的关键词，或在“消息”里联系所属家医团队。</Text></View> : null}
+      {searched && !loading && !error && !items.length ? <View className="settings-empty"><View className="settings-empty-mark">无</View><Text className="settings-empty-title">没有找到已核验资料</Text><Text className="settings-empty-copy">{guest ? "换一个更短的关键词，或联系社区卫生服务中心核实。" : "换一个更短的关键词，或在“消息”里联系所属家医团队。"}</Text></View> : null}
 
       {items.length ? <View className="public-results"><Text className="settings-group-label">查询结果 · {items.length}</Text>{items.map((item) => <View className={`public-result ${item.stale ? "stale" : ""}`} key={item.id}><View className="public-result-head"><Text className="public-result-title">{item.title}</Text><Text className={`status ${item.stale ? "warning" : ""}`}>{item.stale ? "需核验" : "已核验"}</Text></View><Text className="public-result-content">{item.stale ? "这条资料已经超过有效期，请通过原文或联系机构确认后再办理。" : item.content}</Text><View className="public-result-meta"><View className="grow"><Text className="public-result-source">{item.sourceName || "所属机构"}</Text><Text className="public-result-date">核验于 {formatDate(item.verifiedAt)}</Text></View><Button className="public-source-button pressable" onClick={() => openSource(item)}>查看原文</Button></View></View>)}</View> : null}
     </View>

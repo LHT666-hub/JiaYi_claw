@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { getCareNetworkForResident } from "@/lib/db/carePlatform";
+import { getPublicInfoById } from "@/lib/publicInfoRepository";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
 function validHttpsUrl(value: string | null) {
@@ -19,13 +20,29 @@ function validHttpsUrl(value: string | null) {
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
-  const auth = await getApiAuthContext(request);
-  if (!auth.supabase || !auth.profile)
-    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
-
   const requestedUrl = validHttpsUrl(request.nextUrl.searchParams.get("url"));
   if (!requestedUrl)
     return apiError("INVALID_OFFICIAL_LINK", "链接格式不安全。", 400, traceId);
+
+  const publicInfoId = request.nextUrl.searchParams.get("publicInfoId")?.trim();
+  if (publicInfoId) {
+    if (!/^[a-zA-Z0-9-]{1,80}$/.test(publicInfoId))
+      return apiError("INVALID_PUBLIC_INFO_ID", "公开资料编号格式不正确。", 400, traceId);
+    const publicInfo = await getPublicInfoById(publicInfoId);
+    if (!publicInfo)
+      return apiError("PUBLIC_INFO_NOT_AVAILABLE", "该公开资料已下架或需要重新核验。", 404, traceId);
+    const reviewedUrl = validHttpsUrl(publicInfo.sourceUrl);
+    if (!reviewedUrl || reviewedUrl !== requestedUrl)
+      return apiError("PUBLIC_INFO_SOURCE_MISMATCH", "原文链接与已审核资料不一致。", 403, traceId);
+    return apiOk(
+      { url: reviewedUrl, sourceType: "public_info", label: publicInfo.title },
+      traceId,
+    );
+  }
+
+  const auth = await getApiAuthContext(request);
+  if (!auth.supabase || !auth.profile)
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
 
   try {
     const subject = await resolveCareSubject(

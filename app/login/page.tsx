@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronRight, LogIn, ShieldCheck, Stethoscope } from "lucide-react";
+import { BookOpen, ChevronRight, LogIn, ShieldCheck, Stethoscope } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
 import { PhoneOtpCard } from "@/components/auth/PhoneOtpCard";
 import { useAuthCapabilities } from "@/components/auth/useAuthCapabilities";
@@ -87,6 +87,20 @@ export default function LoginPage() {
             router.refresh();
           }}
         />
+
+        <Link
+          href="/public-info"
+          className="mt-4 flex items-center gap-3 rounded-[24px] border border-sage/15 bg-health-soft/75 px-4 py-3.5"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sage shadow-[0_8px_20px_rgba(16,42,67,0.06)]">
+            <BookOpen className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-navy">暂不登录，查询公开信息</span>
+            <span className="mt-0.5 block text-xs leading-5 text-navy/48">门诊时间、活动与办事指南</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-sage" />
+        </Link>
 
         <div className="mt-4 flex items-center justify-between rounded-[24px] border border-line/70 bg-surface-card/72 px-4 py-3.5">
           <div className="flex min-w-0 items-center gap-3">
