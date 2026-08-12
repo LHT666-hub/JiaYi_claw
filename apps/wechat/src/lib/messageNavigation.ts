@@ -23,6 +23,10 @@ export function resolveMessageDestination(linkUrl?: string | null): MessageDesti
     const requestId = url.searchParams.get("id")?.trim();
     return requestId ? { kind: "progress", requestId } : { kind: "progress" };
   }
+  const serviceRequestMatch = url.pathname.match(/^\/service-requests\/([^/]+)$/);
+  if (serviceRequestMatch?.[1]) {
+    return { kind: "progress", requestId: decodeURIComponent(serviceRequestMatch[1]) };
+  }
   if (url.pathname === "/services") return { kind: "services" };
   if (url.pathname === "/me") return { kind: "me" };
   if (url.pathname === "/public-info") return { kind: "publicInfo" };

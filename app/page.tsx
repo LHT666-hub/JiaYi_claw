@@ -215,7 +215,7 @@ export default function HomePage() {
             >
               {nextRequest ? (
                 <Link
-                  href="/appointments"
+                  href={`/service-requests/${nextRequest.id}`}
                   className="block rounded-[22px] border border-line/60 bg-surface-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">

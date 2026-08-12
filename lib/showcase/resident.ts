@@ -1,5 +1,28 @@
 const now = Date.now();
 
+export const residentShowcaseRequest = {
+  id: "showcase-request",
+  title: "家庭医生门诊预约",
+  summary: "希望与家庭医生沟通近期血压记录，团队已提出一个可选时段。",
+  service_type: "family_doctor_booking",
+  status: "awaiting_user_confirmation",
+  priority: "low",
+  created_at: new Date(now - 3 * 60 * 60_000).toISOString(),
+  updated_at: new Date(now - 35 * 60_000).toISOString(),
+  appointment_details: {
+    scheduled_at: new Date(now + 24 * 60 * 60_000).toISOString(),
+    institution_name: "海湾镇社区卫生服务中心（展示）",
+    department_name: "全科门诊",
+    clinician_name: "家医团队医生",
+    booking_reference: null,
+    arrival_instructions: "展示数据不代表真实排班或号源。",
+  },
+  service_request_events: [
+    { id: "showcase-event-submit", action: "submit", new_status: "submitted", note: "居民已确认并提交服务申请。", created_at: new Date(now - 3 * 60 * 60_000).toISOString() },
+    { id: "showcase-event-slot", action: "propose_slot", new_status: "awaiting_user_confirmation", note: "家医团队提出明天下午的门诊沟通时段。", created_at: new Date(now - 35 * 60_000).toISOString() },
+  ],
+} as const;
+
 export const residentShowcaseHome = {
   demo: true,
   profile: { id: "showcase-resident", displayName: "张阿姨", role: "resident" },
@@ -39,7 +62,7 @@ export const residentShowcaseHome = {
     ],
   },
   serviceRequests: [
-    { id: "showcase-request", title: "家庭医生门诊预约", status: "awaiting_user_confirmation", updated_at: new Date(now - 35 * 60_000).toISOString() },
+    { id: residentShowcaseRequest.id, title: residentShowcaseRequest.title, status: residentShowcaseRequest.status, updated_at: residentShowcaseRequest.updated_at },
   ],
   notifications: [
     { id: "showcase-notification", is_read: false },
@@ -72,7 +95,7 @@ export const residentShowcaseHome = {
 export const residentShowcaseMessages = {
   demo: true,
   messages: [
-    { id: "showcase-message-1", type: "service_progress", title: "家医团队提出可选时段", content: "请确认明天下午的家庭医生门诊时段；展示模式不会执行确认。", link_url: "/appointments", is_read: false, created_at: new Date(now - 35 * 60_000).toISOString() },
+    { id: "showcase-message-1", type: "service_progress", title: "家医团队提出可选时段", content: "请查看明天下午的家庭医生门诊时段；展示模式不会执行确认。", link_url: `/service-requests/${residentShowcaseRequest.id}`, is_read: false, created_at: new Date(now - 35 * 60_000).toISOString() },
     { id: "showcase-message-2", type: "activity", title: "社区活动通知示例", content: "机构审核后的义诊、体检和慢病活动会在这里通知。", link_url: "/services?tab=content", is_read: true, created_at: new Date(now - 4 * 60 * 60_000).toISOString() },
   ],
   channelBindings: [],

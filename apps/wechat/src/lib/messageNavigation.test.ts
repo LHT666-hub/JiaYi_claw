@@ -7,6 +7,10 @@ describe("message destination", () => {
       kind: "progress",
       requestId: "request-1",
     });
+    expect(resolveMessageDestination("/service-requests/request-2")).toEqual({
+      kind: "progress",
+      requestId: "request-2",
+    });
   });
 
   it("allows resident routes and rejects external or staff links", () => {

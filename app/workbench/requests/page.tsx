@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
@@ -18,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ServiceAction, ServiceStatus } from "@jiayi/contracts";
 import { useToast } from "@/components/ToastProvider";
+import { WorkbenchHeader } from "@/components/workbench/WorkbenchHeader";
 import { serviceStatusLabels } from "@/lib/serviceRequests/stateMachine";
 
 type Resident = { id: string; display_name: string; phone: string | null };
@@ -49,6 +49,13 @@ type WorkItem = {
   assignee?: { id: string; display_name: string; role: string } | Array<{ id: string; display_name: string; role: string }> | null;
   appointment_details?: AppointmentDetails | AppointmentDetails[] | null;
   service_request_events?: RequestEvent[] | null;
+  presentation?: {
+    overdue: boolean;
+    unassigned: boolean;
+    waitingForResident: boolean;
+    staleHours: number;
+    nextActionLabel: string;
+  };
 };
 type ClinicalBrief = {
   id: string;
@@ -57,9 +64,10 @@ type ClinicalBrief = {
   source_refs: unknown[];
   skill_id: string;
   skill_version: string;
+  human_review_status?: "pending" | "reviewed" | "rejected";
   created_at: string;
 };
-type QueueFilter = "all" | "new" | "action" | "processing";
+type QueueFilter = "all" | "overdue" | "new" | "resident" | "processing";
 
 const serviceTypeLabels: Record<string, string> = {
   clinic_registration: "门诊挂号协助",
@@ -118,6 +126,15 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function isReadableBrief(value: string) {
+  const questionMarks = (value.match(/\?/g) ?? []).length;
+  return value.trim().length >= 8 && questionMarks <= Math.max(2, Math.floor(value.length * 0.05));
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
 export default function WorkbenchRequestsPage() {
   const actionKeys = useRef(new Map<string, string>());
   const router = useRouter();
@@ -139,18 +156,23 @@ export default function WorkbenchRequestsPage() {
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
+  const [reviewingBrief, setReviewingBrief] = useState(false);
 
   const selected = items.find((item) => item.id === selectedId) ?? null;
   const resident = relation(selected?.resident);
   const assignee = relation(selected?.assignee);
   const appointment = relation(selected?.appointment_details);
   const sourceContext = selected?.payload?.sourceContext;
-  const canAct = Boolean(selected && profile && (!selected.assigned_to || selected.assigned_to === profile.id || profile.role === "admin"));
+  const briefFacts = stringList(briefs[0]?.structured_content?.residentReportedFacts);
+  const briefMissing = stringList(briefs[0]?.structured_content?.missingInformation);
+  const canAct = Boolean(!isDemo && selected && profile && (!selected.assigned_to || selected.assigned_to === profile.id || profile.role === "admin"));
 
   const counts = useMemo(() => ({
     all: items.length,
+    overdue: items.filter((item) => item.presentation?.overdue).length,
     new: items.filter((item) => item.status === "submitted").length,
-    action: items.filter((item) => ["needs_info", "awaiting_user_confirmation"].includes(item.status)).length,
+    resident: items.filter((item) => item.presentation?.waitingForResident).length,
     processing: items.filter((item) => ["accepted", "checking_availability", "waitlisted", "booked"].includes(item.status)).length,
   }), [items]);
 
@@ -158,7 +180,8 @@ export default function WorkbenchRequestsPage() {
     const person = relation(item.resident);
     const matchesFilter = filter === "all"
       || (filter === "new" && item.status === "submitted")
-      || (filter === "action" && ["needs_info", "awaiting_user_confirmation"].includes(item.status))
+      || (filter === "overdue" && item.presentation?.overdue)
+      || (filter === "resident" && item.presentation?.waitingForResident)
       || (filter === "processing" && ["accepted", "checking_availability", "waitlisted", "booked"].includes(item.status));
     const needle = query.trim().toLowerCase();
     return matchesFilter && (!needle || [item.title, item.summary, person?.display_name, person?.phone].some((value) => String(value ?? "").toLowerCase().includes(needle)));
@@ -176,9 +199,14 @@ export default function WorkbenchRequestsPage() {
       }
       if (!response.ok) throw new Error(payload.error?.message ?? "工作队列读取失败。");
       const next = (payload.data.requests ?? []) as WorkItem[];
+      const requestedId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("id");
+      const wideWorkbench = typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches;
       setProfile(payload.data.profile ?? null);
+      setIsDemo(Boolean(payload.data.demo));
       setItems(next);
-      setSelectedId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id ?? null);
+      setSelectedId((current) => requestedId && next.some((item) => item.id === requestedId)
+        ? requestedId
+        : current && next.some((item) => item.id === current) ? current : wideWorkbench ? next[0]?.id ?? null : null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "工作队列读取失败。");
     } finally {
@@ -189,21 +217,23 @@ export default function WorkbenchRequestsPage() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (!resident?.id) {
+    if (!resident?.id || isDemo) {
       setBriefs([]);
       return;
     }
     const residentId = resident.id;
     setBriefLoading(true);
-    void fetch(`/api/v1/residents/${residentId}/clinical-brief`, { cache: "no-store" })
+    const requestId = selected?.id;
+    if (!requestId) return;
+    void fetch(`/api/v1/residents/${residentId}/clinical-brief?serviceRequestId=${encodeURIComponent(requestId)}`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error?.message ?? "摘要读取失败");
-        setBriefs(payload.data.briefs ?? []);
+        setBriefs(((payload.data.briefs ?? []) as ClinicalBrief[]).filter((brief) => brief.human_review_status !== "rejected" && isReadableBrief(brief.summary)));
       })
       .catch(() => setBriefs([]))
       .finally(() => setBriefLoading(false));
-  }, [resident?.id]);
+  }, [isDemo, resident?.id, selected?.id]);
 
   function resetComposer(action: ServiceAction | null = null) {
     setSelectedAction(action);
@@ -226,6 +256,32 @@ export default function WorkbenchRequestsPage() {
   function chooseItem(id: string) {
     setSelectedId(id);
     resetComposer(null);
+  }
+
+  async function reviewBrief(decision: "reviewed" | "rejected") {
+    const brief = briefs[0];
+    if (!brief || isDemo) return;
+    setReviewingBrief(true);
+    try {
+      const response = await fetch(`/api/v1/clinical-briefs/${brief.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? "摘要审核失败。");
+      if (decision === "reviewed") {
+        setBriefs((current) => current.map((item, index) => index === 0 ? { ...item, human_review_status: "reviewed" } : item));
+        showToast("摘要已标记为人工核对，审核记录已留痕。", "success");
+      } else {
+        setBriefs((current) => current.slice(1));
+        showToast("摘要已退回，不再用于本次接诊准备。", "success");
+      }
+    } catch (reason) {
+      showToast(reason instanceof Error ? reason.message : "摘要审核失败。", "warning");
+    } finally {
+      setReviewingBrief(false);
+    }
   }
 
   async function submitAction() {
@@ -274,23 +330,22 @@ export default function WorkbenchRequestsPage() {
 
   return (
     <main className="min-h-dvh bg-[#F3F5F4] text-navy">
-      <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-[1500px] items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => router.push("/doctor")} aria-label="返回团队工作台" className="flex h-10 w-10 items-center justify-center border border-line bg-white hover:bg-[#F4F6F5]"><ArrowLeft className="h-4 w-4" /></button>
-            <div><h1 className="text-xl font-semibold">家医服务工作队列</h1><p className="mt-1 text-xs text-navy/50">人工受理、资料补充、资源核验和居民确认</p></div>
-          </div>
-          <button type="button" onClick={() => void load()} className="flex items-center gap-2 border border-line bg-white px-3 py-2 text-sm font-semibold hover:bg-[#F4F6F5]"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />刷新</button>
-        </div>
-      </header>
+      <WorkbenchHeader
+        title="家医服务队列"
+        subtitle="人工受理、资料补充、资源核验和居民确认"
+        profile={profile ? { displayName: profile.displayName, role: profile.role } : null}
+        actions={<button type="button" onClick={() => void load()} className="flex h-9 items-center gap-2 rounded-[10px] border border-line bg-white px-3 text-xs font-semibold hover:bg-[#F4F6F5]"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /><span className="hidden sm:inline">刷新</span></button>}
+      />
+
+      {isDemo ? <div className="border-b border-[#E5C77B] bg-[#FFF8E7] px-5 py-2 text-center text-xs text-[#7A5A12]">当前为只读展示数据。正式登录后可受理申请、回写预约凭证并形成完整审计记录。</div> : null}
 
       <div className="mx-auto grid min-h-[calc(100dvh-73px)] max-w-[1500px] grid-cols-1 border-x border-line bg-white lg:grid-cols-[430px_minmax(0,1fr)]">
-        <section className="border-r border-line bg-[#F8FAF9]">
+        <section className={`${selectedId ? "hidden lg:block" : "block"} border-r border-line bg-[#F8FAF9]`}>
           <div className="border-b border-line p-4">
             <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索居民、手机号或服务" className="h-10 w-full border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-sage" /></div>
-            <div className="mt-3 grid grid-cols-4 gap-1 border border-line bg-white p-1">
+            <div className="mt-3 grid grid-cols-5 gap-1 border border-line bg-white p-1">
               {([
-                ["all", "全部"], ["new", "新申请"], ["action", "待居民"], ["processing", "处理中"],
+                ["all", "全部"], ["overdue", "已超时"], ["new", "新申请"], ["resident", "待居民"], ["processing", "处理中"],
               ] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setFilter(id)} className={`px-2 py-2 text-xs font-semibold ${filter === id ? "bg-navy text-white" : "text-navy/55 hover:bg-[#F4F6F5]"}`}>{label}<span className="ml-1 opacity-70">{counts[id]}</span></button>)}
             </div>
           </div>
@@ -302,19 +357,21 @@ export default function WorkbenchRequestsPage() {
               const urgent = ["high", "emergency"].includes(item.priority);
               return (
                 <button key={item.id} type="button" onClick={() => chooseItem(item.id)} className={`block w-full border-b border-line px-4 py-4 text-left transition-colors ${active ? "bg-white shadow-[inset_3px_0_0_#2F6C56]" : "hover:bg-white"}`}>
-                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{person?.display_name ?? "居民"} · {item.title}</p><p className="mt-1 text-xs text-navy/42">{formatDate(item.created_at)}</p></div><span className={`shrink-0 px-2 py-1 text-[11px] font-semibold ${urgent ? "bg-risk-soft text-danger" : "bg-health-soft text-sage"}`}>{serviceStatusLabels[item.status]}</span></div>
+                  <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{person?.display_name ?? "居民"} · {item.title}</p><p className="mt-1 text-xs text-navy/42">{formatDate(item.created_at)}{item.presentation?.unassigned ? " · 未认领" : ""}</p></div><span className={`shrink-0 px-2 py-1 text-[11px] font-semibold ${urgent || item.presentation?.overdue ? "bg-risk-soft text-danger" : "bg-health-soft text-sage"}`}>{item.presentation?.overdue ? "响应超时" : serviceStatusLabels[item.status]}</span></div>
                   <p className="mt-2 line-clamp-2 text-xs leading-5 text-navy/58">{item.summary}</p>
+                  {item.presentation ? <p className="mt-2 text-[11px] font-semibold text-sage">下一步：{item.presentation.nextActionLabel}</p> : null}
                 </button>
               );
             }) : <QueueState icon={CheckCircle2} text="当前筛选下没有待处理申请。" />}
           </div>
         </section>
 
-        <section className="min-w-0 bg-white">
+        <section className={`${selectedId ? "block" : "hidden lg:block"} min-w-0 bg-white`}>
           {selected ? (
             <div className="grid min-h-full xl:grid-cols-[minmax(0,1fr)_390px]">
               <div className="min-w-0 border-r border-line">
                 <div className="border-b border-line px-6 py-5">
+                  <button type="button" onClick={() => setSelectedId(null)} className="mb-4 inline-flex items-center gap-1 text-xs font-semibold text-sage lg:hidden"><ChevronRight className="h-3.5 w-3.5 rotate-180" />返回服务列表</button>
                   <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold text-sage">{serviceStatusLabels[selected.status]}</p><h2 className="mt-1 text-xl font-semibold">{selected.title}</h2><p className="mt-2 text-sm text-navy/48">申请于 {new Date(selected.created_at).toLocaleString("zh-CN")}</p></div><span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold ${["high", "emergency"].includes(selected.priority) ? "bg-risk-soft text-danger" : "bg-[#F1F4F3] text-navy/55"}`}>{["high", "emergency"].includes(selected.priority) ? <CircleAlert className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}{selected.priority === "emergency" ? "紧急" : selected.priority === "high" ? "高优先" : "常规"}</span></div>
                 </div>
 
@@ -324,7 +381,7 @@ export default function WorkbenchRequestsPage() {
                   {sourceContext ? <section className="rounded-md border border-sage/20 bg-health-soft/45 p-4"><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />居民引用的已审核内容</h3><p className="mt-2 text-sm font-semibold">{sourceContext.title ?? "已审核内容"}</p><p className="mt-1 text-xs text-navy/50">{sourceContext.sourceName ?? "官方来源"}{sourceContext.reviewedAt ? ` · 核验于 ${new Date(sourceContext.reviewedAt).toLocaleDateString("zh-CN")}` : ""}</p>{sourceContext.originalUrl ? <a href={sourceContext.originalUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sage">打开官方原文核对</a> : null}</section> : null}
                   {appointment ? <section><h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-sage" />预约偏好与回执</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="目标" value={appointment.target ?? "未填写"} /><Detail label="期望日期" value={appointment.preferred_dates?.join("、") ?? "未填写"} /><Detail label="期望时段" value={appointment.preferred_time ?? "未填写"} /><Detail label="期望科室/医生" value={[appointment.department, appointment.preferred_doctor].filter(Boolean).join(" · ") || "未指定"} />{appointment.scheduled_at ? <Detail label="已提出时间" value={new Date(appointment.scheduled_at).toLocaleString("zh-CN")} /> : null}{appointment.institution_name ? <Detail label="机构与科室" value={[appointment.institution_name, appointment.department_name, appointment.clinician_name].filter(Boolean).join(" · ")} /> : null}</div></section> : null}
 
-                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />Claw 接诊前摘要</h3>{briefLoading ? <p className="mt-3 text-sm text-navy/45">正在读取摘要...</p> : briefs.length ? <div className="mt-3 border-l-2 border-sage bg-[#F7FAF8] px-4 py-3"><p className="text-sm leading-7 text-navy/72">{briefs[0].summary}</p><p className="mt-2 text-[11px] text-navy/38">{briefs[0].skill_id} · {briefs[0].skill_version} · {formatDate(briefs[0].created_at)}</p></div> : <p className="mt-3 border border-dashed border-line px-4 py-5 text-sm text-navy/45">当前没有可用摘要，请以居民原始资料和沟通结果为准。</p>}</section>
+                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />Claw 接诊前摘要</h3>{briefLoading ? <p className="mt-3 text-sm text-navy/45">正在读取摘要...</p> : briefs.length ? <div className="mt-3 border-l-2 border-sage bg-[#F7FAF8] px-4 py-3"><div className="mb-2 flex items-center justify-between gap-3"><span className="text-[11px] font-semibold text-sage">{briefs[0].human_review_status === "reviewed" ? "已人工核对" : "待医生核对"}</span><span className="text-[10px] text-navy/35">不作为诊断或病历</span></div><p className="text-sm leading-7 text-navy/72">{briefs[0].summary}</p>{briefFacts.length || briefMissing.length ? <div className="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-2">{briefFacts.length ? <BriefList label="已整理事实" items={briefFacts} /> : null}{briefMissing.length ? <BriefList label="仍需补充" items={briefMissing} warning /> : null}</div> : null}<p className="mt-3 text-[11px] text-navy/38">{briefs[0].skill_id} · {briefs[0].skill_version} · {formatDate(briefs[0].created_at)}</p>{briefs[0].human_review_status !== "reviewed" && !isDemo && ["doctor", "admin"].includes(profile?.role ?? "") ? <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3"><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("reviewed")} className="rounded-[8px] bg-sage px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">确认摘要与原始资料一致</button><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("rejected")} className="rounded-[8px] border border-line bg-white px-3 py-2 text-xs font-semibold text-navy/60 disabled:opacity-50">退回摘要</button></div> : null}</div> : <p className="mt-3 border border-dashed border-line px-4 py-5 text-sm leading-6 text-navy/45">本次申请没有可核对的结构化摘要。请以居民原始诉求、预约偏好和后续沟通为准。</p>}</section>
 
                   <section><h3 className="flex items-center gap-2 text-sm font-semibold"><ClipboardCheck className="h-4 w-4 text-sage" />办理记录</h3><div className="mt-3 divide-y divide-line border-y border-line">{[...(selected.service_request_events ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((event) => <div key={event.id} className="flex gap-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-sage" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{serviceStatusLabels[event.new_status as ServiceStatus] ?? event.action}</p><p className="shrink-0 text-[11px] text-navy/38">{formatDate(event.created_at)}</p></div>{event.note ? <p className="mt-1 text-xs leading-5 text-navy/55">{event.note}</p> : null}</div></div>)}</div></section>
                 </div>
@@ -333,7 +390,7 @@ export default function WorkbenchRequestsPage() {
               <aside className="bg-[#F8FAF9] px-5 py-6 xl:sticky xl:top-0 xl:h-[calc(100dvh-73px)] xl:overflow-y-auto">
                 <h3 className="text-sm font-semibold">下一步处理</h3>
                 <p className="mt-1 text-xs leading-5 text-navy/48">选择动作、补全对居民可见的信息，再提交状态变化。</p>
-                {!canAct ? <div className="mt-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">该申请已由 {assignee?.display_name ?? "其他工作人员"} 认领。您可以查看资料，但不能直接更改状态。</div> : null}
+                {!canAct ? <div className="mt-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">{isDemo ? "展示环境为只读，所有写操作均已关闭。" : `该申请已由 ${assignee?.display_name ?? "其他工作人员"} 认领。您可以查看资料，但不能直接更改状态。`}</div> : null}
                 <div className="mt-4 space-y-2">{canAct ? (actionOptions[selected.status] ?? []).map((option) => <button key={option.action} type="button" onClick={() => resetComposer(option.action)} className={`flex w-full items-center justify-between border px-3 py-3 text-left ${selectedAction === option.action ? "border-navy bg-navy text-white" : "border-line bg-white hover:border-sage/50"}`}><span><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-1 block text-xs ${selectedAction === option.action ? "text-white/60" : "text-navy/45"}`}>{option.description}</span></span><ChevronRight className="h-4 w-4 shrink-0" /></button>) : null}</div>
 
                 {canAct && selectedAction ? <div className="mt-5 border-t border-line pt-5">
@@ -356,6 +413,10 @@ function Detail({ label, value }: { label: string; value: string }) {
 
 function FieldLabel({ text }: { text: string }) {
   return <label className="block text-xs font-semibold text-navy/58">{text}</label>;
+}
+
+function BriefList({ label, items, warning = false }: { label: string; items: string[]; warning?: boolean }) {
+  return <div><p className={`text-[11px] font-semibold ${warning ? "text-[#916020]" : "text-sage"}`}>{label}</p><ul className="mt-1.5 space-y-1.5">{items.map((item) => <li key={item} className="flex gap-2 text-xs leading-5 text-navy/62"><span className={`mt-2 h-1 w-1 shrink-0 rounded-full ${warning ? "bg-[#B8813E]" : "bg-sage"}`} />{item}</li>)}</ul></div>;
 }
 
 function QueueState({ icon: Icon, text }: { icon: typeof RefreshCw; text: string }) {
