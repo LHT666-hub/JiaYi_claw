@@ -59,11 +59,13 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = readErrorMessage(error);
     const verificationRequired = message.includes("CARE_BINDING_VERIFICATION_REQUIRED");
+    const contentUnavailable = message.includes("CONTENT_SOURCE_NOT_AVAILABLE");
+    const serviceUnavailable = message.includes("SERVICE_NOT_AVAILABLE") || message.includes("SERVICE_INFORMATION_ONLY");
     const forbidden = verificationRequired || /FORBIDDEN|ROLE/.test(message);
     return apiError(
-      verificationRequired ? "CARE_BINDING_VERIFICATION_REQUIRED" : forbidden ? "FORBIDDEN" : "SERVICE_REQUEST_CREATE_FAILED",
-      verificationRequired ? "家医团队核验您的社区签约关系后，才能提交预约或转诊协助。" : message,
-      forbidden ? 403 : 500,
+      verificationRequired ? "CARE_BINDING_VERIFICATION_REQUIRED" : contentUnavailable ? "CONTENT_SOURCE_NOT_AVAILABLE" : serviceUnavailable ? "SERVICE_NOT_AVAILABLE" : forbidden ? "FORBIDDEN" : "SERVICE_REQUEST_CREATE_FAILED",
+      verificationRequired ? "家医团队核验您的社区签约关系后，才能提交预约或转诊协助。" : contentUnavailable ? "关联内容已过期、下架或不属于当前社区，请返回服务页重新确认。" : serviceUnavailable ? "所属社区暂未开放这项人工办理服务，请返回服务页查看当前可用项目。" : message,
+      contentUnavailable || serviceUnavailable ? 409 : forbidden ? 403 : 500,
       traceId,
     );
   }

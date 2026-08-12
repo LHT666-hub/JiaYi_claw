@@ -3,12 +3,28 @@ import { NextRequest } from "next/server";
 
 const getPublicInfoById = vi.fn();
 const getApiAuthContext = vi.fn();
+const maybeSingle = vi.fn();
+const contentQuery = {
+  select: vi.fn(),
+  eq: vi.fn(),
+  or: vi.fn(),
+  maybeSingle,
+};
+contentQuery.select.mockReturnValue(contentQuery);
+contentQuery.eq.mockReturnValue(contentQuery);
+contentQuery.or.mockReturnValue(contentQuery);
+const createSupabasePublicServerClient = vi.fn(() => ({ from: vi.fn(() => contentQuery) }));
 
 vi.mock("@/lib/publicInfoRepository", () => ({ getPublicInfoById }));
 vi.mock("@/lib/supabase/server-auth", () => ({ getApiAuthContext }));
+vi.mock("@/lib/supabase/server", () => ({ createSupabasePublicServerClient }));
 
 afterEach(() => {
   vi.clearAllMocks();
+  contentQuery.select.mockReturnValue(contentQuery);
+  contentQuery.eq.mockReturnValue(contentQuery);
+  contentQuery.or.mockReturnValue(contentQuery);
+  createSupabasePublicServerClient.mockReturnValue({ from: vi.fn(() => contentQuery) });
 });
 
 describe("official link resolver", () => {
@@ -56,5 +72,29 @@ describe("official link resolver", () => {
 
     expect(response.status).toBe(401);
     expect((await response.json()).error.code).toBe("UNAUTHENTICATED");
+  });
+
+  it("allows the exact link of a reviewed public content item without authentication", async () => {
+    maybeSingle.mockResolvedValue({ data: { id: "550e8400-e29b-41d4-a716-446655440001", title: "家医课堂", original_url: "https://hospital.example/classroom" }, error: null });
+    const { GET } = await import("./route");
+    const response = await GET(new NextRequest(
+      "https://app.example/api/v1/links/resolve?contentId=550e8400-e29b-41d4-a716-446655440001&url=https%3A%2F%2Fhospital.example%2Fclassroom",
+    ));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.sourceType).toBe("reviewed_content");
+    expect(getApiAuthContext).not.toHaveBeenCalled();
+  });
+
+  it("rejects a public content link that is not the reviewed URL", async () => {
+    maybeSingle.mockResolvedValue({ data: null, error: null });
+    const { GET } = await import("./route");
+    const response = await GET(new NextRequest(
+      "https://app.example/api/v1/links/resolve?contentId=550e8400-e29b-41d4-a716-446655440001&url=https%3A%2F%2Fevil.example%2Farticle",
+    ));
+
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe("CONTENT_NOT_AVAILABLE");
+    expect(getApiAuthContext).not.toHaveBeenCalled();
   });
 });

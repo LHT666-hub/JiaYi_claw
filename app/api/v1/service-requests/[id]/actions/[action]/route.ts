@@ -16,8 +16,12 @@ export async function POST(
   const body = await request.json().catch(() => ({}));
   const parsed = serviceRequestActionSchema.safeParse({ ...body, action: params.action });
   if (!parsed.success) return apiError("INVALID_ACTION", "不支持这个处理动作。", 400, traceId);
+  const idempotencyKey = request.headers.get("idempotency-key")?.trim();
+  if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 160) {
+    return apiError("IDEMPOTENCY_KEY_REQUIRED", "请刷新页面后重试这个操作。", 400, traceId);
+  }
   try {
-    const item = await actionServiceRequest({ id: params.id, input: parsed.data, supabase });
+    const item = await actionServiceRequest({ id: params.id, input: parsed.data, idempotencyKey, supabase });
     await processOutboxEvents(10).catch(() => undefined);
     return apiOk({ request: item }, traceId);
   } catch (error) {

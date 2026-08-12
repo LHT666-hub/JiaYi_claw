@@ -116,6 +116,9 @@ for (const marker of [
 for (const marker of ["requestSubscribeMessage", "/api/v1/wechat/subscriptions"]) {
   if (!javascript.includes(marker)) errors.push(`生产包缺少微信订阅消息闭环标记：${marker}`);
 }
+for (const marker of ["getUpdateManager", "applyUpdate", "onUpdateFailed"]) {
+  if (!javascript.includes(marker)) errors.push(`生产包缺少版本更新处理标记：${marker}`);
+}
 for (const marker of [
   "/api/v1/health-observations",
   "近期变化",

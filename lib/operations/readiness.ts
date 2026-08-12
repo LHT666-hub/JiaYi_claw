@@ -6,6 +6,8 @@ import {
   isTencentSmsConfigured,
   isWechatLoginConfigured,
 } from "@/lib/auth/capabilities";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 export type ReadinessStatus = "ready" | "pending" | "blocked";
 
@@ -39,11 +41,16 @@ function configured(
 }
 
 export function getEnvironmentReadiness(): ReadinessCheck[] {
-  const asrProvider = process.env.ASR_PROVIDER?.trim();
-  const asrReady = Boolean(
-    asrProvider &&
-      (asrProvider !== "local_whisper_wu" || process.env.ASR_PYTHON_PATH?.trim()),
-  );
+  const asrProvider = process.env.ASR_PROVIDER?.trim() || "local_whisper_wu";
+  const localAsrPython = process.env.ASR_PYTHON_PATH?.trim()
+    || path.join(process.cwd(), ".venv-whisper-wu", "Scripts", "python.exe");
+  const asrReady = asrProvider === "local_whisper_wu"
+    ? existsSync(localAsrPython)
+    : asrProvider === "tencent_asr"
+      && Boolean(
+        (process.env.TENCENT_ASR_SECRET_ID || process.env.TENCENT_SMS_SECRET_ID)?.trim()
+        && (process.env.TENCENT_ASR_SECRET_KEY || process.env.TENCENT_SMS_SECRET_KEY)?.trim(),
+      );
 
   return [
     configured(
@@ -95,8 +102,8 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
     configured(
       "vision",
       "报告与药盒识别",
-      hasAll(process.env.KIMI_API_KEY, process.env.KIMI_VISION_MODEL),
-      "视觉模型已配置，图片仍按不落盘策略处理。",
+      Boolean((process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY)?.trim()),
+      `视觉模型已配置：${process.env.KIMI_VISION_MODEL?.trim() || "moonshot-v1-8k-vision-preview"}，图片按不落盘策略处理。`,
       "配置 KIMI_VISION_MODEL 并完成脱敏图片验收。",
       false,
     ),
@@ -104,8 +111,8 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
       "speech",
       "语音识别",
       asrReady,
-      "语音识别 provider 与隔离运行时已配置。",
-      "配置 ASR provider；本地 Whisper-Wu 需提供隔离 Python 路径。",
+      `语音识别 provider 已配置：${asrProvider}。`,
+      "生产建议配置 ASR_PROVIDER=tencent_asr 与服务端密钥；院内环境可使用 local_whisper_wu。",
       false,
     ),
     configured(

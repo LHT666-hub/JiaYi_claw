@@ -1,6 +1,6 @@
 import { Button, Image, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useDidShow, useLoad } from "@tarojs/taro";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   ChevronDown,
@@ -16,6 +16,7 @@ import {
   getCareSubjectId,
   uploadDocumentImage,
   uploadVoice,
+  uploadVoiceBlob,
   withCareSubject,
 } from "../../lib/api";
 
@@ -57,11 +58,24 @@ const documentTypeLabels: Record<DocumentAnalysisResult["documentType"], string>
   other: "医疗文件",
 };
 
+const quickPrompts = [
+  { label: "查近期排班", prompt: "请帮我查询所属社区近期已核验的医生排班。" },
+  { label: "预约家庭医生", prompt: "我想预约家庭医生，请帮我整理需要确认的信息。" },
+  { label: "了解转诊流程", prompt: "如果社区看不了，我该怎么申请分级转诊？" },
+] as const;
+
 export default function AskPage() {
-  const recorder = useMemo(() => Taro.getRecorderManager(), []);
+  const recorder = useMemo(
+    () => process.env.TARO_ENV === "weapp" ? Taro.getRecorderManager() : null,
+    [],
+  );
+  const browserRecorder = useRef<MediaRecorder | null>(null);
+  const browserStream = useRef<MediaStream | null>(null);
+  const browserChunks = useRef<Blob[]>([]);
   const [state, setState] = useState<State>("idle");
   const [seconds, setSeconds] = useState(0);
   const [text, setText] = useState("");
+  const [sourceContext, setSourceContext] = useState<{ type: "content"; id: string; label: string } | null>(null);
   const [error, setError] = useState("");
   const [activities, setActivities] = useState<AssistantActivity[]>([]);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -78,8 +92,21 @@ export default function AskPage() {
   ]);
 
   useLoad((params) => {
-    if (params.voice === "1") setTimeout(() => start(), 180);
+    if (params.voice === "1") setTimeout(() => void start(), 180);
     if (params.photo === "1") setTimeout(() => void chooseDocumentImage(), 180);
+    if (typeof params.prompt === "string" && params.prompt.trim()) {
+      let prompt = params.prompt;
+      try {
+        prompt = decodeURIComponent(prompt);
+      } catch {
+        // Taro may already decode route parameters. Keep the readable value.
+      }
+      setText(prompt.slice(0, 3000));
+    }
+    if (params.contentId?.trim()) {
+      setSourceContext({ type: "content", id: params.contentId.trim(), label: params.sourceLabel?.trim() ? decodeURIComponent(params.sourceLabel) : "已审核内容" });
+    }
+    if (params.history === "1") setActivityOpen(true);
   });
 
   useDidShow(() => {
@@ -87,6 +114,7 @@ export default function AskPage() {
   });
 
   useEffect(() => {
+    if (!recorder) return undefined;
     recorder.onStart(() => {
       setSeconds(0);
       setError("");
@@ -109,7 +137,13 @@ export default function AskPage() {
       setError("录音没有启动成功，请检查麦克风权限。");
       setState("error");
     });
+    return undefined;
   }, [recorder]);
+
+  useEffect(() => () => {
+    if (browserRecorder.current?.state === "recording") browserRecorder.current.stop();
+    browserStream.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   useEffect(() => {
     if (state !== "recording") return;
@@ -128,16 +162,84 @@ export default function AskPage() {
     }
   }
 
-  function start() {
+  async function start() {
     setText("");
     setError("");
-    recorder.start({
-      duration: 30_000,
-      sampleRate: 16_000,
-      numberOfChannels: 1,
-      encodeBitRate: 48_000,
-      format: "mp3",
-    });
+    if (recorder) {
+      recorder.start({
+        duration: 30_000,
+        sampleRate: 16_000,
+        numberOfChannels: 1,
+        encodeBitRate: 48_000,
+        format: "mp3",
+      });
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("当前浏览器不支持录音，请使用微信小程序或文字输入。");
+      setState("error");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      browserStream.current = stream;
+      browserChunks.current = [];
+      const preferredType = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"]
+        .find((type) => MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = new MediaRecorder(
+        stream,
+        preferredType ? { mimeType: preferredType } : undefined,
+      );
+      browserRecorder.current = mediaRecorder;
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size) browserChunks.current.push(event.data);
+      };
+      mediaRecorder.onerror = () => {
+        setError("录音没有启动成功，请检查麦克风权限。");
+        setState("error");
+      };
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(browserChunks.current, {
+          type: mediaRecorder.mimeType || "audio/webm",
+        });
+        browserStream.current?.getTracks().forEach((track) => track.stop());
+        browserStream.current = null;
+        browserRecorder.current = null;
+        if (!blob.size) {
+          setError("没有录到声音，请再试一次。");
+          setState("error");
+          return;
+        }
+        setState("transcribing");
+        void uploadVoiceBlob(blob)
+          .then((result) => {
+            setText(result.text);
+            setState("idle");
+            void Taro.showToast({ title: "请核对识别文字", icon: "none" });
+          })
+          .catch((reason) => {
+            setError(reason instanceof Error ? reason.message : "语音识别失败");
+            setState("error");
+          });
+      };
+      mediaRecorder.start();
+      setSeconds(0);
+      setState("recording");
+      setTimeout(() => {
+        if (mediaRecorder.state === "recording") mediaRecorder.stop();
+      }, 30_000);
+    } catch {
+      setError("无法使用麦克风，请在系统设置中允许录音权限。");
+      setState("error");
+    }
+  }
+
+  function stopRecording() {
+    if (recorder) {
+      recorder.stop();
+      return;
+    }
+    if (browserRecorder.current?.state === "recording") browserRecorder.current.stop();
   }
 
   async function chooseDocumentImage() {
@@ -184,8 +286,8 @@ export default function AskPage() {
     void Taro.showToast({ title: "请核对文字后发送", icon: "none" });
   }
 
-  async function ask() {
-    const question = text.trim();
+  async function ask(questionOverride?: string) {
+    const question = (questionOverride ?? text).trim();
     if (!question || state === "asking") return;
     setText("");
     setError("");
@@ -205,6 +307,7 @@ export default function AskPage() {
         data: {
           question,
           ...(residentId ? { residentId } : {}),
+          ...(sourceContext ? { sourceContext: { type: sourceContext.type, id: sourceContext.id } } : {}),
         },
       });
       setMessages((items) => [
@@ -273,6 +376,11 @@ export default function AskPage() {
     }
     if (action.href.startsWith("/public-info")) {
       void Taro.navigateTo({ url: "/pages/public-info/index" });
+      return;
+    }
+    if (action.href.startsWith("/content/")) {
+      const id = action.href.slice("/content/".length);
+      void Taro.navigateTo({ url: `/pages/content-detail/index?id=${encodeURIComponent(id)}` });
       return;
     }
     void Taro.navigateTo({ url: "/pages/progress/index" });
@@ -362,6 +470,8 @@ export default function AskPage() {
       <View className="safety-strip">
         胸痛、呼吸困难、意识不清或大出血请立即拨打 120。
       </View>
+
+      {sourceContext ? <View className="ask-source-context"><View className="grow"><Text className="ask-source-context-label">基于已审核内容继续问</Text><Text className="ask-source-context-title">{sourceContext.label}</Text></View><View className="ask-source-context-close" onClick={() => setSourceContext(null)}><X size={19} color="rgba(16,42,67,.5)" /></View></View> : null}
 
       {documentPreview ? (
         <View className="document-review-card">
@@ -465,6 +575,32 @@ export default function AskPage() {
             </View>
           </View>
         ))}
+        {messages.length === 1 && state === "idle" && !documentPreview ? (
+          <View className="claw-starters">
+            <Text className="claw-starters-label">您可以直接说</Text>
+            <View className="claw-starter-list">
+              {quickPrompts.map((item) => (
+                <View
+                  key={item.label}
+                  className="claw-starter-chip pressable"
+                  onClick={() => void ask(item.prompt)}
+                  role="button"
+                >
+                  <Text>{item.label}</Text>
+                  <ChevronRight size={16} color="rgba(16,42,67,.38)" />
+                </View>
+              ))}
+              <View
+                className="claw-starter-chip report pressable"
+                onClick={() => void chooseDocumentImage()}
+                role="button"
+              >
+                <Camera size={16} color="#365F8A" />
+                <Text>拍报告或药盒</Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
         {state === "asking" ? (
           <View className="chat-row">
             <View className="typing-pill">
@@ -481,7 +617,7 @@ export default function AskPage() {
           <View className="recording-state">
             <View className="recording-pulse" />
             <Text>正在录音 {seconds} 秒</Text>
-            <Button className="recording-stop" size="mini" onClick={() => recorder.stop()}>
+            <Button className="recording-stop" size="mini" onClick={stopRecording}>
               停止识别
             </Button>
           </View>
@@ -508,7 +644,7 @@ export default function AskPage() {
           <Button
             className="voice-trigger pressable"
             disabled={state === "recording" || state === "transcribing" || state === "analyzing"}
-            onClick={start}
+            onClick={() => void start()}
           >
             <Mic size={20} color="#2F6C56" strokeWidth={2.1} />
             <Text>语音</Text>

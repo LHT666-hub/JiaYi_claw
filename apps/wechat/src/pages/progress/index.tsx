@@ -1,7 +1,8 @@
 import { Button, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useDidShow, useLoad, usePullDownRefresh } from "@tarojs/taro";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { apiRequest, withCareSubject } from "../../lib/api";
+import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
 
 type RequestEvent = {
   id: string;
@@ -86,6 +87,8 @@ function formatTime(value: string) {
 }
 
 export default function ProgressPage() {
+  const actionKeys = useRef(new Map<string, string>());
+  const focusRequestId = useRef("");
   const [items, setItems] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -96,7 +99,10 @@ export default function ProgressPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  useLoad((params) => setSubmitted(params.submitted === "1"));
+  useLoad((params) => {
+    setSubmitted(params.submitted === "1");
+    focusRequestId.current = params.id?.trim() ?? "";
+  });
 
   const visibleItems = useMemo(
     () => items.filter((item) => filter === "history" ? finishedStatuses.includes(item.status) : !finishedStatuses.includes(item.status)),
@@ -111,7 +117,16 @@ export default function ProgressPage() {
     try {
       const data = await apiRequest<{ requests: ServiceRequest[] }>(withCareSubject("/api/v1/service-requests"));
       setItems(data.requests);
-      if (!expandedId && data.requests[0]) setExpandedId(data.requests[0].id);
+      const focused = data.requests.find((item) => item.id === focusRequestId.current);
+      if (focused) {
+        setExpandedId(focused.id);
+        setFilter(finishedStatuses.includes(focused.status) ? "history" : "active");
+        setTimeout(() => {
+          void Taro.pageScrollTo({ selector: `#request-${focused.id}`, duration: 250 });
+        }, 100);
+      } else if (!expandedId && data.requests[0]) {
+        setExpandedId(data.requests[0].id);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "服务进度加载失败");
     } finally {
@@ -127,11 +142,21 @@ export default function ProgressPage() {
   usePullDownRefresh(() => {
     void load();
   });
+  useReloadOnNetworkRestore(() => void load());
 
   async function action(id: string, name: string, note: string) {
     setActingId(id);
+    const operation = `${id}:${name}:${note}`;
+    const idempotencyKey = actionKeys.current.get(operation)
+      ?? `weapp-action-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    actionKeys.current.set(operation, idempotencyKey);
     try {
-      await apiRequest(`/api/v1/service-requests/${id}/actions/${name}`, { method: "POST", data: { note } });
+      await apiRequest(`/api/v1/service-requests/${id}/actions/${name}`, {
+        method: "POST",
+        data: { note },
+        idempotencyKey,
+      });
+      actionKeys.current.delete(operation);
       Taro.showToast({ title: name === "cancel" ? "申请已取消" : "已提交", icon: "success" });
       setEditingId(null);
       setDraftNote("");
@@ -185,7 +210,7 @@ export default function ProgressPage() {
         const expanded = expandedId === item.id;
         const editing = editingId === item.id;
         return (
-          <View className={`progress-card ${item.status === "awaiting_user_confirmation" || item.status === "needs_info" ? "needs-action" : ""}`} key={item.id}>
+          <View id={`request-${item.id}`} className={`progress-card ${item.status === "awaiting_user_confirmation" || item.status === "needs_info" ? "needs-action" : ""}`} key={item.id}>
             <View className="progress-card-head pressable" onClick={() => setExpandedId(expanded ? null : item.id)}>
               <View className={`progress-status-mark status-${item.status}`}>{finishedStatuses.includes(item.status) ? "✓" : "•"}</View>
               <View className="grow"><Text className="progress-card-title">{item.title}</Text><Text className="progress-card-time">更新于 {formatTime(item.updated_at)}</Text></View>

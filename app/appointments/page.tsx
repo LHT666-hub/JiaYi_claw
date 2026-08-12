@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck2,
@@ -77,6 +77,7 @@ function one<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export default function AppointmentsPage() {
+  const actionKeys = useRef(new Map<string, string>());
   const router = useRouter();
   const { showToast } = useToast();
   const [items, setItems] = useState<RequestItem[]>([]);
@@ -210,11 +211,14 @@ export default function AppointmentsPage() {
       return showToast("请告诉家医团队希望如何调整时间。", "warning");
     }
     setActionId(id);
+    const operation = `${id}:${action}:${rescheduleNote.trim()}`;
+    const actionKey = actionKeys.current.get(operation) ?? crypto.randomUUID();
+    actionKeys.current.set(operation, actionKey);
     const response = await fetch(
       `/api/v1/service-requests/${id}/actions/${action}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": actionKey },
         body: JSON.stringify({
           note:
             action === "cancel"
@@ -229,6 +233,7 @@ export default function AppointmentsPage() {
     setActionId(null);
     if (!response.ok)
       return showToast(payload.error?.message ?? "操作失败。", "warning");
+    actionKeys.current.delete(operation);
     showToast(
       action === "cancel"
         ? "申请已取消。"

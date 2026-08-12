@@ -1,0 +1,72 @@
+.resident-tab-safe-area {
+  position: fixed;
+  z-index: 1000;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0 24px calc(16px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.resident-tab-shell {
+  height: 104px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid rgba(207, 220, 216, .9);
+  border-radius: 38px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 20px 54px rgba(16, 42, 67, .17), 0 3px 10px rgba(16, 42, 67, .05);
+  pointer-events: auto;
+}
+
+.resident-tab-item {
+  height: 88px;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 31px;
+  color: #6b7e8c;
+  transition: background-color .18s ease-out, color .18s ease-out, transform .16s ease-out;
+}
+
+.resident-tab-item:active {
+  transform: scale(.95);
+}
+
+.resident-tab-item.active {
+  background: #e7f0ed;
+  color: #204f40;
+}
+
+.resident-tab-icon-wrap {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resident-tab-icon {
+  width: 38px;
+  height: 38px;
+}
+
+.resident-tab-label {
+  font-size: 18px;
+  font-weight: 720;
+  line-height: 1;
+}
+
+.resident-tab-item.active .resident-tab-label {
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .resident-tab-item { transition: none; }
+}

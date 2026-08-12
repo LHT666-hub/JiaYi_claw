@@ -13,6 +13,11 @@ test-kimi.js
 .claude
 .deploy-target
 .venv-*
+.tools/
+.preview-*
+.audit-*.png
+.polish-*.png
+.synthetic-*.png
 *.log
 *.err.log
 apps/wechat/dist

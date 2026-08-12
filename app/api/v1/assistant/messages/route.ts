@@ -23,6 +23,7 @@ const inputSchema = z.object({
   question: z.string().trim().min(1).max(3000),
   residentId: z.string().uuid().optional(),
   serviceRequest: z.unknown().nullable().optional(),
+  sourceContext: z.object({ type: z.literal("content"), id: z.string().uuid() }).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success)
     return apiError("INVALID_MESSAGE", "请输入要咨询的问题。", 400, traceId);
 
-  const skillIds = routeSkillIds(parsed.data.question);
+  let skillIds = routeSkillIds(parsed.data.question);
   const auth = await getApiAuthContext(request);
   if (!auth.supabase || !auth.profile) {
     const safetyReply = getGuardrailReply(parsed.data.question);
@@ -132,28 +133,83 @@ export async function POST(request: NextRequest) {
       );
     }
   }
-  const inferredServiceRequest = inferServiceRequestFromQuestion(
+  let contentContext: {
+    id: string;
+    title: string;
+    summary: string;
+    source_name: string;
+    original_url: string;
+    reviewed_at: string | null;
+    category: "notice" | "activity" | "health_classroom" | "schedule_notice" | "policy";
+  } | null = null;
+  if (parsed.data.sourceContext) {
+    const now = new Date().toISOString();
+    let contextQuery = auth.supabase.from("content_items")
+      .select("id,title,summary,source_name,original_url,reviewed_at,category")
+      .eq("id", parsed.data.sourceContext.id)
+      .eq("organization_id", auth.profile.organization_id)
+      .eq("status", "published")
+      .or(`effective_from.is.null,effective_from.lte.${now}`)
+      .or(`expires_at.is.null,expires_at.gt.${now}`);
+    const communityId = careState.binding?.community_id ?? auth.profile.community_id;
+    if (communityId) contextQuery = contextQuery.or(`community_id.eq.${communityId},community_id.is.null`);
+    const { data, error } = await contextQuery.maybeSingle();
+    if (error) return apiError("ASSISTANT_SOURCE_CHECK_FAILED", "暂时无法核验内容来源。", 503, traceId);
+    if (!data) return apiError("ASSISTANT_SOURCE_NOT_AVAILABLE", "这条内容已下架、过期或不属于当前服务社区。", 404, traceId);
+    contentContext = data;
+    skillIds = [...new Set([...skillIds, "public-info-qa"] )];
+  }
+  let inferredServiceRequest = inferServiceRequestFromQuestion(
     parsed.data.question,
   );
-  const legacyRequest = new NextRequest(request.url, {
-    method: "POST",
-    headers: request.headers,
-    body: JSON.stringify({
-      question: parsed.data.question,
-      residentId: careSubject?.residentId ?? parsed.data.residentId ?? null,
-      serviceRequest: parsed.data.serviceRequest ?? inferredServiceRequest,
-      confirmedWrite: false,
-    }),
-  });
-  const legacyResponse = await legacyAskPost(legacyRequest);
-  const reply = await legacyResponse.json();
-  if (!legacyResponse.ok)
-    return apiError(
-      "ASSISTANT_FAILED",
-      "Claw 暂时没有回答成功。",
-      legacyResponse.status,
-      traceId,
-    );
+  if (
+    contentContext?.category === "activity"
+    && /(?:帮我|给我|我要|我想|申请).{0,10}(?:报名|参加)|(?:报名|参加).{0,6}(?:这个|该)?活动/.test(parsed.data.question)
+  ) {
+    inferredServiceRequest = {
+      kind: "community_activity",
+      activityTitle: contentContext.title,
+      contentId: contentContext.id,
+      sourceName: contentContext.source_name,
+    };
+    skillIds = [...new Set([...skillIds, "service-intent-extractor", "appointment-intake"])];
+  }
+  let reply;
+  const contextGuardrail = contentContext ? getGuardrailReply(parsed.data.question) : null;
+  if (contentContext && !contextGuardrail) {
+    const reviewedLabel = contentContext.reviewed_at
+      ? `，核验于 ${new Date(contentContext.reviewed_at).toLocaleDateString("zh-CN")}`
+      : "";
+    reply = {
+      answer: `根据“${contentContext.title}”的已审核摘要（来源：${contentContext.source_name}${reviewedLabel}）：${contentContext.summary}`,
+      nextStep: "需要确认活动报名、门诊安排或办理细节时，请打开官方原文；涉及个人健康判断请咨询家庭医生。",
+      suggestDoctor: false,
+      riskLevel: "low",
+      category: "已审核内容解读",
+      source: "knowledge",
+      knowledgeIds: [contentContext.id],
+    };
+  } else {
+    const legacyRequest = new NextRequest(request.url, {
+      method: "POST",
+      headers: request.headers,
+      body: JSON.stringify({
+        question: parsed.data.question,
+        residentId: careSubject?.residentId ?? parsed.data.residentId ?? null,
+        serviceRequest: parsed.data.serviceRequest ?? inferredServiceRequest,
+        confirmedWrite: false,
+      }),
+    });
+    const legacyResponse = await legacyAskPost(legacyRequest);
+    reply = await legacyResponse.json();
+    if (!legacyResponse.ok)
+      return apiError(
+        "ASSISTANT_FAILED",
+        "Claw 暂时没有回答成功。",
+        legacyResponse.status,
+        traceId,
+      );
+  }
 
   const { supabase, profile } = auth;
   if (supabase && profile && skillIds.length) {
@@ -171,7 +227,7 @@ export async function POST(request: NextRequest) {
         trace_id: traceId,
         status: "success",
         source_refs: reply.knowledgeIds ?? [],
-        metadata: { source: reply.source, category: reply.category },
+        metadata: { source: reply.source, category: reply.category, sourceContext: contentContext ? { type: "content", id: contentContext.id } : null },
       })),
     );
   }
@@ -181,6 +237,16 @@ export async function POST(request: NextRequest) {
     reply,
     serviceRequest: inferredServiceRequest,
   });
+  if (contentContext && !contextGuardrail) {
+    actions.unshift({
+      id: `content-source-${contentContext.id}`,
+      kind: "public_info",
+      label: "查看这篇审核内容",
+      description: `${contentContext.source_name} · 可核对原文与有效期`,
+      href: `/content/${contentContext.id}`,
+      requiresConfirmation: false,
+    });
+  }
 
   const activityDescriptor = buildAssistantActivity({
     reply,

@@ -1,1 +1,1 @@
-export default definePageConfig({ navigationBarTitleText: "海湾镇公开信息" });
+export default definePageConfig({ navigationBarTitleText: "居民服务大厅", enablePullDownRefresh: true, backgroundTextStyle: "dark" });

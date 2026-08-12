@@ -35,10 +35,11 @@ export async function getServerAuthContext() {
     .eq("id", user.id)
     .maybeSingle();
 
+  const activeProfile = profile?.account_status === "active" ? profile : null;
   return {
     supabase,
     user,
-    profile: (profile as ProfileRow | null) ?? null,
+    profile: (activeProfile as ProfileRow | null) ?? null,
   };
 }
 
@@ -76,7 +77,8 @@ export async function getApiAuthContext(request: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  return { supabase, user, profile: (profile as ProfileRow | null) ?? null };
+  const activeProfile = profile?.account_status === "active" ? profile : null;
+  return { supabase, user, profile: (activeProfile as ProfileRow | null) ?? null };
 }
 
 export function canAccessWorkbench(role?: AppRole | null) {

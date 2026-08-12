@@ -24,6 +24,10 @@ function appointmentHref(
           ? serviceRequest.note || question
           : serviceRequest.kind === "followup"
             ? `随访安排：${serviceRequest.note || question}`
+            : serviceRequest.kind === "referral"
+              ? serviceRequest.target || question
+              : serviceRequest.kind === "community_activity"
+                ? `报名参加：${serviceRequest.activityTitle}`
             : question;
   params.set("target", target.slice(0, 160));
 
@@ -62,6 +66,20 @@ function appointmentHref(
       "note",
       `期望时间：${serviceRequest.preferredDate}，请确认后提交。`,
     );
+  }
+  if (serviceRequest.kind === "referral") {
+    if (serviceRequest.department) params.set("department", serviceRequest.department);
+    const referralNote = [
+      serviceRequest.institution ? `希望转诊机构：${serviceRequest.institution}` : "",
+      [serviceRequest.preferredDate, serviceRequest.preferredTime].filter(Boolean).length
+        ? `期望时段：${[serviceRequest.preferredDate, serviceRequest.preferredTime].filter(Boolean).join("")}`
+        : "",
+    ].filter(Boolean).join("；");
+    if (referralNote) params.set("note", `${referralNote}，由家医团队评估后确认。`);
+  }
+  if (serviceRequest.kind === "community_activity") {
+    params.set("contentId", serviceRequest.contentId);
+    params.set("note", `信息来源：${serviceRequest.sourceName || "已审核官方内容"}。请团队核对活动条件和报名方式。`);
   }
 
   return `/appointments?${params.toString()}`;
@@ -112,6 +130,18 @@ export function buildAssistantActions(params: {
                   label: "核对并安排随访",
                   description: "确认随访时间和方式后再提交。",
                 }
+              : serviceRequest.kind === "referral"
+                ? {
+                    type: "referral_assistance",
+                    label: "核对并申请转诊协助",
+                    description: "先由所属家医团队评估，再协助对接合作医院和科室。",
+                  }
+                : serviceRequest.kind === "community_activity"
+                  ? {
+                      type: "other",
+                      label: "核对并申请活动报名",
+                      description: "团队会依据已审核原文核对名额、对象和报名方式。",
+                    }
               : null;
     if (config) {
       return [

@@ -99,10 +99,15 @@ export async function getPublishedContent(params: {
   category?: string | null;
   limit?: number;
 }) {
+  const now = new Date().toISOString();
   let query = params.supabase.from("content_items").select(`
     id,category,title,summary,cover_url,original_url,source_name,published_at,effective_from,expires_at,reviewed_at,
     institution:institutions(name)
-  `).eq("status", "published").order("published_at", { ascending: false }).limit(params.limit ?? 30);
+  `).eq("status", "published")
+    .or(`effective_from.is.null,effective_from.lte.${now}`)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .limit(params.limit ?? 30);
   if (params.communityId) query = query.or(`community_id.eq.${params.communityId},community_id.is.null`);
   if (params.category) query = query.eq("category", params.category);
   const { data, error } = await query;

@@ -1,5 +1,5 @@
 import { Button, Picker, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { useState } from "react";
 import {
   Bell,
@@ -18,6 +18,8 @@ import {
   Stethoscope,
 } from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
+import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
+import CustomTabBar from "../../custom-tab-bar";
 import {
   apiRequest,
   isLoggedIn,
@@ -71,6 +73,19 @@ type HomeData = {
     delta: number | null;
     secondaryDelta: number | null;
   }>;
+  assistant?: {
+    lastActivity: null | {
+      id: string;
+      title: string;
+      detail: string;
+      badge: string;
+      occurredAt: string;
+      primaryAction: { label: string; href: string } | null;
+    };
+    lastActivityAt: string | null;
+    retentionDays: number;
+    rawTranscriptStored: false;
+  };
 };
 
 type HealthSummaryItem = NonNullable<HomeData["healthSummary"]>[number];
@@ -127,6 +142,15 @@ export default function HomePage() {
     void load();
   });
 
+  usePullDownRefresh(() => {
+    if (!isLoggedIn()) {
+      Taro.stopPullDownRefresh();
+      return;
+    }
+    void load().finally(() => Taro.stopPullDownRefresh());
+  });
+  useReloadOnNetworkRestore(() => void load());
+
   async function switchSubject(index: number) {
     const subject = data?.careSubjects[index];
     if (!subject) return;
@@ -167,6 +191,40 @@ export default function HomePage() {
       return;
     }
     void Taro.navigateTo({ url });
+  }
+
+  function continueAssistantActivity() {
+    const href = data?.assistant?.lastActivity?.primaryAction?.href;
+    if (!href) {
+      void Taro.navigateTo({ url: "/pages/ask/index" });
+      return;
+    }
+    if (href === "tel:120") {
+      void Taro.makePhoneCall({ phoneNumber: "120" });
+      return;
+    }
+    if (href.startsWith("/services")) {
+      void Taro.switchTab({ url: "/pages/services/index" });
+      return;
+    }
+    if (href.startsWith("/public-info")) {
+      void Taro.navigateTo({ url: "/pages/public-info/index" });
+      return;
+    }
+    if (href.startsWith("/appointments")) {
+      const query = href.includes("?") ? href.slice(href.indexOf("?")) : "";
+      openProtectedFeature(`/pages/appointments/index${query}`);
+      return;
+    }
+    void Taro.navigateTo({ url: "/pages/ask/index" });
+  }
+
+  function activityTime(value?: string | null) {
+    if (!value) return "";
+    const date = new Date(value);
+    const today = new Date();
+    if (date.toDateString() === today.toDateString()) return "今天";
+    return `${date.getMonth() + 1}月${date.getDate()}日`;
   }
 
   function healthValue(item: HealthSummaryItem) {
@@ -229,7 +287,7 @@ export default function HomePage() {
       ) : null}
       {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
 
-      {data?.careSubject ? (
+      {data?.careSubject && data.careSubjects.length > 1 ? (
         <Picker
           mode="selector"
           range={data.careSubjects.map(
@@ -247,11 +305,7 @@ export default function HomePage() {
                 {data.careSubject.displayName} · {data.careSubject.isSelf ? "本人" : "家属代办"}
               </Text>
             </View>
-            {data.careSubjects.length > 1 ? (
-              <Text className="subject-switch">切换 ›</Text>
-            ) : (
-              <Text className="subject-switch">本人</Text>
-            )}
+            <Text className="subject-switch">切换 ›</Text>
           </View>
         </Picker>
       ) : null}
@@ -296,6 +350,22 @@ export default function HomePage() {
         <Text className="home-claw-copy">
           查公开信息、整理就医资料；需要办理时由您确认，再交给家医团队。
         </Text>
+        {data.assistant?.lastActivity ? (
+          <View className="home-claw-continuity pressable" onClick={continueAssistantActivity}>
+            <View className="home-claw-continuity-line" />
+            <View className="grow">
+              <View className="home-claw-continuity-meta">
+                <Text>继续上次</Text>
+                <Text>{activityTime(data.assistant.lastActivity.occurredAt)}</Text>
+              </View>
+              <Text className="home-claw-continuity-title">{data.assistant.lastActivity.title}</Text>
+              <Text className="home-claw-continuity-copy">
+                {data.assistant.lastActivity.primaryAction?.label ?? "继续向 Claw 提问"}
+              </Text>
+            </View>
+            <ChevronRight size={19} color="rgba(255,255,255,.58)" />
+          </View>
+        ) : null}
         <Button
           className="home-claw-primary pressable"
           onClick={() => Taro.navigateTo({ url: "/pages/ask/index?voice=1" })}
@@ -327,38 +397,23 @@ export default function HomePage() {
             <Text>预约协助</Text>
           </View>
         </View>
+        <Text className="home-claw-retention">
+          仅保留 30 天服务类别与进度，不保存原始对话
+        </Text>
       </View>
 
       <View className="home-section-head">
-        <Text className="home-section-title">今日摘要</Text>
-        <Text className="home-section-note">只展示与您相关的信息</Text>
+        <Text className="home-section-title">近期安排</Text>
+        <Text className="home-section-note">已核验信息</Text>
       </View>
       <View className="summary-surface">
-        <View
-          className="summary-row pressable"
-          onClick={() => Taro.navigateTo({ url: "/pages/progress/index" })}
-        >
-          <View className="summary-icon service"><ClipboardCheck size={23} color="#2F6C56" /></View>
-          <View className="grow">
-            <Text className="summary-kicker">正在办理</Text>
-            <Text className="summary-title">
-              {activeRequest?.title ?? "当前没有正在办理的服务"}
-            </Text>
-            <Text className="summary-detail">
-              {activeRequest
-                ? statusLabels[activeRequest.status] ?? "团队处理中"
-                : "可以直接向 Claw 描述需求"}
-            </Text>
-          </View>
-          <ChevronRight className="summary-arrow" size={21} color="rgba(16,42,67,.3)" />
-        </View>
         <View
           className="summary-row pressable"
           onClick={() => Taro.switchTab({ url: "/pages/services/index" })}
         >
           <View className="summary-icon schedule"><Stethoscope size={23} color="#365F8A" /></View>
           <View className="grow">
-            <Text className="summary-kicker">近期坐班</Text>
+            <Text className="summary-kicker">家医排班</Text>
             <Text className="summary-title">
               {nextSchedule?.practitioner?.name ?? "查看家医网络排班"}
               {nextSchedule?.department?.name ? ` · ${nextSchedule.department.name}` : ""}
@@ -427,6 +482,7 @@ export default function HomePage() {
         </Text>
       </View>
       </> : null}
+      {process.env.TARO_ENV === "h5" ? <CustomTabBar /> : null}
     </View>
   );
 }

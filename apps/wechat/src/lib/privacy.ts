@@ -25,6 +25,7 @@ function notify() {
 }
 
 export function installPrivacyAuthorizationHandler() {
+  if (process.env.TARO_ENV !== "weapp") return;
   if (installed) return;
   installed = true;
   Taro.onNeedPrivacyAuthorization((resolve, eventInfo) => {

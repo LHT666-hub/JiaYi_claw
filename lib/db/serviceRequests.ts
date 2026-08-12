@@ -128,6 +128,48 @@ export async function createServiceRequest(params: {
 
   const payload: Record<string, unknown> = {};
   if (input.appointment) payload.appointment = input.appointment;
+  let verifiedSourceContext: { id: string; title: string; sourceName: string; originalUrl: string; reviewedAt: string | null; category: string } | null = null;
+  if (input.sourceContext) {
+    const now = new Date().toISOString();
+    let sourceQuery = supabase.from("content_items")
+      .select("id,title,source_name,original_url,reviewed_at,category")
+      .eq("id", input.sourceContext.id)
+      .eq("organization_id", tenant.organizationId)
+      .eq("status", "published")
+      .or(`effective_from.is.null,effective_from.lte.${now}`)
+      .or(`expires_at.is.null,expires_at.gt.${now}`);
+    if (tenant.communityId) sourceQuery = sourceQuery.or(`community_id.eq.${tenant.communityId},community_id.is.null`);
+    const { data: sourceItem, error: sourceError } = await sourceQuery.maybeSingle();
+    if (sourceError) throw new Error(sourceError.message);
+    if (!sourceItem) throw new Error("CONTENT_SOURCE_NOT_AVAILABLE");
+    verifiedSourceContext = {
+      id: sourceItem.id,
+      title: sourceItem.title,
+      sourceName: sourceItem.source_name,
+      originalUrl: sourceItem.original_url,
+      reviewedAt: sourceItem.reviewed_at,
+      category: sourceItem.category,
+    };
+    payload.sourceContext = verifiedSourceContext;
+  }
+  let catalogQuery = supabase.from("service_catalog")
+    .select("id,name,owner_role,access_mode,community_id")
+    .eq("organization_id", tenant.organizationId)
+    .eq("service_type", input.serviceType)
+    .eq("active", true);
+  catalogQuery = tenant.communityId
+    ? catalogQuery.or(`community_id.eq.${tenant.communityId},community_id.is.null`)
+    : catalogQuery.is("community_id", null);
+  const { data: catalogRows, error: catalogError } = await catalogQuery.limit(5);
+  if (catalogError) throw new Error(catalogError.message);
+  const catalogItem = (catalogRows ?? []).find((item) => item.community_id === tenant.communityId) ?? catalogRows?.[0] ?? null;
+  const contentBackedActivity = input.serviceType === "other" && verifiedSourceContext?.category === "activity";
+  if (!catalogItem && !contentBackedActivity) throw new Error("SERVICE_NOT_AVAILABLE");
+  if (catalogItem && !["team_assisted", "hybrid"].includes(catalogItem.access_mode)) {
+    throw new Error("SERVICE_INFORMATION_ONLY");
+  }
+  const requestTitle = contentBackedActivity ? "社区活动协助" : catalogItem?.name ?? input.title;
+  const assignedRole = contentBackedActivity ? "community" : catalogItem?.owner_role ?? input.requestedRole ?? null;
 
   const { data: requestRow, error: requestError } = await supabase
     .from("service_requests")
@@ -137,11 +179,11 @@ export async function createServiceRequest(params: {
       resident_id: residentId,
       requested_by: profile.id,
       service_type: input.serviceType,
-      title: input.title,
+      title: requestTitle,
       summary: input.summary,
       priority: input.priority,
       status: "draft",
-      assigned_role: input.requestedRole ?? null,
+      assigned_role: assignedRole,
       payload,
       idempotency_key: idempotencyKey,
       source: "app",
@@ -184,6 +226,7 @@ export async function createServiceRequest(params: {
     question: input.summary,
     entities,
     appointment: input.appointment,
+    sourceContext: verifiedSourceContext,
   });
 
   const { error: intakeError } = await supabase.rpc("finalize_service_request_intake", {
@@ -251,10 +294,11 @@ export async function listStaffWorkQueue(profile: ProfileRow, supabase: TypedSup
 export async function actionServiceRequest(params: {
   id: string;
   input: ServiceRequestActionInput;
+  idempotencyKey: string;
   supabase: TypedSupabaseClient;
 }) {
-  const { id, input, supabase } = params;
-  const { data, error } = await supabase.rpc("transition_service_request", {
+  const { id, input, idempotencyKey, supabase } = params;
+  const { data, error } = await supabase.rpc("transition_service_request_idempotent", {
     p_request_id: id,
     p_action: input.action,
     p_note: input.note,
@@ -265,6 +309,7 @@ export async function actionServiceRequest(params: {
       clinicianName: input.clinicianName,
       bookingReference: input.bookingReference,
     },
+    p_idempotency_key: idempotencyKey,
   });
   if (error) throw new Error(error.message);
   return (await getServiceRequest(id, supabase)) ?? (data as ServiceRequestRow);

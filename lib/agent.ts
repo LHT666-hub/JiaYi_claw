@@ -8,6 +8,7 @@ import type {
   FamilyDoctorServiceRequest,
   FollowupServiceRequest,
   RegistrationServiceRequest,
+  ReferralServiceRequest,
   RefillServiceRequest,
   RiskLevel,
   ServiceRequestPayload,
@@ -115,7 +116,7 @@ function inferPreferredTime(question: string) {
 }
 
 function inferRegistrationDepartment(question: string) {
-  if (includesAny(question, ["心脏", "胸闷", "心慌", "冠心病"])) {
+  if (includesAny(question, ["心内科", "心血管", "心脏", "胸闷", "心慌", "冠心病"])) {
     return "心血管门诊";
   }
 
@@ -128,6 +129,11 @@ function inferRegistrationDepartment(question: string) {
   }
 
   return "";
+}
+
+function inferReferralInstitution(question: string) {
+  const match = question.match(/(?:转诊|上转|转院|转到|转去)(?:到|去)?([一-龥]{2,24}(?:医院|卫生服务中心))/);
+  return match?.[1]?.trim() ?? "";
 }
 
 function inferRegistrationSymptom(question: string) {
@@ -561,6 +567,46 @@ function buildRegistrationResult(
   };
 }
 
+function buildReferralResult(question: string, request: ReferralServiceRequest): AgentResult {
+  const preferredDate = request.preferredDate || inferPreferredDate(question);
+  const preferredTime = request.preferredTime || inferPreferredTime(question);
+  const destination = [request.institution, request.department].filter(Boolean).join(" · ") || "待家医团队评估的上级机构与科室";
+  return {
+    matched: true,
+    intent: "referral_assistance",
+    label: "分级转诊协助",
+    summary: "Claw 已把诉求整理成分级转诊协助，先由所属家医团队核对情况和协作路径。",
+    needsHumanReview: true,
+    cards: [
+      createCard({
+        intent: "referral_assistance",
+        title: "请家医团队评估转诊路径",
+        summary: `居民希望转诊至 ${destination}，倾向 ${preferredDate}${preferredTime}。目标机构、科室和可用资源均需团队核验。`,
+        status: "queued",
+        urgency: "soon",
+        eta: "通常 2 个工作日内完成初步反馈",
+        serviceWindow: "家医团队会先判断社区能否处理，再按协作网络联系上级机构。",
+        recommendedTeam: "家庭医生 / 社区转诊协调人员",
+        preparedMaterials: ["既往就诊资料", "检查或出院记录", "医保卡或身份证", "可联系时间"],
+        serviceFacts: [
+          { label: "居民意向", value: destination, tone: "positive" },
+          { label: "办理方式", value: "社区评估后人工协调", tone: "neutral" },
+          { label: "号源与接诊", value: "以合作机构和团队回写为准", tone: "warning" },
+        ],
+        actions: [
+          { label: "核对并申请转诊协助", href: "/appointments?type=referral_assistance", kind: "primary" },
+          { label: "查看分级诊疗网络", href: "/services", kind: "secondary" },
+        ],
+        steps: createSteps(1, [
+          { title: "居民提出转诊诉求", owner: "居民", ownerRole: "resident" },
+          { title: "社区评估并核对协作路径", owner: "家庭医生", ownerRole: "doctor" },
+          { title: "联系上级机构并回写结果", owner: "转诊协调人员", ownerRole: "community" },
+        ]),
+      }),
+    ],
+  };
+}
+
 export function inferServiceRequestFromQuestion(
   question: string,
 ): ServiceRequestPayload | null {
@@ -609,9 +655,27 @@ export function inferServiceRequestFromQuestion(
     "回访",
     "提醒我",
   ]);
+  const hasReferral = includesAny(normalized, [
+    "转诊",
+    "上转",
+    "转院",
+    "转到医院",
+    "转去医院",
+  ]);
 
   if (lookupOnly && !hasDispenseStatus) {
     return null;
+  }
+
+  if (hasReferral && actionCue) {
+    return {
+      kind: "referral",
+      target: question.trim(),
+      institution: inferReferralInstitution(question),
+      department: inferRegistrationDepartment(question),
+      preferredDate: inferPreferredDate(question),
+      preferredTime: inferPreferredTime(question),
+    };
   }
 
   if (hasRegistration && !hasFamilyDoctor && actionCue) {
@@ -988,6 +1052,14 @@ export function detectAgentResult(
     return buildFollowupResult(question, serviceRequest);
   }
 
+  if (serviceRequest?.kind === "referral") {
+    return buildReferralResult(question, serviceRequest);
+  }
+
+  if (serviceRequest?.kind === "community_activity") {
+    return null;
+  }
+
   const normalized = question.trim().toLowerCase();
 
   if (!normalized) {
@@ -1081,6 +1153,8 @@ function getRiskLevel(intent: AgentIntent): RiskLevel {
     return "medium";
   }
 
+  if (intent === "referral_assistance") return "medium";
+
   return "low";
 }
 
@@ -1101,6 +1175,8 @@ export function buildAgentReply(
       "我已把您的诉求整理成挂号协助任务，接下来可以继续确认号源并推进预约。",
     family_doctor_booking:
       "我已把您的问题整理成家庭医生预约任务，适合继续转给家庭医生团队安排。",
+    referral_assistance:
+      "我已把您的诉求整理成分级转诊协助，先由所属家医团队评估，再按协作网络核对上级机构和科室。",
     refill_request:
       "我已把您的问题整理成续方配药申请，后续重点是核对既往处方、库存和近期记录，避免断药。",
     dispense_status_query:

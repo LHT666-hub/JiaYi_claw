@@ -1,16 +1,19 @@
 import { Button, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { useState } from "react";
 import {
   Bell,
   ChevronRight,
   FileText,
+  History,
   LifeBuoy,
   LockKeyhole,
   ShieldCheck,
   UsersRound,
 } from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
+import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
+import CustomTabBar from "../../custom-tab-bar";
 import { apiRequest, clearSession, withCareSubject } from "../../lib/api";
 
 type Data = {
@@ -38,6 +41,7 @@ const roleLabels: Record<string, string> = {
 
 function SettingIcon({ type }: { type: string }) {
   const props = { size: 22, strokeWidth: 2.1 } as const;
+  if (type === "assistant") return <History {...props} color="#2F6C56" />;
   if (type === "support") return <LifeBuoy {...props} color="#2F6C56" />;
   if (type === "privacy") return <ShieldCheck {...props} color="#365F8A" />;
   if (type === "notification") return <Bell {...props} color="#8B5E83" />;
@@ -66,12 +70,18 @@ export default function MePage() {
     void load();
   });
 
+  usePullDownRefresh(() => {
+    void load().finally(() => Taro.stopPullDownRefresh());
+  });
+  useReloadOnNetworkRestore(() => void load());
+
   function logout() {
     clearSession();
     void Taro.reLaunch({ url: "/pages/login/index" });
   }
 
   const links = [
+    { icon: "assistant", label: "Claw 服务轨迹", note: "查看或清除近 30 天固定类别记录", url: "/pages/ask/index?history=1" },
     { icon: "support", label: "帮助与反馈", note: "联系社区、微信客服和问题反馈", url: "/pages/support/index" },
     { icon: "privacy", label: "隐私与授权", note: "健康信息和 AI 处理范围", url: "/pages/privacy/index" },
     { icon: "notification", label: "通知设置", note: "订阅消息与免打扰时间", url: "/pages/notification-settings/index" },
@@ -189,8 +199,10 @@ export default function MePage() {
       <Button className="me-logout pressable" disabled={loading} onClick={logout}>
         退出当前账号
       </Button>
-      <Text className="me-version">家医 Claw · 服务导航与家庭医生协同</Text>
+      <Text className="me-version">家医 Claw · 海湾镇试点服务</Text>
+      <Text className="me-version-note">服务由家庭医生团队人工协同，AI 不替代医生诊疗</Text>
       </> : null}
+      {process.env.TARO_ENV === "h5" ? <CustomTabBar /> : null}
     </View>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -44,6 +44,7 @@ type WorkItem = {
   created_at: string;
   updated_at: string;
   assigned_to: string | null;
+  payload?: { sourceContext?: { id?: string; title?: string; sourceName?: string; originalUrl?: string; reviewedAt?: string | null } };
   resident?: Resident | Resident[];
   assignee?: { id: string; display_name: string; role: string } | Array<{ id: string; display_name: string; role: string }> | null;
   appointment_details?: AppointmentDetails | AppointmentDetails[] | null;
@@ -59,6 +60,17 @@ type ClinicalBrief = {
   created_at: string;
 };
 type QueueFilter = "all" | "new" | "action" | "processing";
+
+const serviceTypeLabels: Record<string, string> = {
+  clinic_registration: "门诊挂号协助",
+  family_doctor_booking: "家庭医生预约",
+  refill_request: "续方配药申请",
+  dispense_status_query: "配药进度查询",
+  followup_reminder: "随访安排",
+  report_explanation: "检查报告整理",
+  referral_assistance: "分级转诊协助",
+  other: "其他家医服务",
+};
 
 const actionOptions: Partial<Record<ServiceStatus, Array<{ action: ServiceAction; label: string; description: string }>>> = {
   submitted: [
@@ -97,6 +109,7 @@ function formatDate(value: string) {
 }
 
 export default function WorkbenchRequestsPage() {
+  const actionKeys = useRef(new Map<string, string>());
   const router = useRouter();
   const { showToast } = useToast();
   const [items, setItems] = useState<WorkItem[]>([]);
@@ -121,6 +134,7 @@ export default function WorkbenchRequestsPage() {
   const resident = relation(selected?.resident);
   const assignee = relation(selected?.assignee);
   const appointment = relation(selected?.appointment_details);
+  const sourceContext = selected?.payload?.sourceContext;
   const canAct = Boolean(selected && profile && (!selected.assigned_to || selected.assigned_to === profile.id || profile.role === "admin"));
 
   const counts = useMemo(() => ({
@@ -209,10 +223,13 @@ export default function WorkbenchRequestsPage() {
       return;
     }
     setSubmitting(true);
+    const operation = `${selected.id}:${selectedAction}:${scheduledAt}:${institution}:${department}:${clinician}:${reference}:${note}`;
+    const actionKey = actionKeys.current.get(operation) ?? crypto.randomUUID();
+    actionKeys.current.set(operation, actionKey);
     try {
       const response = await fetch(`/api/v1/service-requests/${selected.id}/actions/${selectedAction}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": actionKey },
         body: JSON.stringify({
           note: note.trim() || null,
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -224,6 +241,7 @@ export default function WorkbenchRequestsPage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message ?? "状态更新失败。");
+      actionKeys.current.delete(operation);
       showToast("状态、居民通知和审计记录已更新。", "success");
       resetComposer(null);
       await load();
@@ -281,8 +299,9 @@ export default function WorkbenchRequestsPage() {
                 </div>
 
                 <div className="space-y-7 px-6 py-6">
-                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><UserRound className="h-4 w-4 text-sage" />居民与申请</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="居民" value={resident?.display_name ?? "未命名居民"} /><Detail label="联系电话" value={resident?.phone ?? "未留手机号"} /><Detail label="服务类型" value={selected.service_type} /><Detail label="当前经办人" value={assignee?.display_name ?? "尚未认领"} /></div><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-navy/72">{selected.summary}</p></section>
+                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><UserRound className="h-4 w-4 text-sage" />居民与申请</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="居民" value={resident?.display_name ?? "未命名居民"} /><Detail label="联系电话" value={resident?.phone ?? "未留手机号"} /><Detail label="服务类型" value={serviceTypeLabels[selected.service_type] ?? "家医服务"} /><Detail label="当前经办人" value={assignee?.display_name ?? "尚未认领"} /></div><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-navy/72">{selected.summary}</p></section>
 
+                  {sourceContext ? <section className="rounded-md border border-sage/20 bg-health-soft/45 p-4"><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />居民引用的已审核内容</h3><p className="mt-2 text-sm font-semibold">{sourceContext.title ?? "已审核内容"}</p><p className="mt-1 text-xs text-navy/50">{sourceContext.sourceName ?? "官方来源"}{sourceContext.reviewedAt ? ` · 核验于 ${new Date(sourceContext.reviewedAt).toLocaleDateString("zh-CN")}` : ""}</p>{sourceContext.originalUrl ? <a href={sourceContext.originalUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sage">打开官方原文核对</a> : null}</section> : null}
                   {appointment ? <section><h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-sage" />预约偏好与回执</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="目标" value={appointment.target ?? "未填写"} /><Detail label="期望日期" value={appointment.preferred_dates?.join("、") ?? "未填写"} /><Detail label="期望时段" value={appointment.preferred_time ?? "未填写"} /><Detail label="期望科室/医生" value={[appointment.department, appointment.preferred_doctor].filter(Boolean).join(" · ") || "未指定"} />{appointment.scheduled_at ? <Detail label="已提出时间" value={new Date(appointment.scheduled_at).toLocaleString("zh-CN")} /> : null}{appointment.institution_name ? <Detail label="机构与科室" value={[appointment.institution_name, appointment.department_name, appointment.clinician_name].filter(Boolean).join(" · ")} /> : null}</div></section> : null}
 
                   <section><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />Claw 接诊前摘要</h3>{briefLoading ? <p className="mt-3 text-sm text-navy/45">正在读取摘要...</p> : briefs.length ? <div className="mt-3 border-l-2 border-sage bg-[#F7FAF8] px-4 py-3"><p className="text-sm leading-7 text-navy/72">{briefs[0].summary}</p><p className="mt-2 text-[11px] text-navy/38">{briefs[0].skill_id} · {briefs[0].skill_version} · {formatDate(briefs[0].created_at)}</p></div> : <p className="mt-3 border border-dashed border-line px-4 py-5 text-sm text-navy/45">当前没有可用摘要，请以居民原始资料和沟通结果为准。</p>}</section>

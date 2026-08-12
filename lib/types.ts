@@ -265,6 +265,7 @@ export type AgentIntent =
   | "doctor_schedule_query"
   | "clinic_registration"
   | "family_doctor_booking"
+  | "referral_assistance"
   | "refill_request"
   | "dispense_status_query"
   | "followup_reminder";
@@ -377,12 +378,30 @@ export type FollowupServiceRequest = {
   note?: string;
 };
 
+export type ReferralServiceRequest = {
+  kind: "referral";
+  target?: string;
+  institution?: string;
+  department?: string;
+  preferredDate?: string;
+  preferredTime?: string;
+};
+
+export type CommunityActivityServiceRequest = {
+  kind: "community_activity";
+  activityTitle: string;
+  contentId: string;
+  sourceName?: string;
+};
+
 export type ServiceRequestPayload =
   | RegistrationServiceRequest
   | RefillServiceRequest
   | FamilyDoctorServiceRequest
   | DispenseStatusServiceRequest
-  | FollowupServiceRequest;
+  | FollowupServiceRequest
+  | ReferralServiceRequest
+  | CommunityActivityServiceRequest;
 
 export type AskReply = {
   answer: string;

@@ -148,7 +148,7 @@ export function routeSkillIds(question: string) {
   if (/(几点|什么时候|地址|电话|在哪里|怎么查|流程|政策|门诊时间|服务时间)/.test(question)) {
     result.add("public-info-qa");
   }
-  if (/(预约|挂.{0,2}号|约.{0,4}医生|帮.{0,4}约|一键约)/.test(question)) {
+  if (/(预约|挂.{0,2}号|约.{0,4}医生|帮.{0,4}约|一键约|转诊|上转|转院|报名|参加活动)/.test(question)) {
     result.add("service-intent-extractor");
     result.add("appointment-intake");
   }

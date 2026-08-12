@@ -162,6 +162,41 @@ export async function uploadVoice(
   return payload.data;
 }
 
+export async function uploadVoiceBlob(
+  blob: Blob,
+  retry = true,
+): Promise<{ text: string; requiresConfirmation: boolean }> {
+  const token = Taro.getStorageSync<string>(ACCESS_KEY);
+  if (!token) {
+    await expireSession();
+    throw sessionExpiredError();
+  }
+  const form = new FormData();
+  const extension = blob.type.includes("ogg") ? "ogg" : "webm";
+  form.append("audio", blob, `recording.${extension}`);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/api/v1/speech/transcribe`, {
+      method: "POST",
+      headers: {
+        "X-Client-Platform": "h5",
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    });
+  } catch {
+    throw networkError();
+  }
+  if (response.status === 401) {
+    if (retry && (await refreshSession())) return uploadVoiceBlob(blob, false);
+    await expireSession();
+    throw sessionExpiredError();
+  }
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw apiErrorFromPayload(payload, response.status);
+  return payload.data;
+}
+
 export type DocumentAnalysisResult = {
   documentType: "lab_report" | "exam_report" | "prescription" | "medicine_package" | "discharge_summary" | "other";
   visibleText: string[];

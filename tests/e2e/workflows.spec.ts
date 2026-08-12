@@ -402,6 +402,10 @@ test("居民从社区网络进入分级转诊协助", async ({ page }) => {
 
 test("管理员审核候选内容后才发布", async ({ page }) => {
   let published = false;
+  let expiresAt = "";
+  await page.route("**/api/v1/staff/care-bindings?status=pending", (route) =>
+    route.fulfill({ json: ok({ bindings: [] }) }),
+  );
   await page.route("**/api/v1/staff/group-work-queue", (route) =>
     route.fulfill({ json: ok({ candidates: [] }) }),
   );
@@ -415,8 +419,15 @@ test("管理员审核候选内容后才发布", async ({ page }) => {
             source_name: "机构公众号",
             category: "activity",
             title: "义诊活动",
-            summary: "本周开展慢病义诊。",
+            summary: "本周开展慢病义诊，并提供家庭医生签约咨询。",
             original_url: "https://example.com/article",
+            institution: { name: "海湾镇社区卫生服务中心" },
+            published_at: "2026-08-01T00:00:00.000Z",
+            ingested_at: "2026-08-13T08:00:00.000Z",
+            previous_revision: {
+              summary: "原定上周开展慢病义诊。",
+              captured_at: "2026-08-12T08:00:00.000Z",
+            },
           },
         ],
       }),
@@ -429,14 +440,22 @@ test("管理员审核候选内容后才发布", async ({ page }) => {
     route.fulfill({ json: ok({ broadcasts: [] }) }),
   );
   await page.route("**/api/v1/admin/content-sources/review", async (route) => {
-    published = route.request().postDataJSON().decision === "publish";
+    const body = route.request().postDataJSON();
+    published = body.decision === "publish";
+    expiresAt = body.expiresAt;
     await route.fulfill({ json: ok({ item: { status: "published" } }) });
   });
   await page.goto("/workbench/operations");
   await page.getByRole("button", { name: /内容审核/ }).click();
   await expect(page.getByText("义诊活动")).toBeVisible();
-  await page.getByRole("button", { name: "审核发布" }).click();
+  await expect(page.getByText("海湾镇社区卫生服务中心")).toBeVisible();
+  await expect(page.getByText("已发布内容有更新")).toBeVisible();
+  await expect(page.getByText("原定上周开展慢病义诊。")).toBeVisible();
+  await expect(page.getByText("本周开展慢病义诊，并提供家庭医生签约咨询。")).toBeVisible();
+  await page.locator("select").selectOption("180");
+  await page.getByRole("button", { name: "核对原文并发布" }).click();
   await expect.poll(() => published).toBe(true);
+  await expect.poll(() => new Date(expiresAt).getTime() - Date.now()).toBeGreaterThan(179 * 86_400_000);
 });
 
 test("居民端保持原版圆角手机视觉", async ({ page }) => {
@@ -957,4 +976,77 @@ test("社区工作人员处理居民反馈并记录结论", async ({ page }) => 
     status: "resolved",
     resolutionNote: "已核查服务申请，进度通知已重新发送。",
   });
+});
+
+test("管理员创建并撤销工作人员邀请", async ({ page }) => {
+  const inviteId = "94000000-0000-0000-0000-000000000001";
+  let invites: Array<Record<string, unknown>> = [];
+  let createBody: Record<string, unknown> = {};
+  let revokedId = "";
+  await page.route("**/api/v1/admin/staff**", async (route) => {
+    const method = route.request().method();
+    if (method === "POST") {
+      createBody = route.request().postDataJSON();
+      invites = [{ id: inviteId, phone: "+8613800000022", display_name: "周护士", role: "nurse", community_id: "11000000-0000-0000-0000-000000000001", status: "pending", created_at: "2026-08-13T02:00:00.000Z", expires_at: "2026-08-15T02:00:00.000Z" }];
+      await route.fulfill({ status: 201, json: ok({ invite: invites[0], token: "a".repeat(43) }) });
+      return;
+    }
+    if (method === "DELETE") {
+      revokedId = new URL(route.request().url()).searchParams.get("id") ?? "";
+      invites = invites.map((item) => ({ ...item, status: "revoked" }));
+      await route.fulfill({ json: ok({ revoked: true }) });
+      return;
+    }
+    await route.fulfill({ json: ok({
+      staff: [{ id: "20000000-0000-0000-0000-000000000001", display_name: "李医生", role: "doctor", phone: "+8613800000001", community_id: "11000000-0000-0000-0000-000000000001", account_status: "active", created_at: "2026-08-01T02:00:00.000Z" }],
+      invites,
+      communities: [{ id: "11000000-0000-0000-0000-000000000001", name: "海湾镇社区" }],
+    }) });
+  });
+
+  await page.goto("/admin/staff");
+  await expect(page.getByRole("heading", { name: "工作人员与邀请" })).toBeVisible();
+  await page.getByPlaceholder("姓名").fill("周护士");
+  await page.getByPlaceholder("中国大陆手机号").fill("13800000022");
+  await page.locator("select").nth(0).selectOption("nurse");
+  await page.getByRole("button", { name: "生成一次性邀请" }).click();
+  await expect(page.getByText("链接只在本次创建后显示")).toBeVisible();
+  await expect(page.getByText("周护士")).toBeVisible();
+  expect(createBody).toMatchObject({ phone: "13800000022", displayName: "周护士", role: "nurse" });
+  await page.getByRole("button", { name: "撤销" }).click();
+  await expect.poll(() => revokedId).toBe(inviteId);
+});
+
+test("受邀工作人员验证手机号后接受一次性邀请", async ({ page }) => {
+  let acceptedToken = "";
+  await page.route("**/api/v1/auth/capabilities", (route) => route.fulfill({ json: ok({ sms: { available: true }, staffSms: { available: true } }) }));
+  await page.route("**/api/v1/auth/otp/request", (route) => route.fulfill({ json: ok({ phone: "+86138****0022", retryAfterSeconds: 60 }) }));
+  await page.route("**/api/v1/auth/otp/verify", (route) => route.fulfill({ json: ok({ needsOnboarding: true, profile: { role: "resident" } }) }));
+  await page.route("**/api/v1/staff-invites/accept", async (route) => {
+    acceptedToken = route.request().postDataJSON().token;
+    await route.fulfill({ json: ok({ profile: { role: "nurse", display_name: "周护士" } }) });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/staff-invite#token=${"a".repeat(43)}`);
+  await page.getByPlaceholder("请输入中国大陆手机号").fill("13800000022");
+  await page.getByRole("button", { name: /获取验证码/ }).click();
+  await page.getByPlaceholder("6 位验证码").fill("123456");
+  await page.getByRole("button", { name: /验证并继续/ }).click();
+  await expect(page.getByText("身份已开通", { exact: true })).toBeVisible();
+  expect(acceptedToken).toBe("a".repeat(43));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test("管理员查询机构审计证据", async ({ page }) => {
+  const requestedUrls: string[] = [];
+  await page.route("**/api/v1/admin/audit**", async (route) => {
+    requestedUrls.push(route.request().url());
+    await route.fulfill({ json: ok({ logs: [{ id: "95000000-0000-0000-0000-000000000001", action: "staff_invite.created", target_table: "staff_invites", target_id: "94000000-0000-0000-0000-000000000001", detail: { role: "nurse" }, created_at: "2026-08-13T02:00:00.000Z", actor: { display_name: "管理员", role: "admin" } }] }) });
+  });
+  await page.goto("/admin/audit");
+  await expect(page.getByText("创建人员邀请")).toBeVisible();
+  await expect(page.getByText("管理员 · admin")).toBeVisible();
+  await page.getByPlaceholder(/按动作筛选/).fill("staff_invite");
+  await page.getByRole("button", { name: "查询" }).click();
+  await expect.poll(() => requestedUrls.some((url) => url.includes("action=staff_invite"))).toBe(true);
 });

@@ -22,6 +22,7 @@ export function apiErrorFromPayload(payload: unknown, status: number) {
   let message = typeof value.error?.message === "string" ? value.error.message : "服务暂时不可用，请稍后重试。";
   if (status === 429) message = "操作有些频繁，请稍后再试。";
   else if (status >= 500 && !value.error?.message) message = "服务正在恢复中，请稍后重试。";
+  if (status >= 500 && traceId) message = `${message}（编号 ${traceId.slice(0, 8)}）`;
   return new MiniApiError(message, code, status, traceId);
 }
 

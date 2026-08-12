@@ -18,14 +18,20 @@ export async function writeAuditLog({
   supabase,
 }: WriteAuditLogInput) {
   try {
-    await supabase.from("audit_logs").insert({
+    const { error } = await supabase.from("audit_logs").insert({
       actor_id: actorId,
       action,
       target_table: targetTable,
       target_id: targetId,
       detail,
     });
-  } catch {
-    // Audit should not block the primary flow in MVP mode.
+    if (error) {
+      console.error("audit-log-write-failed", { action, targetTable, code: error.code });
+      return { ok: false as const, error: error.message };
+    }
+    return { ok: true as const };
+  } catch (error) {
+    console.error("audit-log-write-failed", { action, targetTable, code: "UNEXPECTED" });
+    return { ok: false as const, error: error instanceof Error ? error.message : "AUDIT_WRITE_FAILED" };
   }
 }

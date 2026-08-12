@@ -535,6 +535,24 @@ try {
     "管理员不能跨机构创建邀请",
   );
   await expectDenied(
+    () => residentA.client.rpc("create_staff_invite", {
+      p_phone: "+8613900000000",
+      p_display_name: "resident forged invite",
+      p_role: "admin",
+      p_community_id: primaryCommunity.id,
+      p_token_hash: `resident-forged-${suffix}`,
+      p_expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+    }),
+    "居民不能调用人员邀请事务",
+  );
+  await expectDenied(
+    () => staffA.client.rpc("set_staff_account_status", {
+      p_profile_id: adminA.id,
+      p_status: "disabled",
+    }),
+    "非管理员工作人员不能停用其他账号",
+  );
+  await expectDenied(
     () => adminA.client.from("public_info_entries").insert({
       organization_id: otherOrganizationId,
       community_id: otherCommunityId,
@@ -566,6 +584,35 @@ try {
     }),
     "管理员不能跨机构伪造问答记录",
   );
+  await expectDenied(
+    () => residentA.client.from("audit_logs").insert({
+      actor_id: residentA.id,
+      action: "service_catalog.enabled",
+      target_table: "service_catalog",
+      detail: { forged: true },
+    }),
+    "居民不能伪造后台审计事件",
+  );
+  const staffAuditAction = `verification.staff_action.${suffix}`;
+  const { error: staffAuditError } = await staffA.client
+    .from("audit_logs")
+    .insert({
+      actor_id: staffA.id,
+      action: staffAuditAction,
+      target_table: "profiles",
+      target_id: staffA.id,
+      detail: { verification: true },
+    });
+  if (staffAuditError) throw staffAuditError;
+  const { data: staffAudit, error: staffAuditReadError } = await admin
+    .from("audit_logs")
+    .select("id")
+    .eq("action", staffAuditAction)
+    .eq("actor_id", staffA.id)
+    .single();
+  if (staffAuditReadError || !staffAudit) throw staffAuditReadError ?? new Error("管理员无法核验工作人员审计记录。");
+  cleanup.auditIds.push(staffAudit.id);
+  assertions += 1;
 
   const { error: escalationError } = await residentA.client.from("profiles").update({ role: "admin" }).eq("id", residentA.id);
   if (!escalationError) throw new Error("居民角色升级请求未被 RLS 明确拒绝。");
