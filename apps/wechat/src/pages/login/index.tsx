@@ -3,8 +3,11 @@ import Taro from "@tarojs/taro";
 import { useCallback, useEffect, useState } from "react";
 import {
   BookOpen,
+  CalendarCheck2,
   ChevronRight,
+  ClipboardList,
   LogIn,
+  MessageCircleMore,
   MessageSquareText,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +28,7 @@ type AuthCapabilities = {
   sms: { available: boolean; unavailableMessage: string | null };
   wechat: { available: boolean; unavailableMessage: string | null };
   preferredResidentChannel: "wechat" | "sms" | null;
+  policyVersion: string;
 };
 
 export default function LoginPage() {
@@ -85,7 +89,12 @@ export default function LoginPage() {
       const login = await Taro.login();
       const data = await apiRequest<VerifyResult>("/api/v1/auth/wechat/verify", {
         method: "POST",
-        data: { loginCode: login.code, phoneCode: event.detail.code },
+        data: {
+          loginCode: login.code,
+          phoneCode: event.detail.code,
+          privacyAccepted: true,
+          policyVersion: capabilities.policyVersion,
+        },
         auth: "optional",
       });
       saveSession(data.session);
@@ -139,7 +148,12 @@ export default function LoginPage() {
     try {
       const data = await apiRequest<VerifyResult>("/api/v1/auth/otp/verify", {
         method: "POST",
-        data: { phone, token: otp },
+        data: {
+          phone,
+          token: otp,
+          privacyAccepted: true,
+          policyVersion: capabilities?.policyVersion,
+        },
         auth: "optional",
       });
       saveSession(data.session);
@@ -177,28 +191,64 @@ export default function LoginPage() {
 
   return (
     <View className="page auth-page">
-      <View className="auth-brand">
-        <Image
-          className="brand-mark-image"
-          src={appIcon}
-          mode="aspectFit"
-          aria-label="家医 Claw"
-        />
-        <Text className="brand-title">家医 Claw</Text>
-        <Text className="brand-subtitle">您的家庭医生服务助手</Text>
+      <View className="auth-hero">
+        <View className="auth-brand-line">
+          <Image
+            className="brand-mark-image"
+            src={appIcon}
+            mode="aspectFit"
+            aria-label="家医 Claw"
+          />
+          <View className="grow auth-brand-copy">
+            <Text className="brand-title">家医 Claw</Text>
+            <Text className="auth-pilot-badge">海湾镇家庭医生服务</Text>
+          </View>
+        </View>
+        <Text className="auth-hero-title">有事，先问家医</Text>
+        <Text className="auth-hero-copy">把问题讲给 Claw，它会帮您查清楚、理好资料，再交给家医团队接着办。</Text>
+        <View className="auth-capability-row">
+          <View className="auth-capability-item">
+            <View className="auth-capability-icon green"><MessageCircleMore size={20} color="#2F6C56" /></View>
+            <Text>问公开信息</Text>
+          </View>
+          <View className="auth-capability-item">
+            <View className="auth-capability-icon blue"><CalendarCheck2 size={20} color="#315B7D" /></View>
+            <Text>办预约转诊</Text>
+          </View>
+          <View className="auth-capability-item">
+            <View className="auth-capability-icon red"><ClipboardList size={20} color="#A64F45" /></View>
+            <Text>整理就诊资料</Text>
+          </View>
+        </View>
       </View>
 
       <View className="auth-entry">
         <View className="auth-entry-head">
           <View className="auth-entry-mark"><ShieldCheck size={25} color="#2F6C56" strokeWidth={2} /></View>
           <View className="grow">
-            <Text className="auth-welcome">登录家医服务</Text>
-            <Text className="auth-intro">预约、随访和家庭健康信息，都在这里。</Text>
+            <Text className="auth-welcome">继续使用个人服务</Text>
+            <Text className="auth-intro">居民本人和家属都可使用</Text>
           </View>
         </View>
 
         {!capabilities && !capabilityError ? <View className="auth-channel-loading"><View /><View /></View> : null}
-        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? <View className="auth-channel-unavailable"><View className="grow"><Text className="auth-channel-note-title">居民服务登录维护中</Text><Text>{capabilityError ? "暂时无法核验登录通道，请稍后再试。" : "账号服务正在完成机构接入，您仍可先查门诊、活动和办理方式。"}</Text></View><Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()} aria-label="刷新登录状态"><RefreshCw size={18} color="#102A43" /></Button></View> : null}
+        {(capabilityError || (capabilities && !capabilities.wechat.available && !capabilities.sms.available)) ? (
+          <View className="auth-channel-unavailable">
+            <View className="auth-channel-status-line">
+              <View className="auth-channel-status-dot" />
+              <Text>{capabilityError ? "服务状态待确认" : "个人服务通道接入中"}</Text>
+            </View>
+            <Text className="auth-channel-note-title">公开服务可以直接查看</Text>
+            <Text className="auth-channel-note-copy">{capabilityError ? "暂时无法核验身份通道。您可先查看已审核的门诊、排班、活动和办事说明。" : "机构尚未开放居民身份验证。预约、健康资料和进度查询将在验证通道开通后开放。"}</Text>
+            <View className="auth-unavailable-actions">
+              <Button className="auth-public-primary pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
+                <BookOpen size={19} color="#FFFFFF" />
+                <Text>进入公开服务</Text>
+              </Button>
+              <Button className="auth-channel-retry pressable" onClick={() => void loadCapabilities()} aria-label="刷新登录状态"><RefreshCw size={18} color="#102A43" /></Button>
+            </View>
+          </View>
+        ) : null}
 
         {capabilities && (capabilities.wechat.available || capabilities.sms.available) ? (
           <>
@@ -244,8 +294,8 @@ export default function LoginPage() {
 
         {capabilities?.sms.available && (smsOpen || !capabilities.wechat.available) ? (
           <View className="sms-panel">
-            {!capabilities.wechat.available ? <View className="sms-panel-head"><Text className="sms-panel-title">手机号登录</Text><Text className="sms-panel-copy">用于识别您的家医签约与服务关系</Text></View> : null}
-            <Text className="label">手机号</Text>
+            {!capabilities.wechat.available ? <Text className="sms-panel-copy">验证手机号后，系统会查找您的家医签约与家属代办关系</Text> : null}
+            <Text className="label">手机号码</Text>
             <View className="phone-input">
               <Text className="country-code">+86</Text>
               <Input
@@ -311,11 +361,13 @@ export default function LoginPage() {
         ) : null}
 
       </View>
-      <View className="auth-public-entry pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
-        <View className="auth-public-mark"><BookOpen size={22} color="#2F6C56" strokeWidth={2} /></View>
-        <View className="grow"><Text className="auth-public-title">先看看社区服务</Text><Text className="auth-public-copy">门诊时间、排班和活动无需登录</Text></View>
-        <ChevronRight className="auth-public-arrow" size={20} color="rgba(16,42,67,.34)" />
-      </View>
+      {capabilities && (capabilities.wechat.available || capabilities.sms.available) ? (
+        <View className="auth-public-entry pressable" onClick={() => Taro.navigateTo({ url: "/pages/public-info/index" })}>
+          <View className="auth-public-mark"><BookOpen size={22} color="#2F6C56" strokeWidth={2} /></View>
+          <View className="grow"><Text className="auth-public-title">暂不登录，先看公开服务</Text><Text className="auth-public-copy">门诊、排班、活动和办事说明</Text></View>
+          <ChevronRight className="auth-public-arrow" size={20} color="rgba(16,42,67,.34)" />
+        </View>
+      ) : null}
       {DEV_LOGIN_ENABLED ? (
         <View className="dev-preview-compact">
           <Text className="dev-preview-toggle" onClick={() => setDevPreviewOpen((value) => !value)}>
@@ -327,7 +379,10 @@ export default function LoginPage() {
           </View> : null}
         </View>
       ) : null}
-      <View className="subtitle footer-note">由家医团队人工协同，Claw 不替代医生诊疗</View>
+      <View className="auth-trust-row">
+        <Text>家医团队协同</Text><View /><Text>按需授权</Text><View /><Text>操作有记录</Text>
+      </View>
+      <View className="subtitle footer-note">Claw 提供服务导航与资料整理，不替代医生诊疗</View>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input, Picker, Text, Textarea, View } from "@tarojs/components";
 import Taro, { useLoad } from "@tarojs/taro";
 import { useMemo, useRef, useState } from "react";
+import type { AppointmentDraftPayload } from "@jiayi/contracts";
 import { apiRequest, getCareSubjectId, withCareSubject } from "../../lib/api";
 
 type ServiceType =
@@ -29,6 +30,13 @@ type MeContext = { profile: { phone?: string | null } };
 type CreateRequestResult = {
   request: { id: string };
   deduplicated: boolean;
+};
+
+type SavedDraft = {
+  id: string;
+  payload: AppointmentDraftPayload;
+  updated_at: string;
+  expires_at: string;
 };
 
 const serviceOptions: Array<{
@@ -81,6 +89,8 @@ export default function AppointmentPage() {
   const [contextError, setContextError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [savedDraft, setSavedDraft] = useState<SavedDraft | null>(null);
+  const [draftSaving, setDraftSaving] = useState(false);
   const idempotencyKey = useRef(createIdempotencyKey());
 
   const selectedService = useMemo(
@@ -129,6 +139,14 @@ export default function AppointmentPage() {
         }
         const savedPhone = me.profile.phone?.replace(/^\+86/, "") ?? "";
         if (savedPhone) setPhone(savedPhone);
+        try {
+          const draftResult = await apiRequest<{ draft: SavedDraft | null }>(withCareSubject("/api/v1/service-drafts"));
+          if (draftResult.draft) setSavedDraft(draftResult.draft);
+        } catch (draftError) {
+          if (!(draftError && typeof draftError === "object" && "code" in draftError && draftError.code === "DRAFT_CONSENT_REQUIRED")) {
+            console.warn("Unable to load service draft", draftError);
+          }
+        }
       } catch (loadError) {
         setContextError(loadError instanceof Error ? loadError.message : "服务对象信息加载失败");
       } finally {
@@ -151,6 +169,94 @@ export default function AppointmentPage() {
       return;
     }
     setStep((value) => Math.min(value + 1, 2));
+  }
+
+  function currentDraftPayload(): AppointmentDraftPayload {
+    return {
+      step,
+      serviceType,
+      target,
+      department,
+      preferredDoctor,
+      date,
+      time: time as AppointmentDraftPayload["time"],
+      phone,
+      note,
+      acceptWaitlist,
+      confirmed,
+      fromClaw,
+      contentId,
+      idempotencyKey: idempotencyKey.current,
+    };
+  }
+
+  async function saveDraft() {
+    if (!target.trim() && !date && !note.trim()) {
+      Taro.showToast({ title: "填写一些内容后再保存", icon: "none" });
+      return;
+    }
+    setDraftSaving(true);
+    try {
+      const result = await apiRequest<{ draft: SavedDraft }>("/api/v1/service-drafts", {
+        method: "PUT",
+        data: {
+          residentId: getCareSubjectId() || undefined,
+          draftType: "appointment",
+          payload: currentDraftPayload(),
+        },
+      });
+      setSavedDraft(result.draft);
+      Taro.showToast({ title: "草稿已安全保存", icon: "success" });
+    } catch (draftError) {
+      const code = draftError && typeof draftError === "object" && "code" in draftError ? draftError.code : "";
+      if (code === "DRAFT_CONSENT_REQUIRED") {
+        const modal = await Taro.showModal({
+          title: "需要您的授权",
+          content: "预约草稿可能包含健康情况。开启敏感健康信息授权后，才能安全保存到账号。",
+          confirmText: "管理授权",
+          cancelText: "暂不保存",
+        });
+        if (modal.confirm) void Taro.navigateTo({ url: "/pages/privacy/index" });
+      } else {
+        Taro.showToast({ title: draftError instanceof Error ? draftError.message : "草稿保存失败", icon: "none" });
+      }
+    } finally {
+      setDraftSaving(false);
+    }
+  }
+
+  function restoreDraft() {
+    const draft = savedDraft?.payload;
+    if (!draft) return;
+    setStep(draft.step);
+    setServiceType(draft.serviceType as ServiceType);
+    setTarget(draft.target);
+    setDepartment(draft.department);
+    setPreferredDoctor(draft.preferredDoctor);
+    setDate(draft.date);
+    setTime(draft.time);
+    setPhone(draft.phone);
+    setNote(draft.note);
+    setAcceptWaitlist(draft.acceptWaitlist);
+    setConfirmed(false);
+    setFromClaw(draft.fromClaw);
+    setContentId(draft.contentId);
+    idempotencyKey.current = draft.idempotencyKey;
+    setSavedDraft(null);
+    Taro.showToast({ title: "已恢复未提交草稿", icon: "success" });
+  }
+
+  async function deleteDraft() {
+    try {
+      await apiRequest("/api/v1/service-drafts", {
+        method: "DELETE",
+        data: { residentId: getCareSubjectId() || undefined, draftType: "appointment" },
+      });
+      setSavedDraft(null);
+      Taro.showToast({ title: "草稿已删除", icon: "success" });
+    } catch (draftError) {
+      Taro.showToast({ title: draftError instanceof Error ? draftError.message : "草稿删除失败", icon: "none" });
+    }
   }
 
   async function submit() {
@@ -190,6 +296,10 @@ export default function AppointmentPage() {
         },
       });
       Taro.showToast({ title: "申请已提交", icon: "success" });
+      void apiRequest("/api/v1/service-drafts", {
+        method: "DELETE",
+        data: { residentId: getCareSubjectId() || undefined, draftType: "appointment" },
+      }).catch(() => undefined);
       idempotencyKey.current = createIdempotencyKey();
       setTimeout(() => Taro.redirectTo({
         url: `/pages/progress/index?submitted=1&id=${encodeURIComponent(result.request.id)}`,
@@ -220,6 +330,19 @@ export default function AppointmentPage() {
         </View>
         <Text className="appointment-network">{context?.network?.community?.name ?? "所属社区"}</Text>
       </View>
+
+      {savedDraft ? (
+        <View className="appointment-draft-banner">
+          <View className="grow">
+            <Text className="appointment-draft-title">发现一份未提交草稿</Text>
+            <Text className="appointment-draft-copy">由您主动保存，30 天后自动过期。恢复前不会覆盖当前填写内容。</Text>
+          </View>
+          <View className="appointment-draft-actions">
+            <Text className="appointment-draft-delete" onClick={() => void deleteDraft()}>删除</Text>
+            <Button className="appointment-draft-restore pressable" onClick={restoreDraft}>恢复</Button>
+          </View>
+        </View>
+      ) : null}
 
       <View className="appointment-stepper">
         {["事项", "偏好", "确认"].map((label, index) => <View key={label} className={`appointment-step ${index <= step ? "active" : ""}`}><View className="appointment-step-dot">{index < step ? "✓" : index + 1}</View><Text>{label}</Text></View>)}
@@ -289,6 +412,11 @@ export default function AppointmentPage() {
         {step > 0 ? <Button className="onboarding-back pressable" onClick={() => setStep((value) => value - 1)}>上一步</Button> : null}
         {step < 2 ? <Button className="primary grow pressable" onClick={goNext}>继续</Button> : <Button className="primary grow pressable" loading={loading} disabled={!confirmed} onClick={submit}>确认提交申请</Button>}
       </View>
+      {(target.trim() || date || note.trim()) && step < 2 ? (
+        <Button className="appointment-save-draft pressable" loading={draftSaving} disabled={draftSaving} onClick={() => void saveDraft()}>
+          保存草稿，稍后继续
+        </Button>
+      ) : null}
       {step === 2 && submitError ? (
         <View className="appointment-submit-error">
           <Text className="appointment-submit-error-title">申请尚未提交</Text>

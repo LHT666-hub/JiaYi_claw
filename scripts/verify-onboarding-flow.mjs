@@ -46,6 +46,19 @@ try {
   if (!escalationError) throw new Error("Profile privilege escalation was not blocked.");
 
   const baseConsents = { privacy: true, sensitive_health: true, ai_processing: true, notification: true };
+  const { data: loginReceipt, error: loginReceiptError } = await resident.client.rpc("record_login_privacy_consent", {
+    p_policy_version: "2026-08-11",
+    p_channel: "sms",
+  });
+  if (loginReceiptError || !loginReceipt?.granted || loginReceipt?.scope !== "privacy") {
+    throw loginReceiptError ?? new Error("Resident login privacy receipt was not recorded.");
+  }
+  const { error: staffReceiptError } = await communityStaff.client.rpc("record_login_privacy_consent", {
+    p_policy_version: "2026-08-11",
+    p_channel: "sms",
+  });
+  if (!staffReceiptError) throw new Error("Staff account was able to record a resident login receipt.");
+
   const { error: residentOnboardingError } = await resident.client.rpc("complete_public_onboarding", {
     p_display_name: "验证居民",
     p_role: "resident",
@@ -111,7 +124,7 @@ try {
   const { count, error: consentError } = await admin.from("consents").select("id", { count: "exact", head: true }).in("user_id", [resident.user.id, family.user.id]);
   if (consentError || count !== 9) throw consentError ?? new Error(`Expected 9 consent records, received ${count}.`);
 
-  console.log("Verified: role escalation blocked; new resident binding stayed pending until community review; resident/family onboarding completed; one-time family link activated; consent rows audited.");
+  console.log("Verified: login privacy receipt recorded and staff rejected; role escalation blocked; new resident binding stayed pending until community review; resident/family onboarding completed; one-time family link activated; consent rows audited.");
 } finally {
   for (const id of createdUserIds) await admin.auth.admin.deleteUser(id);
 }

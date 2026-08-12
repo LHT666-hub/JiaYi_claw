@@ -19,6 +19,8 @@ type OnboardingData = {
     onboarding_completed_at: string | null;
   };
   communities: Community[];
+  consents: Array<{ scope: string; granted: boolean; policy_version: string }>;
+  policyVersion: string;
 };
 
 const steps = [
@@ -48,6 +50,7 @@ export default function OnboardingPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [privacyConfirmedAtLogin, setPrivacyConfirmedAtLogin] = useState(false);
   const [error, setError] = useState("");
 
   const selectedCommunity = useMemo(
@@ -68,6 +71,9 @@ export default function OnboardingPage() {
       setRole(data.profile.role === "family" ? "family" : "resident");
       setCommunities(data.communities);
       setCommunityId(data.profile.community_id ?? data.communities[0]?.id ?? "");
+      const privacyGranted = (data.consents ?? []).some((item) => item.scope === "privacy" && item.granted);
+      setPrivacyConfirmedAtLogin(privacyGranted);
+      setConsents((value) => ({ ...value, privacy: privacyGranted }));
       if (!data.communities.length) setError("当前还没有开放建档的服务社区，请联系机构工作人员。");
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "建档信息暂时无法加载");
@@ -214,10 +220,17 @@ export default function OnboardingPage() {
             </View>
             <View className="consent-list">
               {consentItems.map(([key, title, note, required]) => (
-                <View key={key} className={`consent-row-v2 pressable ${consents[key] ? "selected" : ""}`} onClick={() => setConsents((value) => ({ ...value, [key]: !value[key] }))}>
+                <View
+                  key={key}
+                  className={`consent-row-v2 ${key === "privacy" && privacyConfirmedAtLogin ? "confirmed" : "pressable"} ${consents[key] ? "selected" : ""}`}
+                  onClick={() => {
+                    if (key === "privacy" && privacyConfirmedAtLogin) return;
+                    setConsents((value) => ({ ...value, [key]: !value[key] }));
+                  }}
+                >
                   <Checkbox value={key} checked={consents[key]} color="#2f6c56" />
                   <View className="grow">
-                    <View className="row"><Text className="consent-title">{title}</Text>{required ? <Text className="required-badge">必需</Text> : <Text className="optional-badge">可选</Text>}</View>
+                    <View className="row"><Text className="consent-title">{title}</Text>{key === "privacy" && privacyConfirmedAtLogin ? <Text className="required-badge">登录时已确认</Text> : required ? <Text className="required-badge">必需</Text> : <Text className="optional-badge">可选</Text>}</View>
                     <Text className="consent-note">{note}</Text>
                   </View>
                 </View>

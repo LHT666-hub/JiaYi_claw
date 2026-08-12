@@ -9,6 +9,8 @@ import {
   FileHeart,
   Hospital,
   Megaphone,
+  MessageCircleMore,
+  Mic,
   Newspaper,
   Pill,
   Route,
@@ -17,7 +19,6 @@ import {
 } from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
 import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
-import { ClawAssistStrip } from "../../components/ClawAssistStrip";
 import CustomTabBar from "../../custom-tab-bar";
 import { apiRequest, withCareSubject } from "../../lib/api";
 
@@ -176,6 +177,7 @@ async function openService(item: ServiceItem, access: Data["access"]) {
 export default function ServicesPage() {
   const [data, setData] = useState<Data | null>(null);
   const [tab, setTab] = useState<Tab>("service");
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -219,7 +221,7 @@ export default function ServicesPage() {
         <Text className="eyebrow">分级诊疗服务</Text>
         <Text className="brand-title left">服务</Text>
         <Text className="services-heading-copy">
-          从社区首诊开始，需要时由家医团队协助上转。
+          说清需求，Claw 帮您找到正确入口，再由家医团队接着办。
         </Text>
       </View>
 
@@ -229,7 +231,28 @@ export default function ServicesPage() {
       ) : null}
       {error && data ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
 
-      {data ? <><View className={`network-ribbon ${data.access.canSubmitService ? "" : "pending"}`}>
+      {data ? <><View
+        className="service-concierge pressable"
+        onClick={() => Taro.navigateTo({ url: "/pages/ask/index?prompt=%E6%88%91%E6%83%B3%E5%8A%9E%E4%B8%80%E9%A1%B9%E5%AE%B6%E5%8C%BB%E6%9C%8D%E5%8A%A1%EF%BC%8C%E8%AF%B7%E5%85%88%E5%B8%AE%E6%88%91%E9%97%AE%E6%B8%85%E9%9C%80%E6%B1%82%EF%BC%8C%E5%86%8D%E6%89%BE%E5%88%B0%E5%90%88%E9%80%82%E7%9A%84%E5%8A%9E%E7%90%86%E8%B7%AF%E5%BE%84%E3%80%82" })}
+        role="button"
+        aria-label="打开 Claw 描述服务需求"
+      >
+        <View className="service-concierge-top">
+          <View className="service-concierge-symbol"><MessageCircleMore size={25} color="#D9EAE4" strokeWidth={1.9} /></View>
+          <View className="grow">
+            <Text className="service-concierge-kicker">Claw 服务接待</Text>
+            <Text className="service-concierge-title">不知道该挂什么、找谁办？</Text>
+          </View>
+        </View>
+        <Text className="service-concierge-copy">直接说您的情况。Claw 先查公开信息、整理诉求，需要办理时再请您确认。</Text>
+        <View className="service-concierge-action">
+          <Mic size={19} color="#102A43" strokeWidth={2.2} />
+          <Text>说说或输入您的需求</Text>
+          <ChevronRight size={18} color="rgba(16,42,67,.36)" />
+        </View>
+      </View>
+
+      <View className={`network-ribbon ${data.access.canSubmitService ? "" : "pending"}`}>
         <View className="network-mark"><Hospital size={25} color="#2F6C56" strokeWidth={2} /></View>
         <View className="grow">
           <Text className="network-kicker">我的家医网络</Text>
@@ -269,39 +292,26 @@ export default function ServicesPage() {
       {!loading && tab === "service" ? (
         <>
           <View className="service-section-head">
-            <Text className="service-section-title">可办理服务</Text>
+            <Text className="service-section-title">常用办理</Text>
             <Text className="service-section-note">提交前均需您确认</Text>
           </View>
-          <View className="service-list-surface">
+          <View className="service-quick-grid">
             {data?.serviceCatalog?.length ? (
-              data.serviceCatalog.map((item) => (
+              data.serviceCatalog.slice(0, 4).map((item) => (
                 <View
                   key={item.id}
-                  className={`service-list-row pressable ${!data.access.canSubmitService && item.access_mode !== "official_link" ? "locked" : ""}`}
+                  className={`service-quick-card pressable ${!data.access.canSubmitService && item.access_mode !== "official_link" ? "locked" : ""}`}
                   onClick={() => void openService(item, data.access)}
                 >
                   <View className={`service-glyph service-${item.service_type}`}>
                     <ServiceGlyph type={item.service_type} />
                   </View>
-                  <View className="grow">
-                    <View className="row">
-                      <Text className="service-row-title">{item.name}</Text>
-                      <Text className="service-mode-badge">
-                        {!data.access.canSubmitService && item.access_mode !== "official_link"
-                          ? "核验后开放"
-                          : accessLabels[item.access_mode ?? "team_assisted"] ?? "家医协助"}
-                      </Text>
-                    </View>
-                    <Text className="service-row-copy">
-                      {item.description ?? "由家医团队核对资料并反馈办理结果。"}
-                    </Text>
-                    <Text className="service-row-meta">
-                      {item.response_sla_hours
-                        ? `预计 ${item.response_sla_hours} 小时内首次响应`
-                        : item.availability_note ?? "以团队最终确认结果为准"}
-                    </Text>
-                  </View>
-                  <ChevronRight className="service-row-arrow" size={20} color="rgba(16,42,67,.3)" />
+                  <Text className="service-quick-title">{item.name}</Text>
+                  <Text className="service-quick-mode">
+                    {!data.access.canSubmitService && item.access_mode !== "official_link"
+                      ? "核验后开放"
+                      : accessLabels[item.access_mode ?? "team_assisted"] ?? "家医协助"}
+                  </Text>
                 </View>
               ))
             ) : (
@@ -309,12 +319,30 @@ export default function ServicesPage() {
             )}
           </View>
 
-          <ClawAssistStrip
-            eyebrow="不确定该办哪一项"
-            title="告诉 Claw，帮您找到办理路径"
-            description="区分官方入口、家医协助和需要人工确认的事项"
-            prompt="我想办理一项家医服务，请根据我的需求帮我找到合适入口。"
-          />
+          {data.serviceCatalog.length > 4 ? (
+            <View className="service-catalog-toggle pressable" onClick={() => setCatalogOpen((value) => !value)}>
+              <Text>{catalogOpen ? "收起全部服务" : `查看全部 ${data.serviceCatalog.length} 项服务`}</Text>
+              <ChevronRight className={catalogOpen ? "expanded" : ""} size={19} color="rgba(16,42,67,.42)" />
+            </View>
+          ) : null}
+
+          {catalogOpen ? <View className="service-list-surface service-full-catalog">
+            {data.serviceCatalog.map((item) => (
+              <View
+                key={item.id}
+                className={`service-list-row pressable ${!data.access.canSubmitService && item.access_mode !== "official_link" ? "locked" : ""}`}
+                onClick={() => void openService(item, data.access)}
+              >
+                <View className={`service-glyph service-${item.service_type}`}><ServiceGlyph type={item.service_type} /></View>
+                <View className="grow">
+                  <View className="row"><Text className="service-row-title">{item.name}</Text><Text className="service-mode-badge">{accessLabels[item.access_mode ?? "team_assisted"] ?? "家医协助"}</Text></View>
+                  <Text className="service-row-copy">{item.description ?? "由家医团队核对资料并反馈办理结果。"}</Text>
+                  <Text className="service-row-meta">{item.response_sla_hours ? `预计 ${item.response_sla_hours} 小时内首次响应` : item.availability_note ?? "以团队最终确认结果为准"}</Text>
+                </View>
+                <ChevronRight className="service-row-arrow" size={20} color="rgba(16,42,67,.3)" />
+              </View>
+            ))}
+          </View> : null}
 
           <View className="service-section-head network-section-head">
             <Text className="service-section-title">协作医疗网络</Text>

@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
+import { CURRENT_POLICY_VERSION } from "@/lib/policies";
 import type { AppRole } from "@/lib/types";
 
 type VerifyPayload = {
@@ -31,6 +32,7 @@ type PhoneOtpCardProps = {
   availability?: "checking" | "available" | "unavailable";
   unavailableMessage?: string | null;
   onRetryAvailability?: () => void;
+  contextToken?: string;
 };
 
 export function PhoneOtpCard({
@@ -43,6 +45,7 @@ export function PhoneOtpCard({
   availability = "available",
   unavailableMessage,
   onRetryAvailability,
+  contextToken,
 }: PhoneOtpCardProps) {
   const { showToast } = useToast();
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -101,8 +104,18 @@ export function PhoneOtpCard({
     try {
       const response = await fetch(verifyEndpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, token: otp }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Audience": audience,
+        },
+        body: JSON.stringify({
+          phone,
+          token: otp,
+          ...(audience === "resident" ? {
+            privacyAccepted: accepted,
+            policyVersion: CURRENT_POLICY_VERSION,
+          } : { inviteToken: contextToken }),
+        }),
       });
       const payload = await response.json();
       if (!response.ok)

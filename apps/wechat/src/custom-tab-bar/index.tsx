@@ -45,6 +45,7 @@ export default function CustomTabBar() {
             >
               <View className="resident-tab-icon-wrap">
                 <Image
+                  alt=""
                   className="resident-tab-icon"
                   mode="aspectFit"
                   src={active ? tab.activeIcon : tab.icon}
