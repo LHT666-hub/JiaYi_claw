@@ -37,6 +37,8 @@ type OnboardingPayload = {
     onboarding_completed_at: string | null;
   };
   communities: Community[];
+  consents: Array<{ scope: string; granted: boolean; policy_version: string }>;
+  policyVersion: string;
 };
 
 type ConsentKey = keyof typeof CONSENT_COPY;
@@ -68,6 +70,7 @@ export default function OnboardingPage() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [communityId, setCommunityId] = useState("");
   const [consents, setConsents] = useState(initialConsents);
+  const [privacyConfirmedAtLogin, setPrivacyConfirmedAtLogin] = useState(false);
   const selectedCommunity = useMemo(
     () => communities.find((community) => community.id === communityId) ?? null,
     [communities, communityId],
@@ -90,6 +93,9 @@ export default function OnboardingPage() {
         setRole(data.profile.role === "family" ? "family" : "resident");
         setCommunities(data.communities);
         setCommunityId(data.profile.community_id ?? data.communities[0]?.id ?? "");
+        const privacyGranted = (data.consents ?? []).some((item) => item.scope === "privacy" && item.granted);
+        setPrivacyConfirmedAtLogin(privacyGranted);
+        setConsents((current) => ({ ...current, privacy: privacyGranted }));
       } catch (error) {
         showToast(error instanceof Error ? error.message : "首次建档加载失败。", "warning");
       } finally {
@@ -205,7 +211,8 @@ export default function OnboardingPage() {
             <div className="mt-5 space-y-3">
               {(Object.entries(CONSENT_COPY) as [ConsentKey, (typeof CONSENT_COPY)[ConsentKey]][]).map(([key, copy]) => {
                 const Icon = key === "notification" ? BellRing : key === "ai_processing" ? Sparkles : ShieldCheck;
-                return <label key={key} className={`flex cursor-pointer items-start gap-3 rounded-[24px] border p-4 transition ${consents[key] ? "border-sage/55 bg-health-soft" : "border-line bg-surface-card"}`}><span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${consents[key] ? "bg-sage text-white" : "bg-surface-icon text-navy/50"}`}><Icon className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="flex items-center gap-2 text-sm font-semibold text-navy">{copy.title}{copy.required ? <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] text-white">必需</span> : null}</span><span className="mt-1.5 block text-xs leading-5 text-navy/56">{copy.description}</span></span><input type="checkbox" checked={consents[key]} disabled={copy.required && consents[key]} onChange={(event) => setConsents((current) => ({ ...current, [key]: event.target.checked }))} className="mt-2 h-5 w-5 accent-[#6F9996]" /></label>;
+                const confirmedAtLogin = key === "privacy" && privacyConfirmedAtLogin;
+                return <label key={key} className={`flex items-start gap-3 rounded-[24px] border p-4 transition ${confirmedAtLogin ? "cursor-default" : "cursor-pointer"} ${consents[key] ? "border-sage/55 bg-health-soft" : "border-line bg-surface-card"}`}><span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${consents[key] ? "bg-sage text-white" : "bg-surface-icon text-navy/50"}`}><Icon className="h-4 w-4" /></span><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-navy">{copy.title}{confirmedAtLogin ? <span className="rounded-full bg-sage px-2 py-0.5 text-[10px] text-white">登录时已确认</span> : copy.required ? <span className="rounded-full bg-navy px-2 py-0.5 text-[10px] text-white">必需</span> : null}</span><span className="mt-1.5 block text-xs leading-5 text-navy/56">{copy.description}</span></span><input type="checkbox" checked={consents[key]} disabled={confirmedAtLogin} onChange={(event) => setConsents((current) => ({ ...current, [key]: event.target.checked }))} className="mt-2 h-5 w-5 accent-[#6F9996]" /></label>;
               })}
             </div>
             <p className="mt-4 text-center text-xs leading-5 text-navy/48">完整政策可在“我的 - 隐私与授权”查看。紧急情况请拨打 120。</p>

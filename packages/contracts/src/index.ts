@@ -66,6 +66,31 @@ export const serviceRequestCreateSchema = z.object({
 });
 export type ServiceRequestCreateInput = z.infer<typeof serviceRequestCreateSchema>;
 
+export const appointmentDraftPayloadSchema = z.object({
+  step: z.number().int().min(0).max(2),
+  serviceType: serviceTypeSchema,
+  target: z.string().max(120),
+  department: z.string().max(80),
+  preferredDoctor: z.string().max(80),
+  date: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
+  time: z.enum(["上午", "下午", "均可"]),
+  phone: z.union([z.literal(""), z.string().regex(/^1\d{10}$/)]),
+  note: z.string().max(600),
+  acceptWaitlist: z.boolean(),
+  confirmed: z.boolean(),
+  fromClaw: z.boolean(),
+  contentId: z.union([z.literal(""), z.string().uuid()]),
+  idempotencyKey: z.string().min(8).max(120),
+});
+export type AppointmentDraftPayload = z.infer<typeof appointmentDraftPayloadSchema>;
+
+export const serviceDraftWriteSchema = z.object({
+  residentId: z.string().uuid().optional(),
+  draftType: z.literal("appointment"),
+  payload: appointmentDraftPayloadSchema,
+});
+export type ServiceDraftWriteInput = z.infer<typeof serviceDraftWriteSchema>;
+
 export const serviceActionSchema = z.enum([
   "submit",
   "request_info",

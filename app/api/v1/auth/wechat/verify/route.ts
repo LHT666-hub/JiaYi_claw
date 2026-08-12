@@ -2,11 +2,14 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { exchangeWechatIdentity } from "@/lib/auth/wechat";
+import { CURRENT_POLICY_VERSION } from "@/lib/policies";
 import { createSupabasePublicServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 
 const inputSchema = z.object({
   loginCode: z.string().trim().min(6).max(200),
   phoneCode: z.string().trim().min(6).max(300),
+  privacyAccepted: z.literal(true),
+  policyVersion: z.string(),
 });
 
 function internalEmail(userId: string) {
@@ -21,6 +24,9 @@ export async function POST(request: Request) {
   }
   const parsed = inputSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_WECHAT_LOGIN", "微信登录凭证不完整，请重试。", 400, traceId);
+  if (parsed.data.policyVersion !== CURRENT_POLICY_VERSION) {
+    return apiError("PRIVACY_POLICY_UPDATED", "隐私政策已更新，请刷新页面后重新确认。", 409, traceId);
+  }
 
   const appId = process.env.WECHAT_MINIPROGRAM_APP_ID?.trim();
   const appSecret = process.env.WECHAT_MINIPROGRAM_APP_SECRET?.trim();
@@ -99,6 +105,12 @@ export async function POST(request: Request) {
     if (linkError || !tokenHash) throw linkError ?? new Error("SESSION_LINK_FAILED");
     const { data: verified, error: verifyError } = await publicClient.auth.verifyOtp({ token_hash: tokenHash, type: "magiclink" });
     if (verifyError || !verified.session) throw verifyError ?? new Error("SESSION_CREATE_FAILED");
+
+    const { error: consentError } = await publicClient.rpc("record_login_privacy_consent", {
+      p_policy_version: CURRENT_POLICY_VERSION,
+      p_channel: "wechat_miniprogram",
+    });
+    if (consentError) throw consentError;
 
     await service.from("audit_logs").insert({
       actor_id: userId,
