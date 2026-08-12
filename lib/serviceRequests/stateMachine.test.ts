@@ -27,4 +27,9 @@ describe("service request state machine", () => {
     expect(getAllowedServiceActions("completed")).toEqual([]);
     expect(getAllowedServiceActions("cancelled")).toEqual([]);
   });
+
+  it("allows staff to enrich a booked request without changing its status", () => {
+    expect(transitionServiceStatus("booked", "update_booking")).toBe("booked");
+    expect(getAllowedServiceActions("booked")).toContain("update_booking");
+  });
 });

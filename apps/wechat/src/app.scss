@@ -213,6 +213,11 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .submit-consent.selected { border-color: rgba(47,108,86,.45); background: #eef5f3; }
 .appointment-actions { display: flex; gap: 14px; margin-top: 22px; }
 .appointment-actions .primary { margin: 0; }
+.appointment-submit-error { margin-top: 16px; padding: 20px; border: 1px solid rgba(164,74,63,.24); border-radius: 26px; background: #fbf0ed; }
+.appointment-submit-error-title { display: block; color: #943f36; font-size: 23px; font-weight: 780; }
+.appointment-submit-error-copy { display: block; margin-top: 7px; color: rgba(88,35,29,.78); font-size: 20px; line-height: 1.55; overflow-wrap: anywhere; }
+.appointment-submit-error-note { display: block; margin-top: 7px; color: rgba(88,35,29,.56); font-size: 18px; line-height: 1.5; }
+.appointment-retry { margin: 16px 0 0; border: 0; border-radius: 999px; background: #943f36; color: #fff; font-size: 21px; font-weight: 750; }
 .progress-page { padding-bottom: 52px; }
 .progress-head { padding: 4px 4px 0; }
 .progress-title { display: block; margin-top: 8px; color: #102a43; font-size: 44px; font-weight: 760; }
@@ -257,6 +262,10 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .progress-editor-title { display: block; color: #2f6c56; font-size: 23px; font-weight: 750; }
 .progress-editor-input { min-height: 130px; margin-top: 14px; background: #fff; }
 .progress-editor .progress-primary { margin: 14px 0 0; }
+.progress-action-error { margin: 0 22px 20px; padding: 18px 20px; border: 1px solid rgba(164,74,63,.24); border-radius: 23px; background: #fbf0ed; }
+.progress-action-error-title { display: block; color: #943f36; font-size: 21px; font-weight: 760; }
+.progress-action-error-copy { display: block; margin-top: 6px; color: rgba(88,35,29,.76); font-size: 19px; line-height: 1.5; overflow-wrap: anywhere; }
+.progress-action-error-note { display: block; margin-top: 5px; color: rgba(88,35,29,.52); font-size: 17px; line-height: 1.45; }
 .progress-detail { padding: 22px; border-top: 1px solid #e6ecea; background: #fbfcfc; }
 .progress-detail-label { display: block; color: rgba(16,42,67,.4); font-size: 19px; font-weight: 750; }
 .progress-summary { display: block; margin-top: 8px; color: rgba(16,42,67,.7); font-size: 22px; line-height: 1.65; overflow-wrap: anywhere; }
@@ -279,6 +288,9 @@ page { background: #eef2f1; color: #102a43; font-family: -apple-system, BlinkMac
 .progress-empty-title { margin-top: 22px; color: #102a43; font-size: 29px; font-weight: 750; }
 .progress-empty-copy { margin-top: 10px; color: rgba(16,42,67,.5); font-size: 22px; line-height: 1.6; }
 .progress-empty .primary { width: 100%; margin-top: 26px; }
+.browser-source-mark { width: 82px; height: 82px; display: flex; align-items: center; justify-content: center; margin: 0 auto 22px; border-radius: 28px; background: #e3ece9; color: #2f6c56; font-size: 31px; font-weight: 800; }
+.browser-source-label { display: block; margin-top: 18px; color: #102a43; text-align: center; font-size: 23px; font-weight: 750; }
+.browser-source-host { display: block; margin-top: 6px; color: rgba(16,42,67,.42); text-align: center; font-size: 18px; overflow-wrap: anywhere; }
 .page-heading { margin: 8px 4px 28px; }
 .page-heading .title, .page-heading .subtitle { display: block; }
 .settings-page { padding-bottom: 72px; }

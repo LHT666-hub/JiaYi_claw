@@ -73,6 +73,7 @@ export const serviceActionSchema = z.enum([
   "check_availability",
   "propose_slot",
   "confirm_booking",
+  "update_booking",
   "request_reschedule",
   "waitlist",
   "fail",

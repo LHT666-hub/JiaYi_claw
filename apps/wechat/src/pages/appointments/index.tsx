@@ -26,6 +26,11 @@ type HomeContext = {
 
 type MeContext = { profile: { phone?: string | null } };
 
+type CreateRequestResult = {
+  request: { id: string };
+  deduplicated: boolean;
+};
+
 const serviceOptions: Array<{
   type: ServiceType;
   name: string;
@@ -75,6 +80,7 @@ export default function AppointmentPage() {
   const [contextLoading, setContextLoading] = useState(true);
   const [contextError, setContextError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const idempotencyKey = useRef(createIdempotencyKey());
 
   const selectedService = useMemo(
@@ -156,9 +162,10 @@ export default function AppointmentPage() {
       Taro.showToast({ title: "请确认信息后再提交", icon: "none" });
       return;
     }
+    setSubmitError("");
     setLoading(true);
     try {
-      await apiRequest("/api/v1/service-requests", {
+      const result = await apiRequest<CreateRequestResult>("/api/v1/service-requests", {
         method: "POST",
         idempotencyKey: idempotencyKey.current,
         data: {
@@ -184,9 +191,13 @@ export default function AppointmentPage() {
       });
       Taro.showToast({ title: "申请已提交", icon: "success" });
       idempotencyKey.current = createIdempotencyKey();
-      setTimeout(() => Taro.redirectTo({ url: "/pages/progress/index?submitted=1" }), 350);
+      setTimeout(() => Taro.redirectTo({
+        url: `/pages/progress/index?submitted=1&id=${encodeURIComponent(result.request.id)}`,
+      }), 350);
     } catch (submitError) {
-      Taro.showToast({ title: submitError instanceof Error ? submitError.message : "提交失败", icon: "none" });
+      const message = submitError instanceof Error ? submitError.message : "提交失败，请稍后重试";
+      setSubmitError(message);
+      Taro.showToast({ title: "申请尚未提交", icon: "none" });
     } finally {
       setLoading(false);
     }
@@ -278,6 +289,14 @@ export default function AppointmentPage() {
         {step > 0 ? <Button className="onboarding-back pressable" onClick={() => setStep((value) => value - 1)}>上一步</Button> : null}
         {step < 2 ? <Button className="primary grow pressable" onClick={goNext}>继续</Button> : <Button className="primary grow pressable" loading={loading} disabled={!confirmed} onClick={submit}>确认提交申请</Button>}
       </View>
+      {step === 2 && submitError ? (
+        <View className="appointment-submit-error">
+          <Text className="appointment-submit-error-title">申请尚未提交</Text>
+          <Text className="appointment-submit-error-copy">{submitError}</Text>
+          <Text className="appointment-submit-error-note">已填写内容仍在本页。网络恢复后可直接重试，同一申请不会重复创建。</Text>
+          <Button className="appointment-retry pressable" loading={loading} onClick={submit}>重新提交</Button>
+        </View>
+      ) : null}
     </View>
   );
 }

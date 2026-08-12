@@ -273,6 +273,90 @@ try {
     throw residentOutboxError ?? new Error("居民补充资料没有通知原经办人。");
   }
   assertions += 1;
+
+  for (const [action, note, details] of [
+    ["accept", "继续受理补充后的预约申请", {}],
+    ["check_availability", "联系协作医院核验可用时段", {}],
+    ["propose_slot", "请居民确认拟预约时段", {
+      scheduledAt: "2026-08-20T01:30:00.000Z",
+      institutionName: "RLS 验证协作医院",
+      departmentName: "全科门诊",
+      clinicianName: "验证医生",
+    }],
+  ]) {
+    const { error } = await staffA.client.rpc("transition_service_request", {
+      p_request_id: dataA.requestId,
+      p_action: action,
+      p_note: note,
+      p_details: details,
+    });
+    if (error) throw error;
+  }
+  const { error: confirmBookingError } = await residentA.client.rpc("transition_service_request", {
+    p_request_id: dataA.requestId,
+    p_action: "confirm_booking",
+    p_note: "居民确认该预约时段",
+    p_details: {},
+  });
+  if (confirmBookingError) throw confirmBookingError;
+  await expectDenied(
+    () => residentA.client.rpc("transition_service_request", {
+      p_request_id: dataA.requestId,
+      p_action: "update_booking",
+      p_note: "居民尝试自行填写预约凭证",
+      p_details: { bookingReference: "SHOULD-NOT-WRITE" },
+    }),
+    "居民不能自行补写医院预约凭证",
+  );
+  await expectDenied(
+    () => staffA3.client.rpc("transition_service_request", {
+      p_request_id: dataA.requestId,
+      p_action: "update_booking",
+      p_note: "其他工作人员尝试补写预约凭证",
+      p_details: { bookingReference: "SHOULD-NOT-WRITE" },
+    }),
+    "非经办工作人员不能补写预约凭证",
+  );
+  await expectDenied(
+    () => staffA.client.rpc("transition_service_request", {
+      p_request_id: dataA.requestId,
+      p_action: "update_booking",
+      p_note: "经办人遗漏预约编号",
+      p_details: {},
+    }),
+    "补写预约凭证必须包含正式编号",
+  );
+  const { error: updateBookingError } = await staffA.client.rpc("transition_service_request", {
+    p_request_id: dataA.requestId,
+    p_action: "update_booking",
+    p_note: "医院已返回正式预约凭证",
+    p_details: {
+      bookingReference: `VERIFY-${suffix}`,
+      clinicianName: "验证医生（已确认）",
+    },
+  });
+  if (updateBookingError) throw updateBookingError;
+  const { data: bookedRequest, error: bookedRequestError } = await admin
+    .from("service_requests")
+    .select("status")
+    .eq("id", dataA.requestId)
+    .single();
+  const { data: appointmentReceipt, error: appointmentReceiptError } = await admin
+    .from("appointment_details")
+    .select("scheduled_at,institution_name,department_name,clinician_name,booking_reference")
+    .eq("service_request_id", dataA.requestId)
+    .single();
+  if (
+    bookedRequestError ||
+    appointmentReceiptError ||
+    bookedRequest.status !== "booked" ||
+    appointmentReceipt.booking_reference !== `VERIFY-${suffix}` ||
+    appointmentReceipt.institution_name !== "RLS 验证协作医院" ||
+    appointmentReceipt.clinician_name !== "验证医生（已确认）"
+  ) {
+    throw bookedRequestError ?? appointmentReceiptError ?? new Error("预约确认和正式回执没有形成一致记录。");
+  }
+  assertions += 1;
   const { data: generatedOutbox } = await admin.from("outbox_events").select("id").eq("aggregate_id", dataA.requestId);
   cleanup.outboxIds.push(...(generatedOutbox ?? []).map((item) => item.id));
   const { data: generatedAudit } = await admin.from("audit_logs").select("id").eq("target_id", dataA.requestId).like("action", "service_request.%");

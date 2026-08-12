@@ -131,9 +131,32 @@ function openContentDetail(id: string) {
   void Taro.navigateTo({ url: `/pages/content-detail/index?id=${encodeURIComponent(id)}` });
 }
 
-function openService(item: ServiceItem, access: Data["access"]) {
+async function openService(item: ServiceItem, access: Data["access"]) {
   if (item.access_mode === "official_link" && item.official_url) {
     openVerifiedUrl(item.official_url);
+    return;
+  }
+  if (item.access_mode === "hybrid" && item.official_url) {
+    try {
+      const result = await Taro.showActionSheet({
+        itemList: ["打开官方挂号入口", "请家医团队协助"],
+      });
+      if (result.tapIndex === 0) {
+        openVerifiedUrl(item.official_url);
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
+  if (item.access_mode === "information_only") {
+    if (item.official_url) openVerifiedUrl(item.official_url);
+    else void Taro.showModal({
+      title: "当前为信息服务",
+      content: item.availability_note ?? "该事项暂未开放在线办理，请查看说明或联系所属家医团队。",
+      showCancel: false,
+      confirmText: "我知道了",
+    });
     return;
   }
   if (!access.canSubmitService) {
@@ -255,7 +278,7 @@ export default function ServicesPage() {
                 <View
                   key={item.id}
                   className={`service-list-row pressable ${!data.access.canSubmitService && item.access_mode !== "official_link" ? "locked" : ""}`}
-                  onClick={() => openService(item, data.access)}
+                  onClick={() => void openService(item, data.access)}
                 >
                   <View className={`service-glyph service-${item.service_type}`}>
                     <ServiceGlyph type={item.service_type} />
@@ -372,7 +395,7 @@ export default function ServicesPage() {
                     <Button
                       className="schedule-action pressable"
                       size="mini"
-                      onClick={() => openService({
+                      onClick={() => void openService({
                         id: item.id,
                         service_type: "clinic_registration",
                         name: "家医预约协助",

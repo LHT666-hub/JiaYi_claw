@@ -69,6 +69,7 @@ const actionLabels: Record<string, string> = {
   check_availability: "开始核验资源",
   propose_slot: "团队提出预约方案",
   confirm_booking: "居民确认预约",
+  update_booking: "团队补充预约凭证",
   request_reschedule: "居民申请改期",
   waitlist: "进入候补",
   fail: "本次暂未约成",
@@ -97,6 +98,7 @@ export default function ProgressPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftNote, setDraftNote] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   useLoad((params) => {
@@ -145,6 +147,7 @@ export default function ProgressPage() {
   useReloadOnNetworkRestore(() => void load());
 
   async function action(id: string, name: string, note: string) {
+    setActionError(null);
     setActingId(id);
     const operation = `${id}:${name}:${note}`;
     const idempotencyKey = actionKeys.current.get(operation)
@@ -162,7 +165,9 @@ export default function ProgressPage() {
       setDraftNote("");
       await load();
     } catch (actionError) {
-      Taro.showToast({ title: actionError instanceof Error ? actionError.message : "操作失败", icon: "none" });
+      const message = actionError instanceof Error ? actionError.message : "操作失败，请稍后重试";
+      setActionError({ id, message });
+      Taro.showToast({ title: "操作尚未完成", icon: "none" });
     } finally {
       setActingId(null);
     }
@@ -238,6 +243,14 @@ export default function ProgressPage() {
                 <Text className="progress-editor-title">{item.status === "needs_info" ? "补充团队需要了解的资料" : "填写希望调整到的日期或时段"}</Text>
                 <Textarea className="textarea progress-editor-input" value={draftNote} maxlength={600} onInput={(event) => setDraftNote(event.detail.value)} placeholder={item.status === "needs_info" ? "例如：补充最近一次检查结果、既往就诊机构" : "例如：下周二下午或周四上午"} />
                 <Button className="progress-primary pressable" loading={actingId === item.id} onClick={() => void submitDraft(item.id, item.status === "needs_info" ? "supplement" : "reschedule")}>提交给团队</Button>
+              </View>
+            ) : null}
+
+            {actionError?.id === item.id ? (
+              <View className="progress-action-error">
+                <Text className="progress-action-error-title">操作尚未完成</Text>
+                <Text className="progress-action-error-copy">{actionError.message}</Text>
+                <Text className="progress-action-error-note">已填写内容仍在本页，可检查网络后再次提交。</Text>
               </View>
             ) : null}
 

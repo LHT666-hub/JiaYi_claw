@@ -90,15 +90,25 @@ const actionOptions: Partial<Record<ServiceStatus, Array<{ action: ServiceAction
     { action: "propose_slot", label: "提出可用方案", description: "候补已有资源，交居民确认" },
     { action: "fail", label: "结束候补", description: "说明无法继续候补的原因" },
   ],
-  booked: [{ action: "complete", label: "标记服务完成", description: "确认本次服务已经结束" }],
+  booked: [
+    { action: "update_booking", label: "补充预约凭证", description: "回写正式编号、科室或接诊医生" },
+    { action: "complete", label: "标记服务完成", description: "确认本次服务已经结束" },
+  ],
 };
 
 const defaultNotes: Partial<Record<ServiceAction, string>> = {
   accept: "家医团队已受理本次服务申请。",
   check_availability: "团队开始核验机构、科室和可用服务资源。",
   waitlist: "当前暂时没有合适资源，已转入候补并继续跟进。",
+  update_booking: "团队已补充正式预约凭证，请居民按回执就诊。",
   complete: "工作人员确认本次服务已经完成。",
 };
+
+function toLocalDateTimeInput(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 function relation<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value ?? null;
@@ -198,7 +208,13 @@ export default function WorkbenchRequestsPage() {
   function resetComposer(action: ServiceAction | null = null) {
     setSelectedAction(action);
     setNote(action ? defaultNotes[action] ?? "" : "");
-    if (action !== "propose_slot") {
+    if (action === "update_booking") {
+      setScheduledAt(appointment?.scheduled_at ? toLocalDateTimeInput(appointment.scheduled_at) : "");
+      setInstitution(appointment?.institution_name ?? "");
+      setDepartment(appointment?.department_name ?? "");
+      setClinician(appointment?.clinician_name ?? "");
+      setReference(appointment?.booking_reference ?? "");
+    } else if (action !== "propose_slot") {
       setScheduledAt("");
       setInstitution("");
       setDepartment("");
@@ -220,6 +236,10 @@ export default function WorkbenchRequestsPage() {
     }
     if (selectedAction === "propose_slot" && (!scheduledAt || !institution.trim())) {
       showToast("提出预约方案前，请填写时间和机构。", "warning");
+      return;
+    }
+    if (selectedAction === "update_booking" && reference.trim().length < 2) {
+      showToast("请填写医院或平台返回的正式预约编号。", "warning");
       return;
     }
     setSubmitting(true);
@@ -317,7 +337,7 @@ export default function WorkbenchRequestsPage() {
                 <div className="mt-4 space-y-2">{canAct ? (actionOptions[selected.status] ?? []).map((option) => <button key={option.action} type="button" onClick={() => resetComposer(option.action)} className={`flex w-full items-center justify-between border px-3 py-3 text-left ${selectedAction === option.action ? "border-navy bg-navy text-white" : "border-line bg-white hover:border-sage/50"}`}><span><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-1 block text-xs ${selectedAction === option.action ? "text-white/60" : "text-navy/45"}`}>{option.description}</span></span><ChevronRight className="h-4 w-4 shrink-0" /></button>) : null}</div>
 
                 {canAct && selectedAction ? <div className="mt-5 border-t border-line pt-5">
-                  {selectedAction === "propose_slot" ? <div className="space-y-3"><FieldLabel text="预约时间（必填）" /><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><FieldLabel text="机构名称（必填）" /><input value={institution} onChange={(event) => setInstitution(event.target.value)} placeholder="正式机构全称" className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><div className="grid grid-cols-2 gap-2"><input value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="科室" className="h-11 min-w-0 border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><input value={clinician} onChange={(event) => setClinician(event.target.value)} placeholder="医生" className="h-11 min-w-0 border border-line bg-white px-3 text-sm outline-none focus:border-sage" /></div><input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="预约编号（可稍后回写）" className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /></div> : null}
+                  {["propose_slot", "update_booking"].includes(selectedAction) ? <div className="space-y-3"><FieldLabel text={selectedAction === "propose_slot" ? "预约时间（必填）" : "预约时间"} /><input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><FieldLabel text={selectedAction === "propose_slot" ? "机构名称（必填）" : "机构名称"} /><input value={institution} onChange={(event) => setInstitution(event.target.value)} placeholder="正式机构全称" className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><div className="grid grid-cols-2 gap-2"><input value={department} onChange={(event) => setDepartment(event.target.value)} placeholder="科室" className="h-11 min-w-0 border border-line bg-white px-3 text-sm outline-none focus:border-sage" /><input value={clinician} onChange={(event) => setClinician(event.target.value)} placeholder="医生" className="h-11 min-w-0 border border-line bg-white px-3 text-sm outline-none focus:border-sage" /></div><input value={reference} onChange={(event) => setReference(event.target.value)} placeholder={selectedAction === "update_booking" ? "正式预约编号（必填）" : "预约编号（可稍后回写）"} className="h-11 w-full border border-line bg-white px-3 text-sm outline-none focus:border-sage" /></div> : null}
                   <div className="mt-3"><FieldLabel text={["request_info", "fail"].includes(selectedAction) ? "给居民的说明（必填）" : "给居民的说明"} /><textarea value={note} onChange={(event) => setNote(event.target.value)} rows={5} placeholder={selectedAction === "request_info" ? "请具体说明需要补充哪份资料、什么时间范围。" : "该说明会进入居民进度和审计记录。"} className="mt-2 w-full resize-none border border-line bg-white p-3 text-sm leading-6 outline-none focus:border-sage" /></div>
                   <button type="button" disabled={submitting} onClick={() => void submitAction()} className="mt-4 flex w-full items-center justify-center gap-2 bg-navy px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"><Stethoscope className="h-4 w-4" />{submitting ? "正在提交..." : "确认并更新状态"}</button>
                 </div> : canAct ? <div className="mt-5 border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-navy/45">{(actionOptions[selected.status] ?? []).length ? "选择上方处理动作后填写。" : "当前状态等待居民操作或没有可执行动作。"}</div> : null}
