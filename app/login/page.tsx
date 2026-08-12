@@ -15,6 +15,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const devLoginEnabled = process.env.NEXT_PUBLIC_DEV_LOGIN === "true";
+  const demoEnabled = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const { capabilities, failed, loading: capabilityLoading, retry } = useAuthCapabilities();
   const [showcaseLoading, setShowcaseLoading] = useState(false);
 
@@ -87,6 +88,13 @@ export default function LoginPage() {
             router.refresh();
           }}
         />
+
+        {demoEnabled ? (
+          <Link href="/" className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-navy px-4 py-3.5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(16,42,67,0.18)]">
+            进入居民端完整展示
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        ) : null}
 
         <Link
           href="/public-info"

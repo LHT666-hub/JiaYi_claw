@@ -2,10 +2,14 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getCareNetworkForResident, getResidentCareAccess, resolveResidentScope } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { residentShowcaseMe } from "@/lib/showcase/resident";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
-  if (!auth.supabase || !auth.profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  if (!auth.supabase || !auth.profile) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return apiOk(residentShowcaseMe, traceId);
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  }
   try {
     let residentId: string | null = null;
     try {

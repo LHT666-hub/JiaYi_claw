@@ -19,6 +19,7 @@ import { TopBar } from "@/components/TopBar";
 import { serviceStatusLabels } from "@/lib/serviceRequests/stateMachine";
 
 type HomeData = {
+  demo?: boolean;
   profile: { displayName: string; role: string };
   careSubject: import("@/lib/careSubjects").CareSubject;
   careSubjects: import("@/lib/careSubjects").CareSubject[];
@@ -108,6 +109,12 @@ export default function HomePage() {
           hasUnreadNotifications={unread > 0}
           onBellClick={() => router.push("/messages")}
         />
+
+        {data?.demo ? (
+          <div className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-center text-xs font-semibold text-sage">
+            当前为只读展示数据 · 正式服务需登录后办理
+          </div>
+        ) : null}
 
         {loading ? (
           <div className="ios-material rounded-[30px] px-5 py-16 text-center text-sm text-navy/50">

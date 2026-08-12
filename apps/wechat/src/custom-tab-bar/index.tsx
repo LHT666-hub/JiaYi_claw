@@ -44,8 +44,9 @@ export default function CustomTabBar() {
               onClick={() => switchTo(tab.pagePath)}
             >
               <View className="resident-tab-icon-wrap">
+                {/* The adjacent Text component provides this tab's accessible label. */}
+                {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image
-                  alt=""
                   className="resident-tab-icon"
                   mode="aspectFit"
                   src={active ? tab.activeIcon : tab.icon}

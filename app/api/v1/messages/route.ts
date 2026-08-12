@@ -2,11 +2,15 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { residentShowcaseMessages } from "@/lib/showcase/resident";
 
 const updateSchema = z.object({ id: z.string().uuid().optional(), markAllRead: z.boolean().optional() }).refine((value) => value.id || value.markAllRead, "操作无效");
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
-  if (!auth.supabase || !auth.profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  if (!auth.supabase || !auth.profile) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return apiOk(residentShowcaseMessages, traceId);
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  }
   const [notifications, channels] = await Promise.all([
     auth.supabase.from("notifications").select("id,type,title,content,link_url,is_read,metadata,created_at").eq("user_id", auth.profile.id).order("created_at", { ascending: false }).limit(100),
     auth.supabase.from("channel_members").select("id,display_name,binding_status,bound_at,channel_account:channel_accounts(name,channel_type,status)").eq("resident_id", auth.profile.id).eq("binding_status", "bound"),
