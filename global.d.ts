@@ -64,6 +64,7 @@ declare module "lucide-react" {
   export const Home: LucideIcon;
   export const House: LucideIcon;
   export const Hash: LucideIcon;
+  export const History: LucideIcon;
   export const ImagePlus: LucideIcon;
   export const Keyboard: LucideIcon;
   export const KeyRound: LucideIcon;
@@ -84,6 +85,8 @@ declare module "lucide-react" {
   export const Play: LucideIcon;
   export const PlayCircle: LucideIcon;
   export const Plus: LucideIcon;
+  export const Power: LucideIcon;
+  export const PowerOff: LucideIcon;
   export const RefreshCw: LucideIcon;
   export const RotateCcw: LucideIcon;
   export const RotateCw: LucideIcon;

@@ -60,6 +60,7 @@ export const serviceRequestCreateSchema = z.object({
   summary: z.string().trim().min(2).max(1200),
   priority: servicePrioritySchema.default("low"),
   appointment: appointmentIntakeSchema.optional(),
+  sourceContext: z.object({ type: z.literal("content"), id: z.string().uuid() }).optional(),
   requestedRole: z.enum(["doctor", "nurse", "pharmacist", "community"]).optional(),
   confirmed: z.literal(true),
 });

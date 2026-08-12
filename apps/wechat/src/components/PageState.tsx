@@ -1,4 +1,5 @@
 import { Button, Text, View } from "@tarojs/components";
+import { CircleAlert, RefreshCw } from "lucide-react-taro";
 
 export function PageFeedback({
   title,
@@ -11,11 +12,12 @@ export function PageFeedback({
 }) {
   return (
     <View className="page-feedback">
-      <View className="page-feedback-mark">!</View>
+      <View className="page-feedback-mark"><CircleAlert size={30} color="#2F6C56" strokeWidth={1.9} /></View>
       <Text className="page-feedback-title">{title}</Text>
       <Text className="page-feedback-copy">{message}</Text>
       <Button className="page-feedback-action pressable" onClick={onRetry}>
-        重新加载
+        <RefreshCw size={18} color="#FFFFFF" strokeWidth={2.1} />
+        <Text>重新加载</Text>
       </Button>
     </View>
   );
@@ -47,7 +49,7 @@ export function InlineRetry({
 }) {
   return (
     <View className="inline-retry">
-      <View className="inline-retry-mark">!</View>
+      <View className="inline-retry-mark"><CircleAlert size={17} color="#8A5D25" strokeWidth={2.1} /></View>
       <Text className="inline-retry-copy">{message}</Text>
       <Text className="inline-retry-action pressable" onClick={onRetry}>重试</Text>
     </View>

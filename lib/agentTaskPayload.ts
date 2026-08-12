@@ -126,6 +126,14 @@ function inferServiceFacts(task: AgentTaskCard): AgentServiceFact[] {
     ];
   }
 
+  if (task.intent === "referral_assistance") {
+    return [
+      { label: "转诊路径", value: "待家庭医生评估并核对协作机构", tone: "positive" },
+      { label: "目标机构与科室", value: "以团队核验结果为准", tone: "neutral" },
+      { label: "号源与接诊", value: "不承诺实时号源，等待人工回写", tone: "warning" },
+    ];
+  }
+
   if (task.intent === "doctor_schedule_query") {
     return [
       {

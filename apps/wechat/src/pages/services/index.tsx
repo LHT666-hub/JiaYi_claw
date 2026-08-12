@@ -1,5 +1,5 @@
 import { Button, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { useState } from "react";
 import {
   BookHeart,
@@ -16,6 +16,9 @@ import {
   UsersRound,
 } from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
+import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
+import { ClawAssistStrip } from "../../components/ClawAssistStrip";
+import CustomTabBar from "../../custom-tab-bar";
 import { apiRequest, withCareSubject } from "../../lib/api";
 
 type ServiceItem = {
@@ -55,6 +58,8 @@ type ContentItem = {
   source_name: string;
   published_at?: string | null;
   reviewed_at?: string | null;
+  expires_at?: string | null;
+  institution?: { name?: string } | null;
 };
 
 type Data = {
@@ -122,6 +127,10 @@ function openVerifiedUrl(url: string) {
   });
 }
 
+function openContentDetail(id: string) {
+  void Taro.navigateTo({ url: `/pages/content-detail/index?id=${encodeURIComponent(id)}` });
+}
+
 function openService(item: ServiceItem, access: Data["access"]) {
   if (item.access_mode === "official_link" && item.official_url) {
     openVerifiedUrl(item.official_url);
@@ -163,11 +172,22 @@ export default function ServicesPage() {
     void load();
   });
 
+  usePullDownRefresh(() => {
+    void load().finally(() => Taro.stopPullDownRefresh());
+  });
+  useReloadOnNetworkRestore(() => void load());
+
   function scheduleTime(value: string) {
     const date = new Date(value);
     const today = new Date();
     const day = date.toDateString() === today.toDateString() ? "今天" : `${date.getMonth() + 1}月${date.getDate()}日`;
     return `${day} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function shortDate(value?: string | null) {
+    if (!value) return "";
+    const date = new Date(value);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   }
 
   return (
@@ -265,6 +285,13 @@ export default function ServicesPage() {
               <View className="service-empty">暂无已启用的正式服务。</View>
             )}
           </View>
+
+          <ClawAssistStrip
+            eyebrow="不确定该办哪一项"
+            title="告诉 Claw，帮您找到办理路径"
+            description="区分官方入口、家医协助和需要人工确认的事项"
+            prompt="我想办理一项家医服务，请根据我的需求帮我找到合适入口。"
+          />
 
           <View className="service-section-head network-section-head">
             <Text className="service-section-title">协作医疗网络</Text>
@@ -377,7 +404,7 @@ export default function ServicesPage() {
                 <View
                   key={item.id}
                   className="content-feed-row pressable"
-                  onClick={() => openVerifiedUrl(item.original_url)}
+                  onClick={() => openContentDetail(item.id)}
                 >
                   <View className={`content-category category-${item.category}`}>
                     <ContentGlyph category={item.category} />
@@ -386,8 +413,9 @@ export default function ServicesPage() {
                     <Text className="content-feed-title">{item.title}</Text>
                     <Text className="content-feed-summary">{item.summary}</Text>
                     <Text className="content-feed-source">
-                      {item.source_name} · 已审核
+                      {item.institution?.name ?? item.source_name} · {item.reviewed_at ? `${shortDate(item.reviewed_at)} 核验` : "人工审核"}
                     </Text>
+                    {item.expires_at ? <Text className="content-feed-expiry">有效至 {shortDate(item.expires_at)}</Text> : null}
                   </View>
                   <ChevronRight className="service-row-arrow" size={20} color="rgba(16,42,67,.3)" />
                 </View>
@@ -399,6 +427,7 @@ export default function ServicesPage() {
         </>
       ) : null}
       </> : null}
+      {process.env.TARO_ENV === "h5" ? <CustomTabBar /> : null}
     </View>
   );
 }

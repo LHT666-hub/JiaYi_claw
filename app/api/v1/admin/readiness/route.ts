@@ -17,12 +17,13 @@ export async function GET(request: NextRequest) {
   }
 
   const organizationId = auth.profile.organization_id;
-  const [institutions, services, schedules, content, staff] = await Promise.all([
+  const [institutions, services, schedules, content, staff, auditPipeline] = await Promise.all([
     auth.supabase.from("institutions").select("id", { count: "exact", head: true }).eq("organization_id", organizationId),
     auth.supabase.from("service_catalog").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("active", true),
     auth.supabase.from("practitioner_schedules").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("status", "verified").gte("ends_at", new Date().toISOString()),
     auth.supabase.from("content_items").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("status", "published"),
     auth.supabase.from("profiles").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).in("role", ["doctor", "nurse", "pharmacist", "community", "admin"]).eq("account_status", "active"),
+    auth.supabase.rpc("audit_pipeline_ready"),
   ]);
 
   const databaseError = [institutions, services, schedules, content, staff].find((result) => result.error)?.error;
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
         { id: "services", label: "居民服务目录", detail: `已启用 ${services.count ?? 0} 项服务。`, status: (services.count ?? 0) > 0 ? "ready" : "blocked", action: (services.count ?? 0) > 0 ? null : "配置预约、转诊、随访等正式办理说明。" },
         { id: "schedules", label: "有效核验排班", detail: `当前有 ${schedules.count ?? 0} 条有效排班。`, status: (schedules.count ?? 0) > 0 ? "ready" : "pending", action: (schedules.count ?? 0) > 0 ? null : "由机构负责人导入并核验排班。" },
         { id: "content", label: "已审核居民内容", detail: `当前有 ${content.count ?? 0} 条发布内容。`, status: (content.count ?? 0) > 0 ? "ready" : "pending", action: (content.count ?? 0) > 0 ? null : "导入官方来源并完成人工审核。" },
+        { id: "audit-pipeline", label: "审计证据链", detail: auditPipeline.error ? "无法执行数据库审计自检。" : auditPipeline.data ? "机构配置审计触发器与分角色写入策略已生效。" : "审计策略或配置变更触发器缺失。", status: !auditPipeline.error && auditPipeline.data ? "ready" : "blocked", action: !auditPipeline.error && auditPipeline.data ? null : "执行最新数据库迁移并重新运行 RLS 验证。" },
       ];
   const checks = [...getEnvironmentReadiness(), ...dataChecks];
   return apiOk({ checks, summary: summarizeReadiness(checks) }, traceId);

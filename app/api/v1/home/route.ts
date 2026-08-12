@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
+import { presentAssistantActivity } from "@/lib/assistant/activity";
 import { resolveCareSubject } from "@/lib/careSubjects";
 import {
   getCareNetworkForResident,
@@ -58,6 +59,42 @@ export async function GET(request: NextRequest) {
     if (notificationsResult.error) throw notificationsResult.error;
     if (catalogResult.error) throw catalogResult.error;
     if (observationsResult.error) throw observationsResult.error;
+
+    const now = new Date().toISOString();
+    let assistantSession: {
+      id: string;
+      last_activity_at: string | null;
+      expires_at: string;
+      last_channel: string | null;
+    } | null = null;
+    let assistantActivity = null;
+    try {
+      const sessionResult = await supabase
+        .from("assistant_sessions")
+        .select("id,last_activity_at,expires_at,last_channel")
+        .eq("created_by", profile.id)
+        .eq("resident_id", residentId)
+        .gt("expires_at", now)
+        .maybeSingle();
+      if (!sessionResult.error) assistantSession = sessionResult.data;
+
+      if (assistantSession) {
+        const activityResult = await supabase
+          .from("assistant_activities")
+          .select("id,activity_type,service_type,risk_level,created_at")
+          .eq("session_id", assistantSession.id)
+          .gt("expires_at", now)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!activityResult.error && activityResult.data) {
+          assistantActivity = presentAssistantActivity(activityResult.data);
+        }
+      }
+    } catch {
+      // Assistant continuity is additive and must never block the resident home.
+    }
+
     return apiOk({
       profile: { id: profile.id, displayName: profile.display_name, role: profile.role },
       residentId,
@@ -74,6 +111,12 @@ export async function GET(request: NextRequest) {
       notifications: notificationsResult.data ?? [],
       serviceCatalog: catalogResult.data ?? [],
       healthSummary: buildHealthSummary(observationsResult.data ?? []),
+      assistant: {
+        lastActivity: assistantActivity,
+        lastActivityAt: assistantSession?.last_activity_at ?? null,
+        retentionDays: 30,
+        rawTranscriptStored: false,
+      },
       schedules,
       content,
     }, traceId);

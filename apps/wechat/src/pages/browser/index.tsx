@@ -11,15 +11,18 @@ export default function VerifiedBrowserPage() {
   useLoad((params) => {
     const candidate = decodeURIComponent(params.url ?? "");
     const publicInfoId = params.publicInfoId?.trim() ?? "";
+    const contentId = params.contentId?.trim() ?? "";
     try {
       const parsed = new URL(candidate);
       if (parsed.protocol !== "https:") throw new Error("HTTPS_REQUIRED");
       const resolvePath = `/api/v1/links/resolve?url=${encodeURIComponent(parsed.toString())}${
         publicInfoId ? `&publicInfoId=${encodeURIComponent(publicInfoId)}` : ""
+      }${
+        contentId ? `&contentId=${encodeURIComponent(contentId)}` : ""
       }`;
       void apiRequest<{ url: string }>(
-        publicInfoId ? resolvePath : withCareSubject(resolvePath),
-        { auth: publicInfoId ? "optional" : "required" },
+        publicInfoId || contentId ? resolvePath : withCareSubject(resolvePath),
+        { auth: publicInfoId || contentId ? "optional" : "required" },
       )
         .then((result) => setUrl(result.url))
         .catch((reason) => {

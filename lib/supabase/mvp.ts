@@ -40,18 +40,23 @@ export function isWorkbenchRole(role?: AppRole | null) {
 }
 
 export function getPostLoginPath(role?: AppRole | null, onboardingCompletedAt?: string | null) {
-  if (onboardingCompletedAt === null) {
-    return "/onboarding";
-  }
-  if (role === "family") {
-    return "/family";
-  }
-
   if (role === "admin") {
     return "/admin";
   }
 
-  return isWorkbenchRole(role) ? "/doctor" : "/";
+  if (isWorkbenchRole(role)) {
+    return "/doctor";
+  }
+
+  if (onboardingCompletedAt === null) {
+    return "/onboarding";
+  }
+
+  if (role === "family") {
+    return "/family";
+  }
+
+  return "/";
 }
 
 export async function fetchCurrentProfile(supabase: SupabaseClient) {

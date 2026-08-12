@@ -1,5 +1,5 @@
 import { Button, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { useState } from "react";
 import {
   Bell,
@@ -11,7 +11,11 @@ import {
   UsersRound,
 } from "lucide-react-taro";
 import { InlineRetry, PageFeedback, PageSkeleton } from "../../components/PageState";
+import { useReloadOnNetworkRestore } from "../../components/NetworkStatus";
+import { ClawAssistStrip } from "../../components/ClawAssistStrip";
+import CustomTabBar from "../../custom-tab-bar";
 import { apiRequest } from "../../lib/api";
+import { resolveMessageDestination } from "../../lib/messageNavigation";
 
 type Message = {
   id: string;
@@ -65,6 +69,11 @@ export default function MessagesPage() {
     void load();
   });
 
+  usePullDownRefresh(() => {
+    void load().finally(() => Taro.stopPullDownRefresh());
+  });
+  useReloadOnNetworkRestore(() => void load());
+
   async function markRead(message: Message) {
     try {
       if (!message.is_read) {
@@ -78,11 +87,19 @@ export default function MessagesPage() {
           ),
         );
       }
-      if (!message.link_url) return;
-      if (message.link_url.startsWith("/appointments"))
-        void Taro.navigateTo({ url: "/pages/progress/index" });
-      else if (message.link_url.startsWith("/services"))
+      const destination = resolveMessageDestination(message.link_url);
+      if (destination.kind === "progress") {
+        const query = destination.requestId ? `?id=${encodeURIComponent(destination.requestId)}` : "";
+        void Taro.navigateTo({ url: `/pages/progress/index${query}` });
+      } else if (destination.kind === "services") {
         void Taro.switchTab({ url: "/pages/services/index" });
+      } else if (destination.kind === "me") {
+        void Taro.switchTab({ url: "/pages/me/index" });
+      } else if (destination.kind === "publicInfo") {
+        void Taro.navigateTo({ url: "/pages/public-info/index" });
+      } else if (destination.kind === "content") {
+        void Taro.navigateTo({ url: `/pages/content-detail/index?id=${encodeURIComponent(destination.contentId)}` });
+      }
     } catch (caught) {
       void Taro.showToast({ title: caught instanceof Error ? caught.message : "消息状态更新失败", icon: "none" });
     }
@@ -130,22 +147,7 @@ export default function MessagesPage() {
       ) : null}
       {error && messages.length ? <InlineRetry message={error} onRetry={() => void load()} /> : null}
 
-      {messages.length || !error ? <><View className={`channel-status ${bound ? "connected" : ""}`}>
-        <View className="channel-status-dot" />
-        <View className="grow">
-          <Text className="channel-status-title">
-            企业微信渠道{bound ? "已绑定" : "未绑定"}
-          </Text>
-          <Text className="channel-status-copy">
-            {bound
-              ? "服务进度会通过已授权渠道同步"
-              : "App 消息仍可正常接收，绑定后可多渠道触达"}
-          </Text>
-        </View>
-        <Text className="channel-status-label">{bound ? "正常" : "可选"}</Text>
-      </View>
-
-      <View className="messages-section-head">
+      {messages.length || !error ? <><View className="messages-section-head messages-first-section">
         <Text className="service-section-title">收件箱</Text>
         <Text className="service-section-note">
           {unreadCount ? `${unreadCount} 条未读` : "暂无未读"}
@@ -184,7 +186,30 @@ export default function MessagesPage() {
           </Text>
         </View>
       ) : null}
+
+      <ClawAssistStrip
+        eyebrow="看不明白通知？"
+        title="让 Claw 整理下一步"
+        description="说明通知内容，Claw 帮您判断需要确认或补充什么"
+        prompt="我收到一条家医服务通知，想知道下一步应该怎么处理。"
+      />
+
+      <View className={`channel-status channel-status-secondary ${bound ? "connected" : ""}`}>
+        <View className="channel-status-dot" />
+        <View className="grow">
+          <Text className="channel-status-title">
+            {bound ? "企业微信通知已连接" : "当前通过小程序接收消息"}
+          </Text>
+          <Text className="channel-status-copy">
+            {bound
+              ? "服务进度会同步到已授权的企业微信渠道"
+              : "机构开通后，可在这里增加企业微信通知"}
+          </Text>
+        </View>
+        <Text className="channel-status-label">{bound ? "已连接" : "可选"}</Text>
+      </View>
       </> : null}
+      {process.env.TARO_ENV === "h5" ? <CustomTabBar /> : null}
     </View>
   );
 }

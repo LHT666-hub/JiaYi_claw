@@ -138,6 +138,21 @@ if (
     "ASR_PYTHON_PATH: 本地 Whisper-Wu 正式部署必须指定隔离的 Python 运行时",
   );
 }
+if (process.env.ASR_PROVIDER?.trim() === "tencent_asr") {
+  if (!(process.env.TENCENT_ASR_SECRET_ID || process.env.TENCENT_SMS_SECRET_ID)?.trim()) {
+    errors.push("TENCENT_ASR_SECRET_ID: 腾讯云语音识别必须配置独立密钥，或显式复用短信 SecretID");
+  }
+  if (!(process.env.TENCENT_ASR_SECRET_KEY || process.env.TENCENT_SMS_SECRET_KEY)?.trim()) {
+    errors.push("TENCENT_ASR_SECRET_KEY: 腾讯云语音识别必须配置独立密钥，或显式复用短信 SecretKey");
+  }
+  const engine = process.env.TENCENT_ASR_ENGINE?.trim() || "16k_zh_medical";
+  if (!["16k_zh", "16k_zh_medical", "16k_zh_dialect"].includes(engine)) {
+    errors.push("TENCENT_ASR_ENGINE: 居民端仅允许普通话、中文医疗或多方言引擎");
+  }
+}
+if (!["local_whisper_wu", "tencent_asr"].includes(process.env.ASR_PROVIDER?.trim() || "")) {
+  errors.push("ASR_PROVIDER: 仅支持 local_whisper_wu 或 tencent_asr");
+}
 
 if (errors.length) {
   console.error("\n家医 Claw 正式发布检查失败：\n");

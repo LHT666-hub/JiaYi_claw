@@ -30,6 +30,7 @@ export default defineAppConfig({
     "pages/health-records/index",
     "pages/support/index",
     "pages/public-info/index",
+    "pages/content-detail/index",
     "pages/browser/index",
     "pages/workbench/index",
   ],
@@ -41,6 +42,7 @@ export default defineAppConfig({
     backgroundColor: "#EEF2F1",
   },
   tabBar: {
+    custom: true,
     color: "#66788A",
     selectedColor: "#102A43",
     backgroundColor: "#FFFFFF",

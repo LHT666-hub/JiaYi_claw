@@ -1,0 +1,66 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("node:fs/promises", () => ({
+  readFile: vi.fn(async () => Buffer.from("audio")),
+}));
+vi.mock("@/lib/speech/localWhisper", () => ({
+  transcribeLocalAudio: vi.fn(async () => ({
+    text: "我要预约家庭医生",
+    provider: "whisper-wu-local",
+    model: "whisper-small + whisper-wu",
+    device: "cpu",
+  })),
+}));
+
+const sentenceRecognition = vi.fn(async () => ({
+  Result: "我想查询家庭医生排班。",
+  RequestId: "asr-request-1",
+}));
+vi.mock("tencentcloud-sdk-nodejs-asr", () => ({
+  asr: {
+    v20190614: {
+      Client: class {
+        SentenceRecognition = sentenceRecognition;
+      },
+    },
+  },
+}));
+
+describe("speech provider routing", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    sentenceRecognition.mockClear();
+  });
+
+  it("uses the local Whisper-Wu provider by default", async () => {
+    const { transcribeAudio } = await import("./transcribe");
+    const result = await transcribeAudio("recording.wav");
+    expect(result.provider).toBe("whisper-wu-local");
+    expect(result.text).toContain("家庭医生");
+  });
+
+  it("uses Tencent sentence recognition without exposing credentials", async () => {
+    vi.stubEnv("ASR_PROVIDER", "tencent_asr");
+    vi.stubEnv("TENCENT_ASR_SECRET_ID", "secret-id");
+    vi.stubEnv("TENCENT_ASR_SECRET_KEY", "secret-key");
+    vi.stubEnv("TENCENT_ASR_ENGINE", "16k_zh_medical");
+    const { transcribeAudio } = await import("./transcribe");
+    const result = await transcribeAudio("recording.mp3");
+    expect(result).toMatchObject({
+      provider: "tencent-cloud-asr",
+      model: "16k_zh_medical",
+      requestId: "asr-request-1",
+    });
+    expect(sentenceRecognition).toHaveBeenCalledWith(expect.objectContaining({
+      SourceType: 1,
+      VoiceFormat: "mp3",
+      DataLen: 5,
+    }));
+  });
+
+  it("rejects unknown providers", async () => {
+    vi.stubEnv("ASR_PROVIDER", "unknown");
+    const { transcribeAudio } = await import("./transcribe");
+    await expect(transcribeAudio("recording.wav")).rejects.toThrow("ASR_PROVIDER_UNAVAILABLE");
+  });
+});

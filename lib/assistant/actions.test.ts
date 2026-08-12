@@ -66,4 +66,25 @@ describe("Claw action orchestration", () => {
       requiresConfirmation: false,
     });
   });
+
+  it("keeps a reviewed community activity attached to the confirmation draft", () => {
+    const actions = buildAssistantActions({
+      question: "帮我报名这个活动",
+      reply: reply({ knowledgeIds: ["reviewed-activity"] }),
+      serviceRequest: {
+        kind: "community_activity",
+        activityTitle: "慢病义诊活动",
+        contentId: "50000000-0000-0000-0000-000000000001",
+        sourceName: "海湾镇社区卫生服务中心",
+      },
+    });
+
+    expect(actions[0]).toMatchObject({
+      kind: "service",
+      label: "核对并申请活动报名",
+      requiresConfirmation: true,
+    });
+    expect(actions[0].href).toContain("type=other");
+    expect(actions[0].href).toContain("contentId=50000000-0000-0000-0000-000000000001");
+  });
 });

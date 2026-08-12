@@ -1,5 +1,5 @@
 import { Button, Picker, Switch, Text, View } from "@tarojs/components";
-import Taro, { useDidShow } from "@tarojs/taro";
+import Taro, { useDidShow, usePullDownRefresh } from "@tarojs/taro";
 import { useCallback, useState } from "react";
 import { apiRequest } from "../../lib/api";
 
@@ -58,6 +58,10 @@ export default function NotificationSettingsPage() {
     void load();
   });
 
+  usePullDownRefresh(() => {
+    void load().finally(() => Taro.stopPullDownRefresh());
+  });
+
   function toggle(key: keyof Preferences, checked: boolean) {
     setValue((current) => ({ ...current, [key]: checked }));
   }
@@ -69,6 +73,10 @@ export default function NotificationSettingsPage() {
     }
     if (!templates.length) {
       Taro.showToast({ title: "机构尚未配置微信通知模板", icon: "none" });
+      return;
+    }
+    if (process.env.TARO_ENV !== "weapp") {
+      Taro.showToast({ title: "请在微信小程序内授权服务通知", icon: "none" });
       return;
     }
     setSubscribing(true);

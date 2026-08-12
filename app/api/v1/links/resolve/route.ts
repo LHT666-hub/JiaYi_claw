@@ -4,6 +4,7 @@ import { resolveCareSubject } from "@/lib/careSubjects";
 import { getCareNetworkForResident } from "@/lib/db/carePlatform";
 import { getPublicInfoById } from "@/lib/publicInfoRepository";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { createSupabasePublicServerClient } from "@/lib/supabase/server";
 
 function validHttpsUrl(value: string | null) {
   if (!value || value.length > 2000) return null;
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
     return apiError("INVALID_OFFICIAL_LINK", "链接格式不安全。", 400, traceId);
 
   const publicInfoId = request.nextUrl.searchParams.get("publicInfoId")?.trim();
+  const contentId = request.nextUrl.searchParams.get("contentId")?.trim();
+  if (publicInfoId && contentId)
+    return apiError("AMBIGUOUS_PUBLIC_LINK", "公开资料参数冲突。", 400, traceId);
   if (publicInfoId) {
     if (!/^[a-zA-Z0-9-]{1,80}$/.test(publicInfoId))
       return apiError("INVALID_PUBLIC_INFO_ID", "公开资料编号格式不正确。", 400, traceId);
@@ -38,6 +42,25 @@ export async function GET(request: NextRequest) {
       { url: reviewedUrl, sourceType: "public_info", label: publicInfo.title },
       traceId,
     );
+  }
+
+  if (contentId) {
+    if (!/^[0-9a-f-]{36}$/i.test(contentId))
+      return apiError("INVALID_CONTENT_ID", "公开内容编号格式不正确。", 400, traceId);
+    const publicClient = createSupabasePublicServerClient();
+    if (!publicClient) return apiError("CONTENT_NOT_CONFIGURED", "内容服务尚未配置。", 503, traceId);
+    const now = new Date().toISOString();
+    const { data, error } = await publicClient.from("content_items")
+      .select("id,title,original_url")
+      .eq("id", contentId)
+      .eq("original_url", requestedUrl)
+      .eq("status", "published")
+      .or(`effective_from.is.null,effective_from.lte.${now}`)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
+      .maybeSingle();
+    if (error) return apiError("CONTENT_LINK_CHECK_FAILED", "暂时无法核验公开内容链接。", 500, traceId);
+    if (!data) return apiError("CONTENT_NOT_AVAILABLE", "该内容已下架、过期或链接不一致。", 404, traceId);
+    return apiOk({ url: requestedUrl, sourceType: "reviewed_content", label: data.title }, traceId);
   }
 
   const auth = await getApiAuthContext(request);
@@ -71,6 +94,7 @@ export async function GET(request: NextRequest) {
       .eq("organization_id", network.organization_id)
       .eq("original_url", requestedUrl)
       .eq("status", "published")
+      .or(`effective_from.is.null,effective_from.lte.${now}`)
       .or(`expires_at.is.null,expires_at.gt.${now}`)
       .limit(1)
       .maybeSingle();

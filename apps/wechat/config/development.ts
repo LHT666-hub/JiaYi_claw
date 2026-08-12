@@ -1,4 +1,7 @@
-const apiBaseUrl = (process.env.TARO_APP_API_BASE_URL || "http://127.0.0.1:3020").replace(/\/+$/, "");
+const configuredApiBaseUrl = process.env.TARO_APP_API_BASE_URL;
+const apiBaseUrl = configuredApiBaseUrl === "__SAME_ORIGIN__"
+  ? ""
+  : (configuredApiBaseUrl || "http://127.0.0.1:3020").replace(/\/+$/, "");
 
 const developmentConfig = {
   env: { NODE_ENV: '"development"' },

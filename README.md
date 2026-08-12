@@ -91,6 +91,8 @@ npm run build:release
 
 Web 使用 `MediaRecorder`，小程序使用原生 `RecorderManager`，统一上传到 `POST /api/v1/speech/transcribe`。音频最大 10MB，写入临时目录，识别后删除；转写文字必须由居民确认后才能进入 Claw。
 
+开发或院内服务器可使用 `ASR_PROVIDER=local_whisper_wu`；境内云端生产环境使用 `ASR_PROVIDER=tencent_asr`，并配置 `TENCENT_ASR_SECRET_ID`、`TENCENT_ASR_SECRET_KEY`、`TENCENT_ASR_REGION` 与 `TENCENT_ASR_ENGINE`。默认云端引擎为 `16k_zh_medical`，上海话试点可在评测后切换 `16k_zh_dialect`。腾讯云密钥只保留在服务端，小程序不会直接持有。
+
 当前本地 Worker 为 Whisper Small + Whisper-Wu LoRA。模型链路已实测可运行，但公开上海话样本准确率尚未达到试点验收标准。正式部署必须提供隔离的 Python 运行时，并建立真实普通话/上海话语料评测，不把“模型能启动”等同于“识别质量合格”。
 
 ## 报告与药盒识别

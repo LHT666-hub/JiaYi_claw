@@ -47,6 +47,8 @@ const SERVICE_KIND_TO_TYPE: Partial<
   refill: "refill_request",
   dispense_status: "dispense_status_query",
   followup: "followup_reminder",
+  referral: "referral_assistance",
+  community_activity: "other",
 };
 
 const SERVICE_PRESENTATION: Record<

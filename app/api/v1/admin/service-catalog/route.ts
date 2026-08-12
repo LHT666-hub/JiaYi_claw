@@ -16,6 +16,10 @@ const schema = z.object({
   responseSlaHours: z.number().int().min(1).max(720).nullable().optional(),
   availabilityNote: z.string().trim().max(300).nullable().optional(),
   active: z.boolean().default(true),
+}).superRefine((value, context) => {
+  if (["official_link", "hybrid"].includes(value.accessMode) && !value.officialUrl) {
+    context.addIssue({ code: "custom", path: ["officialUrl"], message: "官方跳转或混合模式必须填写官方入口。" });
+  }
 });
 
 async function requireAdmin(request: NextRequest) { const auth = await getApiAuthContext(request); return auth.profile?.role === "admin" ? auth : null; }
@@ -37,7 +41,8 @@ async function save(request: NextRequest, update: boolean) {
     ? auth.supabase.from("service_catalog").update(record).eq("id", parsed.data.id).eq("organization_id", auth.profile.organization_id)
     : auth.supabase.from("service_catalog").upsert(record, { onConflict: "organization_id,community_id,service_type" });
   const { data, error } = await query.select("*").single();
-  return error ? apiError("SERVICE_CATALOG_SAVE_FAILED", error.message, 500, traceId) : apiOk({ item: data }, traceId, update ? 200 : 201);
+  if (error) return apiError("SERVICE_CATALOG_SAVE_FAILED", error.message, 500, traceId);
+  return apiOk({ item: data }, traceId, update ? 200 : 201);
 }
 export async function POST(request: NextRequest) { return save(request, false); }
 export async function PATCH(request: NextRequest) { return save(request, true); }

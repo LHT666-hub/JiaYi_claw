@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, BookOpen, ClipboardList, MessageCircleMore, MessageSquareWarning, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
+import { Activity, BookOpen, ClipboardList, Clock3, MessageCircleMore, MessageSquareWarning, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
 
 type Metrics = { serviceRequests: number; pendingRequests: number; staff: number; publishedContent: number; contentToReview: number; factsToReview: number; verifiedSchedules: number; activeChannels: number };
 export default function AdminPage() {
@@ -14,6 +14,9 @@ export default function AdminPage() {
     { href: "/workbench/operations", label: "内容与群运营", detail: "内容、排班、群事实和广播", icon: MessageCircleMore, count: (metrics?.contentToReview ?? 0) + (metrics?.factsToReview ?? 0) },
     { href: "/admin/skills", label: "Agent Skill", detail: "来源、风险和评测记录", icon: ShieldCheck },
     { href: "/admin/care-network", label: "分级诊疗网络", detail: "机构、医生、排班与转诊路线", icon: Stethoscope },
+    { href: "/admin/service-catalog", label: "居民服务目录", detail: "服务开关、办理模式、责任角色与时限", icon: Settings },
+    { href: "/admin/staff", label: "工作人员与邀请", detail: "受邀手机号、角色、社区和账号状态", icon: Users },
+    { href: "/admin/audit", label: "审计日志", detail: "登录、权限和关键业务变更证据", icon: Clock3 },
     { href: "/admin/content-sources", label: "官方内容来源", detail: "公众号与网站采集送审", icon: BookOpen },
     { href: "/admin/channels", label: "企业微信渠道", detail: "官方回调、绑定与群通知", icon: MessageCircleMore },
     { href: "/admin/feedback", label: "居民反馈", detail: "问题受理、联系授权和处理结论", icon: MessageSquareWarning },
