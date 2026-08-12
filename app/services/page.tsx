@@ -40,6 +40,7 @@ type CatalogItem = {
   availability_note: string | null;
 };
 type ServiceData = {
+  demo?: boolean;
   access?: {
     bindingStatus: "pending" | "active" | "revoked" | "unbound";
     canSubmitService: boolean;
@@ -196,6 +197,7 @@ export default function ServicesPage() {
           </p>
         </header>
         <CareSubjectSwitcher compact />
+        {data?.demo ? <div className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-center text-xs font-semibold text-sage">只读展示数据 · 不会提交服务申请</div> : null}
         {data?.access && !data.access.canSubmitService ? (
           <div className="mt-4 rounded-[22px] bg-[#F7F1E6] px-4 py-3 text-sm leading-6 text-[#795427]">
             <p className="font-semibold">社区登记待核验</p>

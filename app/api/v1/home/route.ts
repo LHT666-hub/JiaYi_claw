@@ -10,11 +10,15 @@ import {
 } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import { buildHealthSummary } from "@/lib/healthSummary";
+import { residentShowcaseHome } from "@/lib/showcase/resident";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
-  if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  if (!supabase || !profile) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") return apiOk(residentShowcaseHome, traceId);
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  }
   try {
     const careSubject = await resolveCareSubject(
       request,
