@@ -33,8 +33,11 @@ export function buildClinicianBrief(input: {
   const missing = [...input.entities.missingInformation];
   if (!facts.length) missing.push("尚未提取到可核对的健康事实");
 
+  const question = sentence(input.question);
   return {
-    summary: `${input.residentName}本次主要诉求：${sentence(input.question)}${facts.length ? sentence(facts.join("；")) : ""}`,
+    summary: facts.length
+      ? `${input.residentName}本次主要诉求：${question} ${sentence(facts.join("；"))}`
+      : `${input.residentName}本次主要诉求：${question}`,
     structuredContent: {
       residentReportedFacts: facts,
       mentionedConditions: input.entities.mentionedConditions,

@@ -303,9 +303,11 @@ test("工作人员受理服务申请", async ({ page }) => {
   await page.route("**/api/v1/staff/work-queue", (route) =>
     route.fulfill({ json: ok({ profile: { id: "staff-1", role: "doctor", displayName: "李医生" }, requests: [item()] }) }),
   );
-  await page.route("**/api/v1/residents/r1/clinical-brief", (route) =>
-    route.fulfill({ json: ok({ briefs: [{ id: "brief-1", summary: "居民希望高血压复诊，未提供近期血压。", structured_content: {}, source_refs: [], skill_id: "clinician-previsit-summary", skill_version: "1.0.0-cn.1", created_at: "2026-07-11T00:00:00Z" }] }) }),
-  );
+  let briefRequestUrl = "";
+  await page.route("**/api/v1/residents/r1/clinical-brief?**", (route) => {
+    briefRequestUrl = route.request().url();
+    route.fulfill({ json: ok({ briefs: [{ id: "brief-1", summary: "居民希望高血压复诊，未提供近期血压。", structured_content: {}, source_refs: [], skill_id: "clinician-previsit-summary", skill_version: "1.0.0-cn.1", created_at: "2026-07-11T00:00:00Z" }] }) });
+  });
   await page.route(
     "**/api/v1/service-requests/*/actions/accept",
     async (route) => {
@@ -316,9 +318,51 @@ test("工作人员受理服务申请", async ({ page }) => {
   await page.goto("/workbench/requests");
   await expect(page.getByText("张阿姨", { exact: true })).toBeVisible();
   await expect(page.getByText("居民希望高血压复诊，未提供近期血压。")).toBeVisible();
+  await expect.poll(() => briefRequestUrl).toContain("serviceRequestId=30000000-0000-0000-0000-000000000001");
   await page.getByRole("button", { name: /受理申请/ }).click();
   await page.getByRole("button", { name: /确认并更新状态/ }).click();
   await expect(page.getByText("团队已受理").first()).toBeVisible();
+});
+
+test("居民从消息进入具体服务并确认团队时段", async ({ page }) => {
+  const requestId = "31000000-0000-0000-0000-000000000001";
+  let status = "awaiting_user_confirmation";
+  let actionUsedIdempotency = false;
+  const request = () => ({
+    id: requestId,
+    title: "家庭医生门诊预约",
+    summary: "希望家庭医生查看近期血压记录。",
+    service_type: "family_doctor_booking",
+    status,
+    created_at: "2026-08-13T01:00:00.000Z",
+    updated_at: "2026-08-13T02:00:00.000Z",
+    appointment_details: {
+      scheduled_at: "2026-08-14T06:00:00.000Z",
+      institution_name: "海湾镇社区卫生服务中心",
+      department_name: "全科门诊",
+      clinician_name: "李医生",
+      booking_reference: null,
+    },
+    service_request_events: [
+      { id: "event-1", action: "propose_slot", new_status: "awaiting_user_confirmation", note: "团队提出明天下午时段。", created_at: "2026-08-13T02:00:00.000Z" },
+    ],
+  });
+  await page.route("**/api/v1/messages", (route) => route.fulfill({ json: ok({ messages: [{ id: "message-1", type: "service_progress", title: "请确认预约时间", content: "团队已提出明天下午时段。", link_url: `/service-requests/${requestId}`, is_read: false, created_at: "2026-08-13T02:00:00.000Z" }], channelBindings: [] }) }));
+  await page.route(`**/api/v1/service-requests/${requestId}`, (route) => route.fulfill({ json: ok({ request: request() }) }));
+  await page.route(`**/api/v1/service-requests/${requestId}/actions/confirm_booking`, async (route) => {
+    actionUsedIdempotency = Boolean(route.request().headers()["idempotency-key"]);
+    status = "booked";
+    await route.fulfill({ json: ok({ request: request() }) });
+  });
+
+  await page.goto("/messages");
+  await page.getByRole("button", { name: /请确认预约时间/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/service-requests/${requestId}$`));
+  await expect(page.getByText("团队提出明天下午时段。")).toBeVisible();
+  await page.getByRole("button", { name: "确认时间" }).click();
+  await expect.poll(() => actionUsedIdempotency).toBe(true);
+  await expect(page.getByText("预约成功", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "确认时间" })).toHaveCount(0);
 });
 
 test("公开信息回答展示来源与核验状态", async ({ page }) => {

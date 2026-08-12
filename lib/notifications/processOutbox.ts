@@ -51,7 +51,7 @@ export async function processOutboxEvents(limit = 25): Promise<OutboxProcessResu
           type: "system",
           title: payload.status === "submitted" ? "服务申请已提交" : `服务进度：${label}`,
           content: payload.note?.trim() || `您的服务申请状态已更新为：${label}`,
-          link_url: `/appointments?id=${payload.requestId}`,
+          link_url: `/service-requests/${payload.requestId}`,
           metadata: {
             requestId: payload.requestId,
             status: payload.status,
