@@ -11,6 +11,29 @@ type VoiceInputPanelProps = {
 
 type VoiceState = "idle" | "recording" | "transcribing" | "result" | "error";
 
+type BrowserSpeechRecognition = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: { results: ArrayLike<{ [index: number]: { transcript?: string } }> }) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+function browserSpeechRecognition() {
+  if (typeof window === "undefined") return null;
+  const speechWindow = window as typeof window & {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  };
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
 function preferredMimeType() {
   if (typeof MediaRecorder === "undefined") return "";
   return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"]
@@ -18,6 +41,7 @@ function preferredMimeType() {
 }
 
 export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelProps) {
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const [state, setState] = useState<VoiceState>("idle");
   const [seconds, setSeconds] = useState(0);
   const [transcript, setTranscript] = useState("");
@@ -28,6 +52,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
   function clearTimer() {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -70,6 +95,53 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
     setTranscript("");
     setSeconds(0);
     cancelledRef.current = false;
+    const Recognition = demoMode ? browserSpeechRecognition() : null;
+    if (Recognition) {
+      const recognition = new Recognition();
+      recognitionRef.current = recognition;
+      recognition.lang = "zh-CN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      let resolved = false;
+      recognition.onresult = (event) => {
+        const text = event.results[0]?.[0]?.transcript?.trim() ?? "";
+        resolved = Boolean(text);
+        clearTimer();
+        if (text) {
+          setTranscript(text);
+          setState("result");
+        } else {
+          setError("没有听清楚，请再说一遍。");
+          setState("error");
+        }
+      };
+      recognition.onerror = (event) => {
+        clearTimer();
+        if (cancelledRef.current) return;
+        setError(event.error === "not-allowed" ? "请允许麦克风权限后再录音。" : "浏览器语音识别没有成功，请重试或改用文字输入。");
+        setState("error");
+      };
+      recognition.onend = () => {
+        clearTimer();
+        recognitionRef.current = null;
+        if (!cancelledRef.current && !resolved) {
+          setError((current) => current || "没有听清楚，请再说一遍。");
+          setState((current) => current === "result" ? current : "error");
+        }
+      };
+      recognition.start();
+      setState("recording");
+      timerRef.current = setInterval(() => {
+        setSeconds((value) => {
+          if (value >= 29) {
+            recognitionRef.current?.stop();
+            return 30;
+          }
+          return value + 1;
+        });
+      }, 1000);
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setError("当前浏览器不能直接录音，可以选择已有录音文件进行识别。");
       setState("error");
@@ -116,6 +188,10 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
   }
 
   function stopRecording() {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   }
 
@@ -123,6 +199,8 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
     requestRef.current?.abort();
     requestRef.current = null;
     cancelledRef.current = true;
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
     clearTimer();
     releaseStream();
@@ -147,6 +225,8 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
     if (!open) reset();
     return () => {
       cancelledRef.current = true;
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
       if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       clearTimer();
       releaseStream();
@@ -181,7 +261,7 @@ export function VoiceInputPanel({ open, onClose, onConfirm }: VoiceInputPanelPro
           {state === "result" ? <div className="grid grid-cols-2 gap-3"><button type="button" onClick={reset} className="rounded-full border border-line bg-surface-card px-4 py-3 font-semibold text-navy">重新录音</button><button type="button" onClick={() => { onConfirm(transcript); close(); }} className="rounded-full bg-navy px-4 py-3 font-semibold text-white">使用这段文字</button></div> : null}
           {state !== "recording" && state !== "transcribing" ? <label className="cursor-pointer rounded-full border border-line bg-surface-card px-4 py-3 text-center text-sm font-semibold text-navy"><input type="file" accept="audio/*" onChange={(event) => void chooseAudio(event)} className="sr-only" />选择已有录音</label> : null}
         </div>
-        <p className="mt-3 text-center text-[11px] leading-5 text-navy/38">音频仅用于本次转写，服务端临时处理后立即删除</p>
+        <p className="mt-3 text-center text-[11px] leading-5 text-navy/38">{demoMode && browserSpeechRecognition() ? "演示环境由浏览器临时识别，不上传录音" : "音频仅用于本次转写，服务端临时处理后立即删除"}</p>
       </section>
     </div>
   );

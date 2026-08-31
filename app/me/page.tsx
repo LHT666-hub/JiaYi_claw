@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Activity, Bell, ChevronRight, ClipboardList, HeartPulse, LifeBuoy, LockKeyhole, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
+import { Activity, Bell, Brain, ChevronRight, ClipboardList, HeartPulse, LifeBuoy, LockKeyhole, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
 
 type MeData = { demo?: boolean; profile: { display_name: string; role: string; phone: string | null }; access?: { bindingStatus: "pending" | "active" | "revoked" | "unbound"; canSubmitService: boolean; canStoreHealthData: boolean; message: string }; network: null | { name: string; community?: { name?: string; service_phone?: string | null }; institutions?: Array<{ id: string; name: string }> }; consents: Array<{ scope: string; granted: boolean }>; observations: Array<Record<string, unknown>>; serviceRequests: Array<Record<string, unknown>>; channelBindings: Array<Record<string, unknown>>; familyBindings: Array<Record<string, unknown>> };
@@ -16,6 +16,7 @@ export default function MePage() {
   const actions = [
     { href: "/family-link", label: data?.profile.role === "family" ? "绑定与管理家人" : "家属协助授权", detail: data?.profile.role === "family" ? "使用居民授权码建立代办关系" : "生成一次性授权码邀请家属", icon: Users },
     { href: "/health-records", label: "健康记录", detail: `${data?.observations.length ?? 0} 条近期记录`, icon: HeartPulse },
+    { href: "/memory", label: "CLAW 记忆", detail: "查看和管理 AI 记忆", icon: Brain },
     { href: "/appointments", label: "服务历史", detail: `${data?.serviceRequests.length ?? 0} 条近期申请`, icon: ClipboardList },
     { href: "/support", label: "帮助与反馈", detail: "联系社区、客服和提交问题", icon: LifeBuoy },
     { href: "/privacy", label: "隐私与授权", detail: `${data?.consents.filter((item) => item.granted).length ?? 0} 项有效授权`, icon: ShieldCheck },

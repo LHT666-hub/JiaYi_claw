@@ -132,7 +132,7 @@ if (strict) {
   const privateConfigPath = path.resolve("apps/wechat/project.private.config.json");
   try {
     const privateConfig = JSON.parse(await readFile(privateConfigPath, "utf8"));
-    if (!/^wx[a-zA-Z0-9]{16}$/.test(privateConfig.appid ?? "")) errors.push("project.private.config.json: 正式 AppID 无效");
+    if (!/^wx[a-zA-Z0-9]{16}$/.test(privateConfig.appid ?? "") || /^wx0{16}$/i.test(privateConfig.appid ?? "")) errors.push("project.private.config.json: 正式 AppID 无效");
   } catch {
     errors.push("project.private.config.json: 未生成正式微信项目配置");
   }

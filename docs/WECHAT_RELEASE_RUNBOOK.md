@@ -60,3 +60,17 @@ npm run build:release
 7. “我的 -> 账号与隐私”可撤回授权并申请注销。
 
 提交前将 `RELEASE_CHECKLIST.md` 全部阻断项关闭。真实 AppID、短信签名、服务类目、备案域名、机构协议和微信审核不能由代码替代。
+
+## 6. 本地打不开时先诊断
+
+先启动 Web/API，再运行诊断：
+
+```powershell
+npm run dev:web -- -p 3000 -H 0.0.0.0
+npm run doctor:wechat
+npm run dev:wechat
+```
+
+开发包默认请求 `http://127.0.0.1:3000`。若用真机预览，`127.0.0.1` 指向手机自身，必须把
+`TARO_APP_API_BASE_URL` 改为同一局域网内电脑可访问的 HTTPS 调试地址，或使用已经加入微信
+服务器域名白名单的测试环境。诊断输出会分别标记 API、登录通道、访客公开服务和 AppID 状态。

@@ -2,24 +2,57 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ShieldAlert } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2, RefreshCw, ShieldAlert } from "lucide-react";
 import type { SkillDefinition } from "@jiayi/contracts";
 
 type SkillRun = { skill_id: string; status: string; latency_ms: number | null; created_at: string };
+type RagStatus = {
+  documentCount: number;
+  activeCount: number;
+  failedDocumentCount: number;
+  openJobCount: number;
+  embeddingProvider: string;
+};
 
 export default function AdminSkillsPage() {
   const router = useRouter();
   const [skills, setSkills] = useState<SkillDefinition[]>([]);
   const [runs, setRuns] = useState<SkillRun[]>([]);
+  const [ragStatus, setRagStatus] = useState<RagStatus | null>(null);
+  const [processingRag, setProcessingRag] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    void fetch("/api/v1/admin/skills", { cache: "no-store" }).then(async (response) => {
-      const payload = await response.json();
-      if (!response.ok) setError(payload.error?.message ?? "读取失败");
-      else { setSkills(payload.data.skills ?? []); setRuns(payload.data.recentRuns ?? []); }
+    void Promise.all([
+      fetch("/api/v1/admin/skills", { cache: "no-store" }),
+      fetch("/api/v1/admin/rag/status", { cache: "no-store" }),
+    ]).then(async ([skillsResponse, ragResponse]) => {
+      const [skillsPayload, ragPayload] = await Promise.all([skillsResponse.json(), ragResponse.json()]);
+      if (!skillsResponse.ok) setError(skillsPayload.error?.message ?? "读取失败");
+      else { setSkills(skillsPayload.data.skills ?? []); setRuns(skillsPayload.data.recentRuns ?? []); }
+      if (ragResponse.ok) setRagStatus(ragPayload.data);
     });
   }, []);
+
+  const processRagQueue = async () => {
+    setProcessingRag(true);
+    setError("");
+    try {
+      const response = await fetch("/api/v1/admin/rag/index", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: "pending", limit: 10 }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? "索引处理失败");
+      const statusResponse = await fetch("/api/v1/admin/rag/status", { cache: "no-store" });
+      const statusPayload = await statusResponse.json();
+      if (statusResponse.ok) setRagStatus(statusPayload.data);
+    } catch (processError) {
+      setError(processError instanceof Error ? processError.message : "索引处理失败");
+    } finally {
+      setProcessingRag(false);
+    }
+  };
 
   const lastRunBySkill = useMemo(() => new Map(runs.map((run) => [run.skill_id, run])), [runs]);
 
@@ -31,6 +64,21 @@ export default function AdminSkillsPage() {
       </div>
     </header>
     <div className="mx-auto max-w-7xl px-5 py-6">
+      {ragStatus ? <section className="mb-5 border border-line bg-white p-5" aria-label="RAG 知识索引状态">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><h2 className="flex items-center gap-2 font-semibold"><BookOpen className="h-4 w-4 text-sage" />机构知识索引</h2><p className="mt-1 text-xs text-navy/50">只索引已审核、未过期资料；居民回答保留片段级来源。</p></div>
+          <button type="button" onClick={() => void processRagQueue()} disabled={processingRag || ragStatus.openJobCount === 0} className="inline-flex h-9 items-center gap-2 border border-line bg-white px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45">
+            <RefreshCw className={`h-4 w-4 ${processingRag ? "animate-spin" : ""}`} />{processingRag ? "正在处理" : "处理索引队列"}
+          </button>
+        </div>
+        <dl className="mt-4 grid grid-cols-2 border-y border-line sm:grid-cols-5">
+          {[
+            ["全部文档", ragStatus.documentCount], ["可用文档", ragStatus.activeCount],
+            ["待处理任务", ragStatus.openJobCount], ["失败文档", ragStatus.failedDocumentCount],
+            ["检索模式", ragStatus.embeddingProvider === "openai-compatible" ? "混合检索" : "关键词"],
+          ].map(([label, value]) => <div key={label} className="border-b border-line p-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"><dt className="text-[11px] text-navy/45">{label}</dt><dd className="mt-1 text-lg font-semibold">{value}</dd></div>)}
+        </dl>
+      </section> : null}
       {error ? <p className="border border-danger/20 bg-risk-soft p-4 text-sm text-danger">{error}</p> :
         <div className="overflow-x-auto border border-line bg-white">
           <table className="w-full min-w-[1080px] border-collapse text-left text-sm">

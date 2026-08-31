@@ -34,6 +34,7 @@ declare module "lucide-react" {
   export const Award: LucideIcon;
   export const Bell: LucideIcon;
   export const BellRing: LucideIcon;
+  export const Brain: LucideIcon;
   export const BookOpen: LucideIcon;
   export const Building2: LucideIcon;
   export const Camera: LucideIcon;
@@ -50,6 +51,7 @@ declare module "lucide-react" {
   export const ClipboardList: LucideIcon;
   export const CircleAlert: LucideIcon;
   export const Clock3: LucideIcon;
+  export const Clock: LucideIcon;
   export const Coins: LucideIcon;
   export const Droplets: LucideIcon;
   export const ExternalLink: LucideIcon;
@@ -68,6 +70,7 @@ declare module "lucide-react" {
   export const ImagePlus: LucideIcon;
   export const Keyboard: LucideIcon;
   export const KeyRound: LucideIcon;
+  export const LayoutGrid: LucideIcon;
   export const LogIn: LucideIcon;
   export const LoaderCircle: LucideIcon;
   export const LifeBuoy: LucideIcon;
@@ -77,10 +80,12 @@ declare module "lucide-react" {
   export const MessageSquareText: LucideIcon;
   export const MessageSquareWarning: LucideIcon;
   export const Mic: LucideIcon;
+  export const MoreHorizontal: LucideIcon;
   export const MapPin: LucideIcon;
   export const Pause: LucideIcon;
   export const Phone: LucideIcon;
   export const PencilLine: LucideIcon;
+  export const Pencil: LucideIcon;
   export const Pill: LucideIcon;
   export const Play: LucideIcon;
   export const PlayCircle: LucideIcon;
@@ -107,5 +112,6 @@ declare module "lucide-react" {
   export const Users: LucideIcon;
   export const UsersRound: LucideIcon;
   export const WandSparkles: LucideIcon;
+  export const X: LucideIcon;
   export const XCircle: LucideIcon;
 }

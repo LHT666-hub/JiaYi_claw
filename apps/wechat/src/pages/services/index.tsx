@@ -133,6 +133,10 @@ function openContentDetail(id: string) {
 }
 
 async function openService(item: ServiceItem, access: Data["access"]) {
+  if (item.service_type === "report_explanation") {
+    void Taro.navigateTo({ url: "/pages/ask/index?photo=1" });
+    return;
+  }
   if (item.access_mode === "official_link" && item.official_url) {
     openVerifiedUrl(item.official_url);
     return;
@@ -399,11 +403,11 @@ export default function ServicesPage() {
                   </View>
                   <View className="grow">
                     <Text className="schedule-doctor">
-                      {item.practitioner?.name ?? "机构坐班医生"}
+                      {item.practitioner?.name ?? item.department?.name ?? "已核验门诊时段"}
                       {item.practitioner?.title ? ` · ${item.practitioner.title}` : ""}
                     </Text>
                     <Text className="schedule-place">
-                      {item.department?.name ?? "全科门诊"} · {item.institution?.name ?? "家医网络机构"}
+                      {item.practitioner?.name && item.department?.name ? `${item.department.name} · ` : ""}{item.institution?.name ?? "家医网络机构"}
                     </Text>
                     {item.practitioner?.specialties?.length ? (
                       <Text className="schedule-specialty">

@@ -11,6 +11,7 @@
     "dev:web": "next dev",
     "dev:wechat": "npm run dev:weapp --workspace @jiayi/wechat",
     "dev:wechat:h5": "npm run dev:h5 --workspace @jiayi/wechat",
+    "doctor:wechat": "node --env-file-if-exists=.env.local scripts/diagnose-wechat.mjs",
     "build": "next build",
     "build:web": "next build",
     "build:wechat": "npm run build:weapp --workspace @jiayi/wechat && node scripts/verify-wechat-package.mjs",

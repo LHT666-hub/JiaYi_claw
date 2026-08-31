@@ -56,6 +56,21 @@ describe("assistant activity continuity", () => {
     expect(view.detail).toContain("原对话未保存");
   });
 
+  it("continues report explanation in the document assistant", () => {
+    const view = presentAssistantActivity({
+      id: "activity-2",
+      activity_type: "service_draft_prepared",
+      service_type: "report_explanation",
+      risk_level: "low",
+      created_at: "2026-08-13T08:00:00.000Z",
+    });
+
+    expect(view.primaryAction).toEqual({
+      label: "继续办理",
+      href: "/ask?photo=1",
+    });
+  });
+
   it("keeps emergency activity actionable", () => {
     const activity = buildAssistantActivity({
       reply: { ...reply, riskLevel: "emergency" },

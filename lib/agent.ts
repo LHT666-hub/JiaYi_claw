@@ -616,7 +616,8 @@ export function inferServiceRequestFromQuestion(
     return null;
   }
 
-  const actionCue = hasActionCue(normalized);
+  const asksAboutCapabilities = /(?:能|可以).{0,6}帮我.{0,8}(?:做什么|什么|哪些)/.test(normalized);
+  const actionCue = hasActionCue(normalized) && !asksAboutCapabilities;
   const lookupOnly = isInformationLookup(normalized) && !actionCue;
 
   const hasRegistration = includesAny(normalized, [

@@ -447,6 +447,8 @@ test("居民从社区网络进入分级转诊协助", async ({ page }) => {
 test("管理员审核候选内容后才发布", async ({ page }) => {
   let published = false;
   let expiresAt = "";
+  let reviewedTitle = "";
+  let reviewedSummary = "";
   await page.route("**/api/v1/staff/care-bindings?status=pending", (route) =>
     route.fulfill({ json: ok({ bindings: [] }) }),
   );
@@ -487,6 +489,8 @@ test("管理员审核候选内容后才发布", async ({ page }) => {
     const body = route.request().postDataJSON();
     published = body.decision === "publish";
     expiresAt = body.expiresAt;
+    reviewedTitle = body.title;
+    reviewedSummary = body.summary;
     await route.fulfill({ json: ok({ item: { status: "published" } }) });
   });
   await page.goto("/workbench/operations");
@@ -495,10 +499,15 @@ test("管理员审核候选内容后才发布", async ({ page }) => {
   await expect(page.getByText("海湾镇社区卫生服务中心")).toBeVisible();
   await expect(page.getByText("已发布内容有更新")).toBeVisible();
   await expect(page.getByText("原定上周开展慢病义诊。")).toBeVisible();
-  await expect(page.getByText("本周开展慢病义诊，并提供家庭医生签约咨询。")).toBeVisible();
+  await expect(page.getByRole("paragraph").filter({ hasText: "本周开展慢病义诊，并提供家庭医生签约咨询。" })).toBeVisible();
+  await expect(page.getByLabel("居民端审核摘要")).toHaveValue("本周开展慢病义诊，并提供家庭医生签约咨询。");
+  await page.getByLabel("居民端标题").fill("本周慢病义诊与家医签约咨询");
+  await page.getByLabel("居民端审核摘要").fill("本周开展慢病义诊，并提供家庭医生签约政策咨询，具体时间以官方原文为准。");
   await page.locator("select").selectOption("180");
   await page.getByRole("button", { name: "核对原文并发布" }).click();
   await expect.poll(() => published).toBe(true);
+  await expect.poll(() => reviewedTitle).toBe("本周慢病义诊与家医签约咨询");
+  await expect.poll(() => reviewedSummary).toContain("具体时间以官方原文为准");
   await expect.poll(() => new Date(expiresAt).getTime() - Date.now()).toBeGreaterThan(179 * 86_400_000);
 });
 

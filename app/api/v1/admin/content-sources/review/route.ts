@@ -2,9 +2,17 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
+import { indexKnowledgeSource } from "@/lib/rag/indexer";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
-const schema = z.object({ itemId: z.string().uuid(), decision: z.enum(["publish", "reject", "request_changes", "expire"]), note: z.string().trim().max(1000).nullable().default(null), expiresAt: z.string().datetime().nullable().default(null) });
+const schema = z.object({
+  itemId: z.string().uuid(),
+  decision: z.enum(["publish", "reject", "request_changes", "expire"]),
+  note: z.string().trim().max(1000).nullable().default(null),
+  expiresAt: z.string().datetime().nullable().default(null),
+  title: z.string().trim().min(4).max(200).optional(),
+  summary: z.string().trim().min(20).max(800).optional(),
+});
 
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
@@ -17,12 +25,14 @@ export async function POST(request: NextRequest) {
   const status = parsed.data.decision === "publish" ? "published" : parsed.data.decision === "expire" ? "expired" : parsed.data.decision === "reject" ? "rejected" : "in_review";
   const reviewedAt = new Date().toISOString();
   const { data: existing } = await auth.supabase.from("content_items")
-    .select("id,published_at")
+    .select("id,title,summary,published_at")
     .eq("id", parsed.data.itemId)
     .eq("organization_id", auth.profile.organization_id)
     .maybeSingle();
   if (!existing) return apiError("CONTENT_NOT_FOUND", "内容不存在。", 404, traceId);
   const { data, error } = await auth.supabase.from("content_items").update({
+    title: parsed.data.title ?? existing.title,
+    summary: parsed.data.summary ?? existing.summary,
     status,
     expires_at: parsed.data.expiresAt,
     reviewed_at: reviewedAt,
@@ -38,8 +48,32 @@ export async function POST(request: NextRequest) {
     action: `content.${parsed.data.decision}`,
     targetTable: "content_items",
     targetId: data.id,
-    detail: { traceId, expiresAt: parsed.data.expiresAt },
+    detail: {
+      traceId,
+      expiresAt: parsed.data.expiresAt,
+      editorialChanges: {
+        title: parsed.data.title !== undefined && parsed.data.title !== existing.title,
+        summary: parsed.data.summary !== undefined && parsed.data.summary !== existing.summary,
+      },
+    },
     supabase: auth.supabase,
   });
-  return apiOk({ item: data }, traceId);
+  let ragIndex: Record<string, unknown> | null = null;
+  if (parsed.data.decision === "publish") {
+    try {
+      ragIndex = await indexKnowledgeSource({
+        supabase: auth.supabase,
+        sourceType: "content_item",
+        sourceId: data.id,
+        actorId: auth.profile.id,
+        traceId,
+      });
+    } catch (indexError) {
+      ragIndex = {
+        queued: true,
+        error: indexError instanceof Error ? indexError.message : "RAG_INDEX_FAILED",
+      };
+    }
+  }
+  return apiOk({ item: data, ragIndex }, traceId);
 }

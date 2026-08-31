@@ -25,6 +25,11 @@ const required = [
   "KIMI_BASE_URL",
   "KIMI_MODEL",
   "KIMI_VISION_MODEL",
+  "RAG_EMBEDDING_PROVIDER",
+  "RAG_EMBEDDING_API_KEY",
+  "RAG_EMBEDDING_BASE_URL",
+  "RAG_EMBEDDING_MODEL",
+  "RAG_EMBEDDING_DIMENSIONS",
   "ASR_PROVIDER",
   "NEXT_PUBLIC_DEMO_MODE",
   "NEXT_PUBLIC_DEV_LOGIN",
@@ -64,6 +69,9 @@ if (
   !/^wx[a-zA-Z0-9]{16}$/.test(process.env.WECHAT_MINIPROGRAM_APP_ID.trim())
 ) {
   errors.push("WECHAT_MINIPROGRAM_APP_ID: 应为 wx 开头的 18 位 AppID");
+}
+if (/^wx0{16}$/i.test(process.env.WECHAT_MINIPROGRAM_APP_ID?.trim() || "")) {
+  errors.push("WECHAT_MINIPROGRAM_APP_ID: 不能使用示例 AppID");
 }
 if (process.env.CRON_SECRET && process.env.CRON_SECRET.trim().length < 32)
   errors.push("CRON_SECRET: 至少 32 个字符");
@@ -154,6 +162,21 @@ if (!["local_whisper_wu", "tencent_asr"].includes(process.env.ASR_PROVIDER?.trim
   errors.push("ASR_PROVIDER: 仅支持 local_whisper_wu 或 tencent_asr");
 }
 
+if (process.env.RAG_EMBEDDING_PROVIDER?.trim() !== "openai-compatible") {
+  errors.push("RAG_EMBEDDING_PROVIDER: 正式环境必须使用已审核的 openai-compatible Embedding 服务");
+}
+if (process.env.RAG_EMBEDDING_DIMENSIONS?.trim() !== "1024") {
+  errors.push("RAG_EMBEDDING_DIMENSIONS: 当前 pgvector 索引必须明确设置为 1024");
+}
+if (process.env.RAG_EMBEDDING_BASE_URL) {
+  try {
+    const url = new URL(process.env.RAG_EMBEDDING_BASE_URL.trim());
+    if (url.protocol !== "https:") errors.push("RAG_EMBEDDING_BASE_URL: 正式环境必须使用 HTTPS");
+  } catch {
+    errors.push("RAG_EMBEDDING_BASE_URL: 不是有效 URL");
+  }
+}
+
 if (errors.length) {
   console.error("\n家医 Claw 正式发布检查失败：\n");
   for (const error of errors) console.error(`- ${error}`);
@@ -163,5 +186,5 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(
-  "Release environment verified: HTTPS, WeChat, SMS, operator, encryption and production flags are configured.",
+  "Release environment verified: HTTPS, WeChat, SMS, RAG, operator, encryption and production flags are configured.",
 );

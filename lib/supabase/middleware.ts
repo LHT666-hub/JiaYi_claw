@@ -14,6 +14,8 @@ export async function updateSession(request: NextRequest) {
     "/ask",
     "/appointments",
     "/health-records",
+    "/contacts",
+    "/match-leader",
     "/account-security",
     "/notification-settings",
     "/privacy",

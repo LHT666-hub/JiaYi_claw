@@ -1,21 +1,19 @@
 export const legacyPageTargets: Record<string, string> = {
   "/ask/history": "/ask",
-  "/contacts": "/services",
   "/courses": "/services?tab=classroom",
   "/followup": "/appointments?type=followup_reminder",
   "/group": "/messages",
   "/notifications": "/messages",
   "/tasks": "/me",
-  "/match-leader": "/me",
   "/feedback": "/me",
   "/service-progress": "/appointments",
   "/welcome": "/onboarding",
 };
 
 export const legacyApiPrefixes = [
-  "/api/admin/dashboard", "/api/contacts", "/api/courses", "/api/doctor-todos",
+  "/api/admin/dashboard", "/api/courses", "/api/doctor-todos",
   "/api/doctor", "/api/family/bindings", "/api/faqs", "/api/feedback", "/api/followup",
-  "/api/group", "/api/home/summary", "/api/leaders", "/api/notifications", "/api/points",
+  "/api/group", "/api/home/summary", "/api/notifications", "/api/points",
   "/api/resident/todos", "/api/tasks",
 ];
 

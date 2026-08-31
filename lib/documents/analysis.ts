@@ -138,12 +138,13 @@ export async function analyzeMedicalDocumentImage(
   });
   const model =
     process.env.KIMI_VISION_MODEL?.trim() ||
-    "moonshot-v1-8k-vision-preview";
+    process.env.KIMI_MODEL?.trim() ||
+    "kimi-k2.6";
   const dataUrl = `data:${mediaType};base64,${bytes.toString("base64")}`;
   const completion = await client.chat.completions.create(
     {
       model,
-      temperature: 0,
+      temperature: model.startsWith("kimi-k") ? 1 : 0,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },

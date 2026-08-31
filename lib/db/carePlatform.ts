@@ -81,11 +81,12 @@ export async function getVerifiedSchedules(params: {
 }) {
   if (!params.institutionIds.length) return [];
   let query = params.supabase.from("practitioner_schedules").select(`
-    id,starts_at,ends_at,service_mode,location,registration_url,status,verified_at,note,
+    id,department_id,practitioner_id,starts_at,ends_at,service_mode,location,registration_url,status,verified_at,note,
     institution:institutions!inner(id,name,institution_type),
     department:departments(id,name),
     practitioner:practitioners(id,name,title,specialties,avatar_url,introduction)
   `).in("institution_id", params.institutionIds).eq("status", "verified")
+    .or("practitioner_id.not.is.null,department_id.not.is.null")
     .gte("ends_at", params.from ?? new Date().toISOString()).order("starts_at").limit(params.limit ?? 50);
   if (params.to) query = query.lte("starts_at", params.to);
   const { data, error } = await query;

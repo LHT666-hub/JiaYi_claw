@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { CARE_SUBJECT_COOKIE, resolveCareSubject } from "@/lib/careSubjects";
+import { residentShowcaseHome } from "@/lib/showcase/resident";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
 const selectSchema = z.object({ residentId: z.string().uuid() });
@@ -9,7 +10,17 @@ const selectSchema = z.object({ residentId: z.string().uuid() });
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
-  if (!auth.supabase || !auth.profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  if (!auth.supabase || !auth.profile) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+      return apiOk({
+        demo: true,
+        residentId: residentShowcaseHome.residentId,
+        selected: residentShowcaseHome.careSubject,
+        subjects: residentShowcaseHome.careSubjects,
+      }, traceId);
+    }
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  }
   if (!['resident', 'family'].includes(auth.profile.role)) {
     return apiError("CARE_SUBJECT_NOT_AVAILABLE", "当前工作身份不使用居民服务对象切换。", 403, traceId);
   }
@@ -31,7 +42,17 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
-  if (!auth.supabase || !auth.profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  if (!auth.supabase || !auth.profile) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+      return apiOk({
+        demo: true,
+        residentId: residentShowcaseHome.residentId,
+        selected: residentShowcaseHome.careSubject,
+        subjects: residentShowcaseHome.careSubjects,
+      }, traceId);
+    }
+    return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
+  }
   const parsed = selectSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_CARE_SUBJECT", "请选择有效的服务对象。", 400, traceId);
   try {

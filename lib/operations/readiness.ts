@@ -103,7 +103,7 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
       "vision",
       "报告与药盒识别",
       Boolean((process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY)?.trim()),
-      `视觉模型已配置：${process.env.KIMI_VISION_MODEL?.trim() || "moonshot-v1-8k-vision-preview"}，图片按不落盘策略处理。`,
+      `视觉模型已配置：${process.env.KIMI_VISION_MODEL?.trim() || process.env.KIMI_MODEL?.trim() || "kimi-k2.6"}，图片按不落盘策略处理。`,
       "配置 KIMI_VISION_MODEL 并完成脱敏图片验收。",
       false,
     ),

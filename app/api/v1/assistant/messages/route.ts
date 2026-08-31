@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { z } from "zod";
 import { POST as legacyAskPost } from "@/app/api/ask/route";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
@@ -12,12 +12,19 @@ import { getResidentCareAccess } from "@/lib/db/carePlatform";
 import { inferServiceRequestFromQuestion } from "@/lib/agent";
 import { getGuardrailReply } from "@/lib/faq";
 import { CURRENT_POLICY_VERSION } from "@/lib/policies";
+import { buildGroundedKnowledgeReply } from "@/lib/rag/answer";
+import { searchKnowledge } from "@/lib/rag/search";
 import {
   buildVerifiedPublicInfoReply,
   searchPublicInfo,
 } from "@/lib/publicInfoRepository";
-import { routeSkillIds } from "@/lib/skills/registry";
+import { getSkillDefinition, routeSkillIds } from "@/lib/skills/registry";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import {
+  buildMemoryContext,
+  createMemoryExtractor,
+  saveCandidate,
+} from "@/lib/memory";
 
 const inputSchema = z.object({
   question: z.string().trim().min(1).max(3000),
@@ -42,7 +49,20 @@ export async function POST(request: NextRequest) {
     const publicReply = publicMatches[0]
       ? buildVerifiedPublicInfoReply(publicMatches[0])
       : null;
-    const reply = safetyReply ?? publicReply;
+    let reply = safetyReply ?? publicReply;
+    if (!reply && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+      const demoRequest = new NextRequest(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: JSON.stringify({
+          question: parsed.data.question,
+          serviceRequest: null,
+          confirmedWrite: false,
+        }),
+      });
+      const demoResponse = await legacyAskPost(demoRequest);
+      if (demoResponse.ok) reply = await demoResponse.json();
+    }
     if (!reply) {
       return apiError(
         "AUTH_REQUIRED_FOR_ASSISTANT",
@@ -54,7 +74,7 @@ export async function POST(request: NextRequest) {
     return apiOk(
       {
         reply,
-        skillIds: safetyReply ? ["safety-triage"] : ["public-info-qa"],
+        skillIds: safetyReply ? ["safety-triage"] : publicReply ? ["public-info-qa"] : routeSkillIds(parsed.data.question),
         actions: buildAssistantActions({
           question: parsed.data.question,
           reply,
@@ -133,6 +153,26 @@ export async function POST(request: NextRequest) {
       );
     }
   }
+
+  // Build memory context for prompt injection (with timeout to avoid blocking)
+  let residentMemory = null;
+  const memoryOrgId = auth.profile.organization_id;
+  if (memoryOrgId) {
+    try {
+      residentMemory = await Promise.race([
+        buildMemoryContext({
+          residentId: careSubject.residentId,
+          organizationId: memoryOrgId,
+          maxTokens: 2000,
+          supabase: auth.supabase,
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ]);
+    } catch {
+      // Graceful: memory context failure never blocks chat
+    }
+  }
+
   let contentContext: {
     id: string;
     title: string;
@@ -176,6 +216,21 @@ export async function POST(request: NextRequest) {
   }
   let reply;
   const contextGuardrail = contentContext ? getGuardrailReply(parsed.data.question) : null;
+  const generalGuardrail = getGuardrailReply(parsed.data.question);
+  const communityId = careState.binding?.community_id ?? auth.profile.community_id;
+  const ragHits = !contentContext && !generalGuardrail && auth.profile.organization_id
+    ? await searchKnowledge({
+        supabase: auth.supabase,
+        query: parsed.data.question,
+        organizationId: auth.profile.organization_id,
+        communityId,
+        visibility: ["public", "resident"],
+        limit: 8,
+      }).catch(() => [])
+    : [];
+  const ragReply = ragHits.length
+    ? await buildGroundedKnowledgeReply(parsed.data.question, ragHits)
+    : null;
   if (contentContext && !contextGuardrail) {
     const reviewedLabel = contentContext.reviewed_at
       ? `，核验于 ${new Date(contentContext.reviewed_at).toLocaleDateString("zh-CN")}`
@@ -189,6 +244,9 @@ export async function POST(request: NextRequest) {
       source: "knowledge",
       knowledgeIds: [contentContext.id],
     };
+  } else if (ragReply) {
+    reply = ragReply;
+    skillIds = [...new Set([...skillIds, "public-info-qa"] )];
   } else {
     const legacyRequest = new NextRequest(request.url, {
       method: "POST",
@@ -198,6 +256,7 @@ export async function POST(request: NextRequest) {
         residentId: careSubject?.residentId ?? parsed.data.residentId ?? null,
         serviceRequest: parsed.data.serviceRequest ?? inferredServiceRequest,
         confirmedWrite: false,
+        residentMemory,
       }),
     });
     const legacyResponse = await legacyAskPost(legacyRequest);
@@ -209,6 +268,35 @@ export async function POST(request: NextRequest) {
         legacyResponse.status,
         traceId,
       );
+
+    // Async memory candidate extraction — uses Next.js after() for reliable
+    // background execution in serverless environments.
+    if (residentMemory && memoryOrgId) {
+      const extractor = createMemoryExtractor();
+      const capturedQuestion = parsed.data.question;
+      const capturedResidentId = careSubject.residentId;
+      const capturedOrgId = memoryOrgId;
+      const capturedSupabase = auth.supabase;
+      const capturedRecentMemories = residentMemory.relevantMemories;
+      after(async () => {
+        try {
+          const candidate = await extractor.extract(capturedQuestion, {
+            residentId: capturedResidentId,
+            recentMemories: capturedRecentMemories,
+          });
+          if (candidate && candidate.should_store) {
+            await saveCandidate({
+              supabase: capturedSupabase,
+              residentId: capturedResidentId,
+              organizationId: capturedOrgId,
+              candidate,
+            });
+          }
+        } catch {
+          // Graceful: extraction failure never affects response
+        }
+      });
+    }
   }
 
   const { supabase, profile } = auth;
@@ -220,9 +308,9 @@ export async function POST(request: NextRequest) {
           careSubject?.residentId ??
           (profile.role === "resident" ? profile.id : null),
         skill_id: skillId,
-        skill_version: "1.0.0",
+        skill_version: getSkillDefinition(skillId)?.version ?? "unknown",
         model: reply.source?.includes("kimi")
-          ? (process.env.KIMI_MODEL ?? "kimi")
+          ? (process.env.RAG_GENERATION_MODEL ?? process.env.KIMI_MODEL ?? "kimi")
           : "deterministic",
         trace_id: traceId,
         status: "success",

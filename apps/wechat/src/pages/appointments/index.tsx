@@ -8,6 +8,7 @@ type ServiceType =
   | "clinic_registration"
   | "family_doctor_booking"
   | "refill_request"
+  | "dispense_status_query"
   | "followup_reminder"
   | "referral_assistance"
   | "other";
@@ -51,6 +52,7 @@ const serviceOptions: Array<{
   { type: "family_doctor_booking", name: "家庭医生预约", short: "家医", note: "预约所属社区家庭医生团队的服务时段。", ownerRole: "doctor", tone: "green" },
   { type: "referral_assistance", name: "分级转诊协助", short: "转诊", note: "先由社区评估，再协助对接合作医院和科室。", ownerRole: "community", tone: "berry" },
   { type: "refill_request", name: "续方配药协助", short: "续方", note: "整理既往用药和复诊需求，由医药人员审核。", ownerRole: "pharmacist", tone: "amber" },
+  { type: "dispense_status_query", name: "配药进度查询", short: "配药", note: "提交已办理事项和联系方式，由团队核对当前进度。", ownerRole: "pharmacist", tone: "amber" },
   { type: "followup_reminder", name: "随访安排", short: "随访", note: "申请慢病、术后或其他家医随访服务。", ownerRole: "nurse", tone: "coral" },
   { type: "other", name: "社区活动协助", short: "活动", note: "依据已审核通知，由团队核对参加条件和报名方式。", ownerRole: "community", tone: "green" },
 ];
@@ -114,7 +116,11 @@ export default function AppointmentPage() {
   const isClinicalRouting = ["clinic_registration", "referral_assistance"].includes(serviceType);
   const isCommunityActivity = serviceType === "other";
   const supportsAlternatives = ["clinic_registration", "family_doctor_booking", "referral_assistance"].includes(serviceType);
-  const timingLabel = isCommunityActivity ? "希望团队联系时间" : serviceType === "refill_request" ? "希望办理时间" : "希望就诊或联系时间";
+  const timingLabel = isCommunityActivity
+    ? "希望团队联系时间"
+    : ["refill_request", "dispense_status_query"].includes(serviceType)
+      ? "希望办理或回复时间"
+      : "希望就诊或联系时间";
 
   useLoad((params) => {
     if (serviceOptions.some((item) => item.type === params.type)) setServiceType(params.type as ServiceType);

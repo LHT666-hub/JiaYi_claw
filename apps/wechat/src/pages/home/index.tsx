@@ -212,8 +212,17 @@ export default function HomePage() {
       return;
     }
     if (href.startsWith("/appointments")) {
+      if (href.includes("type=report_explanation")) {
+        void Taro.navigateTo({ url: "/pages/ask/index?photo=1" });
+        return;
+      }
       const query = href.includes("?") ? href.slice(href.indexOf("?")) : "";
       openProtectedFeature(`/pages/appointments/index${query}`);
+      return;
+    }
+    if (href.startsWith("/ask")) {
+      const query = href.includes("?") ? href.slice(href.indexOf("?")) : "";
+      void Taro.navigateTo({ url: `/pages/ask/index${query}` });
       return;
     }
     void Taro.navigateTo({ url: "/pages/ask/index" });

@@ -43,6 +43,10 @@ npm run dev:web -- -p 3000 -H 0.0.0.0
 
 电脑访问 `http://127.0.0.1:3000/login`；同一局域网手机访问电脑 IPv4 地址的 `3000` 端口。本地登录页会直接显示居民、家属、医生和管理员展示入口；每次执行本地数据库重置后，需要重新运行 `npm run bootstrap:local` 初始化这些测试账号。
 
+小程序本地调试先运行 `npm run doctor:wechat`。专用的新居民首次注册测试号为
+`13800000003`，固定验证码为 `123456`；`13800000001/2` 分别保留给工作人员账号，不能从居民端登录。
+固定验证码只存在于本地 Supabase 配置，正式发布检查会强制拒绝 `AUTH_TEST_MODE`。
+
 本地固定 OTP 仅用于 localhost Supabase。生产必须关闭 `AUTH_TEST_MODE`，并通过 Supabase Send SMS Hook 接入腾讯云短信。
 短信签名、Hook URL、模板变量与验收步骤见 [腾讯云短信与 Supabase OTP 接入](docs/SMS_AUTH_HOOK.md)。
 
@@ -94,6 +98,12 @@ Web 使用 `MediaRecorder`，小程序使用原生 `RecorderManager`，统一上
 开发或院内服务器可使用 `ASR_PROVIDER=local_whisper_wu`；境内云端生产环境使用 `ASR_PROVIDER=tencent_asr`，并配置 `TENCENT_ASR_SECRET_ID`、`TENCENT_ASR_SECRET_KEY`、`TENCENT_ASR_REGION` 与 `TENCENT_ASR_ENGINE`。默认云端引擎为 `16k_zh_medical`，上海话试点可在评测后切换 `16k_zh_dialect`。腾讯云密钥只保留在服务端，小程序不会直接持有。
 
 当前本地 Worker 为 Whisper Small + Whisper-Wu LoRA。模型链路已实测可运行，但公开上海话样本准确率尚未达到试点验收标准。正式部署必须提供隔离的 Python 运行时，并建立真实普通话/上海话语料评测，不把“模型能启动”等同于“识别质量合格”。
+
+## RAG 知识检索
+
+Claw 会先在当前机构和社区的已审核、未过期资料中检索，再生成带片段级来源的回答。公开信息与内容记录仍是唯一事实源，分块和向量只是可重建索引；预约状态、排班和居民健康事实继续走结构化业务表，不进入公开知识库。
+
+本地可使用关键词检索或测试向量，生产必须配置经审核的 1024 维 Embedding 服务。管理员可在“Agent Skill 管理”查看可用文档、待处理和失败任务；索引架构、接口与 Worker 配置见 [RAG 知识服务说明](docs/RAG_KNOWLEDGE_SERVICE.md)。
 
 ## 报告与药盒识别
 

@@ -7,6 +7,9 @@ import { getApiAuthContext } from "@/lib/supabase/server-auth";
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if ((!auth.supabase || !auth.profile) && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return apiOk({ session: null, activities: [], retentionDays: 30, rawTranscriptStored: false, demo: true }, traceId);
+  }
   if (!auth.supabase || !auth.profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
 
@@ -74,6 +77,9 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if ((!auth.supabase || !auth.profile) && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return apiOk({ cleared: true, demo: true }, traceId);
+  }
   if (!auth.supabase || !auth.profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
 

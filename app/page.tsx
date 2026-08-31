@@ -10,6 +10,7 @@ import {
   ChevronRight,
   HeartPulse,
   Stethoscope,
+  Users,
 } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
@@ -54,6 +55,12 @@ const quickServices = [
     label: "健康记录",
     detail: "血压血糖体重",
     icon: HeartPulse,
+  },
+  {
+    href: "/contacts",
+    label: "一键找人",
+    detail: "家医与社区支持",
+    icon: Users,
   },
   {
     href: "/public-info",

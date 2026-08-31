@@ -77,7 +77,7 @@ const SERVICE_PRESENTATION: Record<
   },
   report_explanation: {
     label: "报告整理",
-    href: "/appointments?type=report_explanation&from=claw",
+    href: "/ask?photo=1",
   },
   referral_assistance: {
     label: "转诊协助",

@@ -14,6 +14,10 @@ describe("service intent extraction", () => {
     expect(inferServiceRequestFromQuestion("转诊怎么办")).toBeNull();
   });
 
+  it("does not turn a product capability question into a booking request", () => {
+    expect(inferServiceRequestFromQuestion("家医 Claw 能帮我做什么")).toBeNull();
+  });
+
   it("keeps referral priority when the resident also says appointment", () => {
     expect(inferServiceRequestFromQuestion("帮我预约转诊到奉贤区中心医院")).toMatchObject({
       kind: "referral",

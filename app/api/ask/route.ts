@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
 import {
   getCurrentServiceOwnerRole,
@@ -40,6 +40,12 @@ import type {
   ProfileRow,
   ServiceRequestPayload,
 } from "@/lib/types";
+import {
+  formatMemoryContextForPrompt,
+  createMemoryExtractor,
+  saveCandidate,
+} from "@/lib/memory";
+import type { BuiltMemoryContext } from "@/lib/memory";
 
 export const runtime = "nodejs";
 
@@ -47,7 +53,7 @@ const knowledgeSystemPrompt =
   "你是“家医 Claw”，用于家庭医生服务导航与慢病科普信息。你不能提供诊断、处方、停药、换药、剂量调整、严重程度判断或个体化治疗建议。请优先依据给定知识片段回答，并在最后给出下一步建议。";
 
 const generalSystemPrompt =
-  "你是“家医 Claw”，负责把居民问题整理成可执行的家庭医生服务路径。你可以解释通用健康概念和本产品的办理步骤，但不得编造本地医生、排班、号源、药品库存、政策、机构电话或服务承诺；缺少已核验来源时要明确说无法核验，并建议查看服务页或由家医团队确认。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。";
+  "你是“家医 Claw”，负责把居民问题整理成可执行的家庭医生服务路径。你可以解释通用健康概念和本产品的办理步骤，但不得编造本地医生、排班、号源、药品库存、政策、机构电话或服务承诺；缺少已核验来源时要明确说无法核验，并建议查看服务页或由家医团队确认。你不能提供诊断、处方、停药、换药、剂量调整或个体化治疗建议。如果提供了居民记忆数据，你可以在回答中适当引用（如“你之前提到过……”），但不要主动提及记忆系统本身。";
 
 const unauthenticatedUnverifiedReply: AskReply = {
   answer:
@@ -259,8 +265,9 @@ function isModelError(error: unknown) {
   );
 }
 
-function buildGeneralPrompt(question: string) {
-  return `用户问题：${question}
+function buildGeneralPrompt(question: string, memoryText?: string) {
+  const memoryBlock = memoryText ? `\n\n${memoryText}` : "";
+  return `用户问题：${question}${memoryBlock}
 
 这个问题可能是家医服务问题，也可能是一般问题。请优先给出清晰、可执行的回答；如果涉及医疗诊断、处方、停药、换药、剂量调整或个体化治疗建议，必须明确提示用户联系医生。请严格按下面格式输出：
 回答：...
@@ -269,14 +276,15 @@ function buildGeneralPrompt(question: string) {
 风险等级：low|medium|high|emergency`;
 }
 
-function buildFaqPrompt(question: string, faqReply: AskReply) {
+function buildFaqPrompt(question: string, faqReply: AskReply, memoryText?: string) {
+  const memoryBlock = memoryText ? `\n\n${memoryText}` : "";
   return `用户问题：${question}
 
 FAQ参考回答：
 ${faqReply.answer}
 
 FAQ建议下一步：
-${faqReply.nextStep}
+${faqReply.nextStep}${memoryBlock}
 
 请你作为最终答复把关，把上面的FAQ内容组织成更自然、更易懂的一段回答。允许补充必要说明，但不要给出诊断、处方、停药、换药、剂量调整或个体化治疗建议。请严格按下面格式输出：
 回答：...
@@ -363,6 +371,8 @@ async function runKimiWithCache(
     "https://api.moonshot.cn/v1";
   const modelCandidates = [
     readFirstEnvValue(["KIMI_MODEL", "MOONSHOT_MODEL"]),
+    "kimi-k2.6",
+    "kimi-k3",
     "moonshot-v1-8k",
     "moonshot-v1-32k",
   ];
@@ -441,6 +451,8 @@ function getKimiRuntimeInfo() {
     "https://api.moonshot.cn/v1";
   const modelCandidates = [
     readFirstEnvValue(["KIMI_MODEL", "MOONSHOT_MODEL"]),
+    "kimi-k2.6",
+    "kimi-k3",
     "moonshot-v1-8k",
     "moonshot-v1-32k",
   ].filter(Boolean);
@@ -711,12 +723,18 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       question?: string;
       serviceRequest?: ServiceRequestPayload | null;
+      residentMemory?: BuiltMemoryContext | null;
     };
     const question =
       typeof body.question === "string" ? body.question.trim() : "";
     const serviceRequest =
       body.serviceRequest ?? inferServiceRequestFromQuestion(question);
     const normalizedQuestion = normalizeQuestion(question);
+
+    // Build formatted memory text for prompt injection (DATA block, not instruction)
+    const formattedMemoryText = body.residentMemory
+      ? formatMemoryContextForPrompt(body.residentMemory)
+      : "";
 
     if (!normalizedQuestion) {
       return NextResponse.json({
@@ -743,11 +761,44 @@ export async function POST(request: NextRequest) {
         allowWrite: false,
       });
 
-      return NextResponse.json({
+      const responseJson = {
         ...reply,
         clientFallbacks: persistence,
         serviceTodo: persistence.serviceTodo ?? null,
-      });
+      };
+
+      // Async memory candidate extraction — uses Next.js after() for reliable
+      // background execution in serverless environments.
+      if (profile && supabase && question) {
+        const residentId = profile.role === "resident" ? profile.id : (body.residentMemory?.identity?.residentId ?? null);
+        if (residentId && profile.organization_id) {
+          const extractor = createMemoryExtractor();
+          const capturedQuestion = question;
+          const capturedResidentId = residentId;
+          const capturedOrganizationId = profile.organization_id;
+          const capturedRecentMemories = body.residentMemory?.relevantMemories ?? [];
+          after(async () => {
+            try {
+              const candidate = await extractor.extract(capturedQuestion, {
+                residentId: capturedResidentId,
+                recentMemories: capturedRecentMemories,
+              });
+              if (candidate && candidate.should_store) {
+                await saveCandidate({
+                  supabase,
+                  residentId: capturedResidentId,
+                  organizationId: capturedOrganizationId,
+                  candidate,
+                });
+              }
+            } catch {
+              // Graceful: extraction failure never affects response
+            }
+          });
+        }
+      }
+
+      return NextResponse.json(responseJson);
     };
 
     const guardrailReply = getGuardrailReply(question);
@@ -775,7 +826,7 @@ export async function POST(request: NextRequest) {
     if (faqReply?.source === "faq") {
       const { reply, errorReason } = await runKimiWithCache(
         buildFaqCacheKey(question, faqReply),
-        buildFaqPrompt(question, faqReply),
+        buildFaqPrompt(question, faqReply, formattedMemoryText || undefined),
         generalSystemPrompt,
         {
           category: faqReply.category,
@@ -798,7 +849,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (!profile) {
+    if (!profile && process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
       return finalize(unauthenticatedUnverifiedReply);
     }
 
@@ -815,7 +866,7 @@ export async function POST(request: NextRequest) {
 
       const { reply, errorReason } = await runKimiWithCache(
         buildKnowledgeCacheKey(question, knowledgeHits),
-        buildKnowledgePrompt(question, knowledgeHits),
+        buildKnowledgePrompt(question, knowledgeHits) + (formattedMemoryText ? `\n\n${formattedMemoryText}` : ""),
         knowledgeSystemPrompt,
         fallbackMeta,
       );
@@ -837,7 +888,7 @@ export async function POST(request: NextRequest) {
 
     const { reply, errorReason } = await runKimiWithCache(
       buildGeneralCacheKey(question),
-      buildGeneralPrompt(question),
+      buildGeneralPrompt(question, formattedMemoryText || undefined),
       generalSystemPrompt,
       {
         category: "服务导航",

@@ -412,6 +412,19 @@ export type AskReply = {
   source: AskSource;
   reason?: AskFallbackReason;
   knowledgeIds?: string[];
+  citations?: Array<{
+    index: number;
+    chunkId: string;
+    documentId: string;
+    sourceId: string;
+    sourceType: "public_info" | "content_item" | "manual";
+    title: string;
+    heading: string | null;
+    sourceName: string;
+    sourceUrl: string;
+    reviewedAt: string;
+    version: number;
+  }>;
   agentResult?: AgentResult | null;
 };
 

@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const appid = process.env.WECHAT_MINIPROGRAM_APP_ID?.trim();
-if (!appid || !/^wx[a-zA-Z0-9]{16}$/.test(appid)) {
+if (!appid || !/^wx[a-zA-Z0-9]{16}$/.test(appid) || /^wx0{16}$/i.test(appid)) {
   console.error("WECHAT_MINIPROGRAM_APP_ID 未配置或格式不正确。");
   process.exit(1);
 }

@@ -20,6 +20,7 @@ test-kimi.js
 .synthetic-*.png
 *.log
 *.err.log
+_*.cjs
 apps/wechat/dist
 apps/wechat/.temp
 apps/wechat/.swc

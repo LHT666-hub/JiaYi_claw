@@ -6,6 +6,7 @@ import { getApiAuthContext } from "@/lib/supabase/server-auth";
 
 const row = z.object({ institutionId: z.string().uuid(), departmentId: z.string().uuid().nullable().optional(), practitionerId: z.string().uuid().nullable().optional(), startsAt: z.string().datetime(), endsAt: z.string().datetime(), serviceMode: z.enum(["clinic", "phone", "home_visit", "online"]).default("clinic"), location: z.string().trim().max(200).nullable().optional(), registrationUrl: z.string().url().nullable().optional(), sourceUrl: z.string().url().nullable().optional(), note: z.string().trim().max(500).nullable().optional() }).superRefine((value, context) => {
   if (new Date(value.endsAt) <= new Date(value.startsAt)) context.addIssue({ code: "custom", path: ["endsAt"], message: "结束时间必须晚于开始时间。" });
+  if (!value.departmentId && !value.practitionerId) context.addIssue({ code: "custom", path: ["departmentId"], message: "排班必须指定医生或科室。" });
 });
 const schema = z.object({ schedules: z.array(row).min(1).max(200) });
 

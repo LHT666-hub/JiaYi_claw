@@ -31,6 +31,7 @@ export default function OperationsPage() {
     [],
   );
   const [expiryDays, setExpiryDays] = useState<Record<string, number>>({});
+  const [contentEdits, setContentEdits] = useState<Record<string, { title: string; summary: string }>>({});
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
   const [moduleState, setModuleState] = useState<Record<Tab, ModuleState>>({
@@ -110,6 +111,7 @@ export default function OperationsPage() {
   }
   async function review(id: string, decision: "publish" | "reject") {
     const days = expiryDays[id] ?? 90;
+    const edit = contentEdits[id];
     const response = await fetch("/api/v1/admin/content-sources/review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -124,6 +126,10 @@ export default function OperationsPage() {
           decision === "publish"
             ? new Date(Date.now() + days * 86_400_000).toISOString()
             : null,
+        ...(decision === "publish" && edit ? {
+          title: edit.title,
+          summary: edit.summary,
+        } : {}),
       }),
     });
     const payload = await response.json();
@@ -445,6 +451,40 @@ export default function OperationsPage() {
                             text={String(item.summary ?? "无摘要")}
                           />
                         )}
+                        <div className="mt-4 grid gap-3 rounded-md border border-line bg-[#F8FAF9] p-3">
+                          <label className="grid gap-1 text-xs font-semibold text-navy/60">
+                            居民端标题
+                            <input
+                              value={contentEdits[id]?.title ?? String(item.title ?? "")}
+                              onChange={(event) => setContentEdits((current) => ({
+                                ...current,
+                                [id]: {
+                                  title: event.target.value,
+                                  summary: current[id]?.summary ?? String(item.summary ?? ""),
+                                },
+                              }))}
+                              maxLength={200}
+                              className="h-10 rounded-md border border-line bg-white px-3 text-sm font-medium text-navy outline-none focus:border-sage"
+                            />
+                          </label>
+                          <label className="grid gap-1 text-xs font-semibold text-navy/60">
+                            居民端审核摘要
+                            <textarea
+                              value={contentEdits[id]?.summary ?? String(item.summary ?? "")}
+                              onChange={(event) => setContentEdits((current) => ({
+                                ...current,
+                                [id]: {
+                                  title: current[id]?.title ?? String(item.title ?? ""),
+                                  summary: event.target.value,
+                                },
+                              }))}
+                              maxLength={800}
+                              rows={4}
+                              className="resize-y rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-navy outline-none focus:border-sage"
+                            />
+                          </label>
+                          <p className="text-[11px] leading-5 text-navy/40">只修改居民端展示文字；官方原文、来源和采集记录保持不变。</p>
+                        </div>
                         <a
                           href={String(item.original_url)}
                           target="_blank"
