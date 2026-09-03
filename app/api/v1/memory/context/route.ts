@@ -5,6 +5,7 @@ import { resolveCareSubject } from "@/lib/careSubjects";
 import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import { buildMemoryContext } from "@/lib/memory/contextBuilder";
+import { memoryShowcaseContext, memoryShowcaseResident } from "@/lib/showcase/memory";
 
 const querySchema = z.object({
   resident_id: z.string().uuid().optional(),
@@ -13,6 +14,9 @@ const querySchema = z.object({
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    return apiOk({ ...memoryShowcaseResident, demo: true, context: memoryShowcaseContext }, traceId);
+  }
   if (!supabase || !profile) {
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   }

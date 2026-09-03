@@ -19,6 +19,28 @@ const onboardingSchema = z.object({
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    return apiOk({
+      demo: true,
+      profile: {
+        id: "showcase-resident",
+        display_name: "张阿姨",
+        role: "resident",
+        community_id: "10000000-0000-4000-8000-000000000002",
+        onboarding_completed_at: null,
+      },
+      communities: [{
+        id: "10000000-0000-4000-8000-000000000002",
+        name: "海湾镇社区（演示）",
+        district: "上海市奉贤区",
+        address: "演示地址，正式试点由机构后台核验",
+        service_phone: "演示环境不提供真实服务电话",
+        organization_id: "10000000-0000-4000-8000-000000000001",
+      }],
+      consents: [{ scope: "privacy", granted: true, policy_version: CURRENT_POLICY_VERSION }],
+      policyVersion: CURRENT_POLICY_VERSION,
+    }, traceId);
+  }
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先完成手机号验证。", 401, traceId);
 
   const [communities, consents] = await Promise.all([
@@ -49,6 +71,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    const parsed = onboardingSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return apiError("INVALID_ONBOARDING", parsed.error.issues[0]?.message ?? "请检查首次建档信息。", 400, traceId);
+    }
+    return apiOk({
+      demo: true,
+      simulated: true,
+      profile: {
+        id: "showcase-resident",
+        display_name: parsed.data.displayName,
+        role: parsed.data.role,
+        community_id: parsed.data.communityId,
+        onboarding_completed_at: new Date().toISOString(),
+      },
+      nextPath: parsed.data.role === "family" ? "/family-link" : "/",
+    }, traceId);
+  }
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "登录状态已失效，请重新验证手机号。", 401, traceId);
   if (!["resident", "family"].includes(profile.role)) {
     return apiError("PUBLIC_ONBOARDING_FORBIDDEN", "工作人员账号须通过机构邀请开通。", 403, traceId);

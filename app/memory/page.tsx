@@ -346,8 +346,13 @@ export default function MemoryPage() {
       });
       const json = await res.json();
       if (res.ok) {
+        setPreferences((prev) => prev.map((preference) => (
+          preference.id === id
+            ? { ...preference, structured_value: editValue, updated_at: new Date().toISOString() }
+            : preference
+        )));
         showToast("偏好已更新", "success");
-        void loadPreferences();
+        if (!json.data?.simulated) void loadPreferences();
       } else {
         showToast(json.error?.message ?? "更新失败", "warning");
       }

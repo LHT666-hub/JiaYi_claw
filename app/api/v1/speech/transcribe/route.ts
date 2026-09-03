@@ -106,6 +106,9 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) {
+    return apiOk({ provider: "browser_speech_recognition", configured: true, maxDurationSeconds: 30, demo: true }, traceId);
+  }
   if (!auth.supabase || !auth.profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   return apiOk({ provider: speechProvider(), configured: true, maxDurationSeconds: 30 }, traceId);
 }

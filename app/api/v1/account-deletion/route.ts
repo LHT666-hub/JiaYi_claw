@@ -11,6 +11,9 @@ const actionInput = z.discriminatedUnion("action", [
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    return apiOk({ demo: true, request: null }, traceId);
+  }
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
 
   const { data, error } = await supabase.from("account_deletion_requests").select("*")
@@ -23,6 +26,31 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    const parsed = actionInput.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return apiError("INVALID_DELETION_ACTION", "注销操作信息不完整。", 400, traceId);
+    const now = new Date();
+    return apiOk({
+      demo: true,
+      simulated: true,
+      request: parsed.data.action === "request"
+        ? {
+            id: "showcase-deletion-request",
+            status: "pending",
+            reason: parsed.data.reason ?? null,
+            requested_at: now.toISOString(),
+            scheduled_for: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
+            cancelled_at: null,
+          }
+        : {
+            id: "showcase-deletion-request",
+            status: "cancelled",
+            requested_at: now.toISOString(),
+            scheduled_for: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
+            cancelled_at: now.toISOString(),
+          },
+    }, traceId);
+  }
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const parsed = actionInput.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_DELETION_ACTION", "注销操作信息不完整。", 400, traceId);

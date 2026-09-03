@@ -4,6 +4,7 @@ import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/resp
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { memoryShowcaseItems, memoryShowcaseResident } from "@/lib/showcase/memory";
 
 const MEMORY_TYPES = [
   "symptom_report",
@@ -24,6 +25,9 @@ const querySchema = z.object({
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    return apiOk({ ...memoryShowcaseResident, demo: true, memories: memoryShowcaseItems }, traceId);
+  }
   if (!supabase || !profile) {
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   }

@@ -12,6 +12,24 @@ import { getApiAuthContext } from "@/lib/supabase/server-auth";
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) {
+    const parsed = feedbackInput.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return apiError("INVALID_FEEDBACK", parsed.error.issues[0]?.message ?? "反馈信息不完整。", 400, traceId);
+    }
+    return apiOk({
+      demo: true,
+      simulated: true,
+      duplicate: false,
+      feedback: {
+        id: crypto.randomUUID(),
+        status: "open",
+        category: parsed.data.category,
+        content: parsed.data.content,
+        created_at: new Date().toISOString(),
+      },
+    }, traceId, 201);
+  }
   if (!auth.supabase || !auth.profile) {
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   }

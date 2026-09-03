@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { memoryShowcasePreferences } from "@/lib/showcase/memory";
 
 const updateSchema = z.object({
   structured_value: z.unknown().refine(
@@ -18,6 +19,12 @@ export async function PATCH(
 ) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    const { id } = await context.params;
+    const body = await request.json().catch(() => ({}));
+    const current = memoryShowcasePreferences.find((item) => item.id === id) ?? memoryShowcasePreferences[0];
+    return apiOk({ demo: true, simulated: true, preference: { ...current, id, structured_value: body?.structured_value ?? current.structured_value, updated_at: new Date().toISOString() } }, traceId);
+  }
   if (!supabase || !profile) {
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   }

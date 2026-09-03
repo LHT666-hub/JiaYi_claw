@@ -31,9 +31,9 @@ export const residentShowcaseHome = {
   careSubjects: [{ residentId: "showcase-resident", displayName: "张阿姨", relationship: "本人", isSelf: true }],
   access: {
     bindingStatus: "active",
-    canSubmitService: false,
-    canStoreHealthData: false,
-    message: "当前为只读展示，正式服务需登录并由社区核验。",
+    canSubmitService: true,
+    canStoreHealthData: true,
+    message: "当前为全功能演示，提交与状态操作仅在演示场景中模拟。",
   },
   careBinding: { id: "showcase-binding", status: "active", communityId: "showcase-community" },
   network: {
@@ -68,7 +68,7 @@ export const residentShowcaseHome = {
     { id: "showcase-notification", is_read: false },
   ],
   serviceCatalog: [
-    { id: "showcase-family-doctor", service_type: "family_doctor_booking", name: "家医预约", description: "由家医团队确认服务方式与时间", service_hours: "工作日服务", access_mode: "team_assisted", official_url: null, response_sla_hours: 4, availability_note: "展示模式不提交申请" },
+    { id: "showcase-family-doctor", service_type: "family_doctor_booking", name: "家医预约", description: "由家医团队确认服务方式与时间", service_hours: "工作日服务", access_mode: "team_assisted", official_url: null, response_sla_hours: 4, availability_note: "演示模式可模拟提交，正式服务由团队人工确认" },
     { id: "showcase-registration", service_type: "clinic_registration", name: "门诊挂号", description: "查看官方入口或请家医团队协助", service_hours: "以机构通知为准", access_mode: "team_assisted", official_url: null, response_sla_hours: 4, availability_note: "不声称拥有实时号源" },
     { id: "showcase-referral", service_type: "referral_assistance", name: "转诊协助", description: "社区首诊后由团队整理上转资料", service_hours: "工作日服务", access_mode: "team_assisted", official_url: null, response_sla_hours: 8, availability_note: "由工作人员人工审核" },
     { id: "showcase-followup", service_type: "followup_reminder", name: "随访服务", description: "提交随访需求并跟踪团队回复", service_hours: "按签约团队安排", access_mode: "team_assisted", official_url: null, response_sla_hours: 8, availability_note: "展示模式不保存健康信息" },

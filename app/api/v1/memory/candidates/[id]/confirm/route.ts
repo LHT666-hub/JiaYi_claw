@@ -8,6 +8,10 @@ export async function POST(
 ) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    const { id } = await context.params;
+    return apiOk({ demo: true, simulated: true, candidate: { id, confirmation_status: "user_confirmed" } }, traceId);
+  }
   if (!supabase || !profile) {
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   }
