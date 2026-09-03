@@ -661,26 +661,49 @@ test("正式登录与首次建档保持移动端圆角视觉", async ({ page }) 
 
 test("居民语音先转写并确认文字", async ({ page }) => {
   await mockAssistantSession(page);
-  await page.route("**/api/v1/speech/transcribe", (route) =>
-    route.fulfill({
-      json: ok({
-        text: "我想预约明天下午的家庭医生",
-        provider: "whisper-wu-local",
-        requiresConfirmation: true,
-      }),
-    }),
-  );
-  await page.goto("/ask");
-  await page.getByRole("button", { name: "语音输入" }).click();
-  await page.locator('input[type="file"][accept="audio/*"]').setInputFiles({
-    name: "resident-voice.wav",
-    mimeType: "audio/wav",
-    buffer: Buffer.from("RIFF-test-audio"),
+  await page.addInitScript(() => {
+    class MockSpeechRecognition {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      maxAlternatives = 1;
+      onstart: (() => void) | null = null;
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+      onend: (() => void) | null = null;
+
+      start() {
+        this.onstart?.();
+      }
+
+      stop() {
+        this.onresult?.({
+          results: [[{ transcript: "我想预约明天下午的家庭医生" }]],
+        });
+        this.onend?.();
+      }
+
+      abort() {
+        this.onend?.();
+      }
+    }
+    for (const property of ["SpeechRecognition", "webkitSpeechRecognition"]) {
+      Object.defineProperty(window, property, {
+        configurable: true,
+        value: MockSpeechRecognition,
+      });
+    }
   });
-  await expect(
-    page.getByText("我想预约明天下午的家庭医生", { exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "使用这段文字" }).click();
+  await page.goto("/ask");
+  await expect(page.locator("nav")).toHaveCount(0);
+  await page.getByRole("button", { name: "切换到语音输入" }).click();
+  const holdToTalk = page.getByRole("button", {
+    name: "按住说话，松开转文字",
+  });
+  await expect(holdToTalk).toContainText("按住说话");
+  await holdToTalk.dispatchEvent("pointerdown", { button: 0, pointerId: 1 });
+  await expect(holdToTalk).toContainText("松开，转成文字");
+  await holdToTalk.dispatchEvent("pointerup", { button: 0, pointerId: 1 });
   await expect(
     page.getByPlaceholder("问服务、排班、活动或准备材料"),
   ).toHaveValue("我想预约明天下午的家庭医生");
@@ -705,7 +728,13 @@ test("居民拍摄报告后先核对临时识别结果", async ({ page }) => {
     });
   });
   await page.goto("/ask");
-  await page.locator('input[type="file"][accept*="image/jpeg"]').setInputFiles({
+  await page.getByRole("button", { name: "添加附件" }).click();
+  await expect(page.getByRole("button", { name: "拍照", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "相册", exact: true })).toBeVisible();
+  const fileChooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "文件", exact: true }).click();
+  const fileChooser = await fileChooserPromise;
+  await fileChooser.setFiles({
     name: "synthetic-report.png",
     mimeType: "image/png",
     buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),

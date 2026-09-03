@@ -9,11 +9,16 @@ import {
   ArrowUpRight,
   ChevronRight,
   BookOpen,
-  Camera,
   Clock3,
+  Camera,
+  FileText,
+  Headphones,
   History,
+  ImagePlus,
+  Keyboard,
   MessageCircle,
   Mic,
+  Plus,
   Send,
   ShieldCheck,
   Stethoscope,
@@ -22,6 +27,7 @@ import {
 import { PhoneShell } from "@/components/PhoneShell";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
 import { VoiceInputPanel } from "@/components/VoiceInputPanel";
+import { HoldToTalkButton } from "@/components/HoldToTalkButton";
 import {
   DocumentImagePanel,
   type DocumentImagePanelHandle,
@@ -86,6 +92,8 @@ export default function AskPage() {
   ]);
   const [loading, setLoading] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [inputMode, setInputMode] = useState<"text" | "voice">("text");
+  const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [activities, setActivities] = useState<AssistantActivity[]>([]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -98,7 +106,7 @@ export default function AskPage() {
     if (initial) setQuestion(initial);
     if (params.get("voice") === "1") setVoiceOpen(true);
     if (params.get("photo") === "1")
-      window.setTimeout(() => documentRef.current?.open(), 180);
+      window.setTimeout(() => documentRef.current?.openCamera(), 180);
   }, []);
   useEffect(() => {
     let active = true;
@@ -223,9 +231,9 @@ export default function AskPage() {
     }).format(date);
   }
   return (
-    <PhoneShell showBottomNav>
-      <div className="mx-auto flex min-h-full w-full flex-col px-4 pb-4 pt-7">
-        <header className="flex items-center gap-3 border-b border-line/60 pb-4">
+    <PhoneShell contentMode="fixed">
+      <div className="relative mx-auto flex h-full min-h-0 w-full flex-col">
+        <header className="flex shrink-0 items-center gap-3 border-b border-line/60 px-4 pb-3 pt-7">
           <button
             onClick={() => router.back()}
             aria-label="返回"
@@ -241,8 +249,19 @@ export default function AskPage() {
               服务导航与资料整理，不替代医生
             </p>
           </div>
+          {activities.length ? (
+            <button
+              type="button"
+              onClick={() => setActivityOpen((value) => !value)}
+              aria-label="查看服务轨迹"
+              className="ios-control ml-auto flex h-11 w-11 items-center justify-center rounded-full text-navy"
+            >
+              <History className="h-4 w-4" />
+            </button>
+          ) : null}
         </header>
-        <div className="mt-4">
+        <div className="phone-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
+        <div className="mt-3">
           <CareSubjectSwitcher compact />
         </div>
         {activityLoading ? (
@@ -430,41 +449,113 @@ export default function AskPage() {
           </div>
         ) : null}
         <DocumentImagePanel ref={documentRef} onUse={setQuestion} />
+        </div>
+        {attachmentOpen ? (
+          <>
+            <button
+              type="button"
+              aria-label="关闭附件菜单"
+              onClick={() => setAttachmentOpen(false)}
+              className="absolute inset-0 z-20 min-h-0 bg-navy/8 backdrop-blur-[1px]"
+            />
+            <section className="ios-material absolute inset-x-3 bottom-[84px] z-30 rounded-[28px] p-3 shadow-[0_24px_54px_rgba(16,42,67,0.2)]">
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  {
+                    label: "拍照",
+                    icon: Camera,
+                    action: () => documentRef.current?.openCamera(),
+                  },
+                  {
+                    label: "相册",
+                    icon: ImagePlus,
+                    action: () => documentRef.current?.openLibrary(),
+                  },
+                  {
+                    label: "文件",
+                    icon: FileText,
+                    action: () => documentRef.current?.openFile(),
+                  },
+                  {
+                    label: "录音",
+                    icon: Headphones,
+                    action: () => setVoiceOpen(true),
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        setAttachmentOpen(false);
+                        item.action();
+                      }}
+                      className="ios-pressable flex min-w-0 flex-col items-center gap-2 rounded-[20px] px-1 py-3 text-[11px] font-semibold text-navy hover:bg-health-soft"
+                    >
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-health-muted text-sage">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-center text-[10px] text-navy/38">
+                文件仅用于本次识别，原件不写入居民档案
+              </p>
+            </section>
+          </>
+        ) : null}
         <form
           onSubmit={submit}
-          className="sticky bottom-0 mt-4 flex gap-2 rounded-[28px] border border-white/55 bg-surface-nav/88 p-2 shadow-[0_16px_36px_rgba(16,42,67,0.12)] backdrop-blur-2xl"
+          className="mx-3 mt-2 flex shrink-0 gap-2 rounded-[28px] border border-white/70 bg-surface-nav/92 p-2 shadow-[0_14px_34px_rgba(16,42,67,0.13)] backdrop-blur-2xl"
         >
           <button
             type="button"
-            onClick={() => documentRef.current?.open()}
-            aria-label="拍照识别报告或药盒"
+            onClick={() => setAttachmentOpen((open) => !open)}
+            aria-label={attachmentOpen ? "关闭附件菜单" : "添加附件"}
+            aria-expanded={attachmentOpen}
             className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EDF3F7] text-[#315B7D]"
           >
-            <Camera className="h-5 w-5" />
+            <Plus className={`h-5 w-5 transition-transform ${attachmentOpen ? "rotate-45" : ""}`} />
           </button>
           <button
             type="button"
-            onClick={() => setVoiceOpen(true)}
-            aria-label="语音输入"
+            onClick={() => setInputMode((mode) => mode === "text" ? "voice" : "text")}
+            aria-label={inputMode === "text" ? "切换到语音输入" : "切换到键盘输入"}
             className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-health-muted text-sage"
           >
-            <Mic className="h-5 w-5" />
+            {inputMode === "text" ? <Mic className="h-5 w-5" /> : <Keyboard className="h-5 w-5" />}
           </button>
-          <input
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            placeholder="问服务、排班、活动或准备材料"
-            className="h-12 min-w-0 flex-1 rounded-full border border-line bg-surface-card px-4 text-sm outline-none focus:border-sage"
-          />
-          <button
-            disabled={!question.trim() || loading}
-            aria-label="发送"
-            className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-white shadow-[0_10px_22px_rgba(16,42,67,0.2)] disabled:opacity-40"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          {inputMode === "voice" ? (
+            <HoldToTalkButton
+              disabled={loading}
+              onFallback={() => setVoiceOpen(true)}
+              onTranscript={(text) => {
+                setQuestion((current) => current.trim() ? `${current.trim()} ${text}` : text);
+                setInputMode("text");
+              }}
+            />
+          ) : (
+            <>
+              <input
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+                placeholder="问服务、排班、活动或准备材料"
+                className="h-12 min-w-0 flex-1 rounded-full border border-line bg-surface-card px-4 text-sm outline-none focus:border-sage"
+              />
+              <button
+                disabled={!question.trim() || loading}
+                aria-label="发送"
+                className="ios-pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-navy text-white shadow-[0_10px_22px_rgba(16,42,67,0.2)] disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </form>
-        <p className="text-center text-[11px] text-navy/35">
+        <p className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-1.5 text-center text-[10px] text-navy/35">
           <MessageCircle className="mr-1 inline h-3 w-3" />
           默认不保存完整健康对话，仅记录脱敏运行与服务审计
         </p>

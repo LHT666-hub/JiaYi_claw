@@ -18,7 +18,12 @@ import {
 } from "react";
 import type { DocumentAnalysis } from "@/lib/documents/analysis";
 
-export type DocumentImagePanelHandle = { open: () => void };
+export type DocumentImagePanelHandle = {
+  open: () => void;
+  openCamera: () => void;
+  openLibrary: () => void;
+  openFile: () => void;
+};
 
 const documentTypeLabels: Record<DocumentAnalysis["documentType"], string> = {
   lab_report: "化验报告",
@@ -33,7 +38,9 @@ export const DocumentImagePanel = forwardRef<
   DocumentImagePanelHandle,
   { onUse: (text: string) => void }
 >(function DocumentImagePanel({ onUse }, ref) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState("");
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,7 +48,10 @@ export const DocumentImagePanel = forwardRef<
   const [consentRequired, setConsentRequired] = useState(false);
 
   useImperativeHandle(ref, () => ({
-    open: () => inputRef.current?.click(),
+    open: () => cameraInputRef.current?.click(),
+    openCamera: () => cameraInputRef.current?.click(),
+    openLibrary: () => libraryInputRef.current?.click(),
+    openFile: () => fileInputRef.current?.click(),
   }));
 
   useEffect(
@@ -57,7 +67,9 @@ export const DocumentImagePanel = forwardRef<
     setAnalysis(null);
     setError("");
     setConsentRequired(false);
-    if (inputRef.current) inputRef.current.value = "";
+    for (const input of [cameraInputRef.current, libraryInputRef.current, fileInputRef.current]) {
+      if (input) input.value = "";
+    }
   }
 
   async function analyze(file: File) {
@@ -111,18 +123,37 @@ export const DocumentImagePanel = forwardRef<
 
   return (
     <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        capture="environment"
-        className="sr-only"
-        aria-label="拍摄或选择医疗文件图片"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) void analyze(file);
-        }}
-      />
+      {[
+        {
+          ref: cameraInputRef,
+          label: "拍照识别医疗文件",
+          capture: "environment" as const,
+        },
+        {
+          ref: libraryInputRef,
+          label: "从相册选择医疗文件",
+          capture: undefined,
+        },
+        {
+          ref: fileInputRef,
+          label: "上传医疗图片文件",
+          capture: undefined,
+        },
+      ].map((input) => (
+        <input
+          key={input.label}
+          ref={input.ref}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture={input.capture}
+          className="sr-only"
+          aria-label={input.label}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void analyze(file);
+          }}
+        />
+      ))}
       {preview || error ? (
         <section className="mb-3 rounded-[26px] border border-line bg-white p-3 shadow-[0_14px_30px_rgba(16,42,67,0.07)]">
           <div className="flex items-center gap-3">

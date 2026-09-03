@@ -6,9 +6,14 @@ import { usePathname } from "next/navigation";
 type PhoneShellProps = {
   children: React.ReactNode;
   showBottomNav?: boolean;
+  contentMode?: "scroll" | "fixed";
 };
 
-export function PhoneShell({ children, showBottomNav = false }: PhoneShellProps) {
+export function PhoneShell({
+  children,
+  showBottomNav = false,
+  contentMode = "scroll",
+}: PhoneShellProps) {
   const pathname = usePathname();
   const shouldHideBottomNav = pathname === "/group";
   const shouldShowBottomNav = showBottomNav && !shouldHideBottomNav;
@@ -20,8 +25,10 @@ export function PhoneShell({ children, showBottomNav = false }: PhoneShellProps)
           <div className="h-1.5 w-[72px] rounded-full bg-navy/16 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)]" />
         </div>
         <div
-          className={`resident-ui phone-scroll h-full min-h-0 overflow-y-auto overscroll-contain ${
-            shouldShowBottomNav ? "pb-32" : "pb-8"
+          className={`resident-ui phone-scroll h-full min-h-0 overscroll-contain ${
+            contentMode === "fixed"
+              ? "overflow-hidden"
+              : `overflow-y-auto ${shouldShowBottomNav ? "pb-32" : "pb-8"}`
           }`}
         >
           {children}
