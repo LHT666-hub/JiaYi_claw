@@ -1,6 +1,7 @@
 import { NextRequest, after } from "next/server";
 import { z } from "zod";
 import { POST as legacyAskPost } from "@/app/api/ask/route";
+import { getAiModelConfig } from "@/lib/ai/config";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { buildAssistantActions } from "@/lib/assistant/actions";
 import {
@@ -310,7 +311,7 @@ export async function POST(request: NextRequest) {
         skill_id: skillId,
         skill_version: getSkillDefinition(skillId)?.version ?? "unknown",
         model: reply.source?.includes("kimi")
-          ? (process.env.RAG_GENERATION_MODEL ?? process.env.KIMI_MODEL ?? "kimi")
+          ? getAiModelConfig("rag").model
           : "deterministic",
         trace_id: traceId,
         status: "success",

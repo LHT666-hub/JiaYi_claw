@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { getAiModelConfig, modelTemperature } from "@/lib/ai/config";
 
 export const documentAnalysisSchema = z.object({
   documentType: z.enum([
@@ -124,27 +125,20 @@ export async function analyzeMedicalDocumentImage(
   bytes: Buffer,
   mediaType: "image/jpeg" | "image/png" | "image/webp",
 ) {
-  const apiKey =
-    process.env.KIMI_API_KEY?.trim() ||
-    process.env.MOONSHOT_API_KEY?.trim();
+  const config = getAiModelConfig("vision");
+  const apiKey = config.apiKey;
   if (!apiKey) throw new Error("DOCUMENT_VISION_NOT_CONFIGURED");
 
   const client = new OpenAI({
     apiKey,
-    baseURL:
-      process.env.KIMI_BASE_URL?.trim() ||
-      process.env.MOONSHOT_BASE_URL?.trim() ||
-      "https://api.moonshot.cn/v1",
+    baseURL: config.baseURL,
   });
-  const model =
-    process.env.KIMI_VISION_MODEL?.trim() ||
-    process.env.KIMI_MODEL?.trim() ||
-    "kimi-k2.6";
+  const model = config.model;
   const dataUrl = `data:${mediaType};base64,${bytes.toString("base64")}`;
   const completion = await client.chat.completions.create(
     {
       model,
-      temperature: model.startsWith("kimi-k") ? 1 : 0,
+      temperature: modelTemperature(model, true),
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: systemPrompt },

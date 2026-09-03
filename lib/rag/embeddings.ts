@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import OpenAI from "openai";
 import { RAG_EMBEDDING_DIMENSIONS } from "@/lib/rag/types";
+import { getEmbeddingModelConfig } from "@/lib/ai/config";
 
 export type EmbeddingProvider = {
   id: string;
@@ -42,9 +43,7 @@ export function createDeterministicEmbeddingProvider(dimensions = RAG_EMBEDDING_
 }
 
 function createOpenAiCompatibleProvider(): EmbeddingProvider {
-  const apiKey = process.env.RAG_EMBEDDING_API_KEY?.trim();
-  const baseURL = process.env.RAG_EMBEDDING_BASE_URL?.trim();
-  const model = process.env.RAG_EMBEDDING_MODEL?.trim();
+  const { apiKey, baseURL, model } = getEmbeddingModelConfig();
   const dimensions = Number(process.env.RAG_EMBEDDING_DIMENSIONS ?? RAG_EMBEDDING_DIMENSIONS);
   if (!apiKey || !baseURL || !model) throw new Error("RAG_EMBEDDING_CONFIG_INCOMPLETE");
   if (dimensions !== RAG_EMBEDDING_DIMENSIONS) throw new Error("RAG_EMBEDDING_DIMENSIONS_MUST_BE_1024");
@@ -81,4 +80,3 @@ export function vectorToSql(vector: number[]) {
   if (vector.length !== RAG_EMBEDDING_DIMENSIONS) throw new Error("RAG_VECTOR_DIMENSIONS_INVALID");
   return `[${vector.map((item) => Number(item.toFixed(8))).join(",")}]`;
 }
-

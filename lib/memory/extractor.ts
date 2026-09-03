@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAiModelConfig, modelTemperature } from "@/lib/ai/config";
 import type { MemoryCandidate } from "./schemas";
 
 // ---------------------------------------------------------------------------
@@ -43,18 +44,7 @@ const EXTRACTION_SYSTEM_PROMPT = `你是家医 Claw 的记忆提取器。从居�
 }`;
 
 function getLlmConfig() {
-  const apiKey = (
-    process.env.MOONSHOT_API_KEY ?? process.env.KIMI_API_KEY ?? ""
-  ).trim();
-  const baseURL =
-    process.env.KIMI_BASE_URL?.trim() ||
-    process.env.MOONSHOT_BASE_URL?.trim() ||
-    "https://api.moonshot.cn/v1";
-  const model =
-    process.env.MEMORY_EXTRACTION_MODEL?.trim() ||
-    process.env.KIMI_MODEL?.trim() ||
-    "kimi-k2.6";
-  return { apiKey, baseURL, model };
+  return getAiModelConfig("memory");
 }
 
 function extractJsonFromText(text: string): string {
@@ -84,7 +74,7 @@ class LlmMemoryExtractor implements MemoryExtractor {
       const completion = await Promise.race([
         client.chat.completions.create({
           model,
-          temperature: model.startsWith("kimi-k") ? 1 : 0.1,
+          temperature: modelTemperature(model, true),
           messages: [
             { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
             { role: "user", content: `居民消息：${safeMessage}` },

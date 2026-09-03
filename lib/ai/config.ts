@@ -1,0 +1,91 @@
+export type AiPurpose = "text" | "vision" | "memory" | "rag";
+
+export type AiModelConfig = {
+  provider: "aliyun_bailian" | "moonshot" | "openai_compatible";
+  apiKey: string;
+  baseURL: string;
+  model: string;
+};
+
+function first(...values: Array<string | undefined>) {
+  return values.find((value) => Boolean(value?.trim()))?.trim() ?? "";
+}
+
+function selectedProvider() {
+  const explicit = process.env.AI_PROVIDER?.trim().toLowerCase();
+  if (["aliyun", "bailian", "dashscope", "aliyun_bailian"].includes(explicit ?? "")) {
+    return "aliyun_bailian" as const;
+  }
+  if (["kimi", "moonshot"].includes(explicit ?? "")) return "moonshot" as const;
+  if (explicit === "openai_compatible") return "openai_compatible" as const;
+  if (first(process.env.DASHSCOPE_API_KEY, process.env.BAILIAN_API_KEY)) return "aliyun_bailian" as const;
+  if (first(process.env.AI_API_KEY, process.env.OPENAI_API_KEY)) return "openai_compatible" as const;
+  return "moonshot" as const;
+}
+
+export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
+  const provider = selectedProvider();
+  if (provider === "aliyun_bailian") {
+    const modelByPurpose: Record<AiPurpose, string> = {
+      text: first(process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
+      vision: first(process.env.AI_VISION_MODEL, process.env.DASHSCOPE_VISION_MODEL) || "qwen-vl-max",
+      memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
+      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
+    };
+    return {
+      provider,
+      apiKey: first(process.env.DASHSCOPE_API_KEY, process.env.BAILIAN_API_KEY, process.env.AI_API_KEY),
+      baseURL: first(process.env.DASHSCOPE_BASE_URL, process.env.AI_BASE_URL) || "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      model: modelByPurpose[purpose],
+    };
+  }
+
+  if (provider === "openai_compatible") {
+    const modelByPurpose: Record<AiPurpose, string> = {
+      text: first(process.env.AI_MODEL) || "gpt-4.1-mini",
+      vision: first(process.env.AI_VISION_MODEL, process.env.AI_MODEL) || "gpt-4.1-mini",
+      memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.AI_MODEL) || "gpt-4.1-mini",
+      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL) || "gpt-4.1-mini",
+    };
+    return {
+      provider,
+      apiKey: first(process.env.AI_API_KEY, process.env.OPENAI_API_KEY),
+      baseURL: first(process.env.AI_BASE_URL) || "https://api.openai.com/v1",
+      model: modelByPurpose[purpose],
+    };
+  }
+
+  const modelByPurpose: Record<AiPurpose, string> = {
+    text: first(process.env.KIMI_MODEL, process.env.MOONSHOT_MODEL) || "kimi-k2.6",
+    vision: first(process.env.KIMI_VISION_MODEL, process.env.KIMI_MODEL) || "kimi-k2.6",
+    memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.KIMI_MODEL) || "kimi-k2.6",
+    rag: first(process.env.RAG_GENERATION_MODEL, process.env.KIMI_MODEL) || "kimi-k2.6",
+  };
+  return {
+    provider,
+    apiKey: first(process.env.KIMI_API_KEY, process.env.MOONSHOT_API_KEY),
+    baseURL: first(process.env.KIMI_BASE_URL, process.env.MOONSHOT_BASE_URL) || "https://api.moonshot.cn/v1",
+    model: modelByPurpose[purpose],
+  };
+}
+
+export function getTextModelCandidates() {
+  const config = getAiModelConfig("text");
+  if (config.provider === "aliyun_bailian") return [...new Set([config.model, "qwen-plus"])];
+  if (config.provider === "moonshot") return [...new Set([config.model, "kimi-k2.6", "moonshot-v1-8k"])];
+  return [config.model];
+}
+
+export function modelTemperature(model: string, structured = false) {
+  if (structured) return model.startsWith("kimi-k") ? 1 : 0.1;
+  return model.startsWith("kimi-k") ? 1 : 0.2;
+}
+
+export function getEmbeddingModelConfig() {
+  const ai = getAiModelConfig("rag");
+  return {
+    apiKey: first(process.env.RAG_EMBEDDING_API_KEY, ai.provider === "aliyun_bailian" ? ai.apiKey : undefined),
+    baseURL: first(process.env.RAG_EMBEDDING_BASE_URL, ai.provider === "aliyun_bailian" ? ai.baseURL : undefined),
+    model: first(process.env.RAG_EMBEDDING_MODEL) || (ai.provider === "aliyun_bailian" ? "text-embedding-v4" : ""),
+  };
+}

@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/capabilities";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { getAiModelConfig, getEmbeddingModelConfig } from "@/lib/ai/config";
 
 export type ReadinessStatus = "ready" | "pending" | "blocked";
 
@@ -41,6 +42,9 @@ function configured(
 }
 
 export function getEnvironmentReadiness(): ReadinessCheck[] {
+  const textModel = getAiModelConfig("text");
+  const visionModel = getAiModelConfig("vision");
+  const embeddingModel = getEmbeddingModelConfig();
   const asrProvider = process.env.ASR_PROVIDER?.trim() || "local_whisper_wu";
   const localAsrPython = process.env.ASR_PYTHON_PATH?.trim()
     || path.join(process.cwd(), ".venv-whisper-wu", "Scripts", "python.exe");
@@ -95,16 +99,24 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
     configured(
       "assistant",
       "Claw 文本助手",
-      hasAll(process.env.KIMI_API_KEY, process.env.KIMI_BASE_URL, process.env.KIMI_MODEL),
-      "文本模型连接参数已配置。",
-      "配置 Kimi API 密钥、地址和文本模型。",
+      hasAll(textModel.apiKey, textModel.baseURL, textModel.model),
+      `文本模型已配置：${textModel.provider} / ${textModel.model}。`,
+      "配置 AI_PROVIDER、供应商 API 密钥、地址和文本模型。",
     ),
     configured(
       "vision",
       "报告与药盒识别",
-      Boolean((process.env.KIMI_API_KEY || process.env.MOONSHOT_API_KEY)?.trim()),
-      `视觉模型已配置：${process.env.KIMI_VISION_MODEL?.trim() || process.env.KIMI_MODEL?.trim() || "kimi-k2.6"}，图片按不落盘策略处理。`,
-      "配置 KIMI_VISION_MODEL 并完成脱敏图片验收。",
+      Boolean(visionModel.apiKey),
+      `视觉模型已配置：${visionModel.provider} / ${visionModel.model}，图片按不落盘策略处理。`,
+      "配置 AI_VISION_MODEL 并完成脱敏图片验收。",
+      false,
+    ),
+    configured(
+      "rag-embedding",
+      "RAG 语义检索",
+      hasAll(embeddingModel.apiKey, embeddingModel.baseURL, embeddingModel.model),
+      `向量模型已配置：${embeddingModel.model}。`,
+      "配置 RAG_EMBEDDING_PROVIDER=openai-compatible 与百炼向量模型。",
       false,
     ),
     configured(

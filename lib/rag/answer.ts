@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getAiModelConfig, modelTemperature } from "@/lib/ai/config";
 import type { AskReply } from "@/lib/types";
 import { buildKnowledgeCitations } from "@/lib/rag/search";
 import type { KnowledgeSearchHit } from "@/lib/rag/types";
@@ -35,10 +36,11 @@ function deterministicReply(question: string, hits: KnowledgeSearchHit[]): AskRe
 }
 
 async function generateWithModel(question: string, hits: KnowledgeSearchHit[]) {
-  const apiKey = (process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY ?? "").trim();
+  const config = getAiModelConfig("rag");
+  const apiKey = config.apiKey;
   if (!apiKey || process.env.RAG_GENERATION_ENABLED === "false") return null;
-  const baseURL = process.env.KIMI_BASE_URL?.trim() || process.env.MOONSHOT_BASE_URL?.trim() || "https://api.moonshot.cn/v1";
-  const model = process.env.RAG_GENERATION_MODEL?.trim() || process.env.KIMI_MODEL?.trim() || "kimi-k2.6";
+  const baseURL = config.baseURL;
+  const model = config.model;
   const citations = buildKnowledgeCitations(hits);
   const evidence = JSON.stringify(citations.map((item) => ({
     id: item.index,
@@ -50,7 +52,7 @@ async function generateWithModel(question: string, hits: KnowledgeSearchHit[]) {
   const client = new OpenAI({ apiKey, baseURL });
   const request = client.chat.completions.create({
     model,
-    temperature: model.startsWith("kimi-k") ? 1 : 0.2,
+    temperature: modelTemperature(model),
     messages: [
       {
         role: "system",

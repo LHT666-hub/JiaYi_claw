@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse, after } from "next/server";
+import { getAiModelConfig, getTextModelCandidates } from "@/lib/ai/config";
 import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
 import {
   getCurrentServiceOwnerRole,
@@ -71,21 +72,6 @@ const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
 const KIMI_TIMEOUT_MS = 40_000;
 const kimiCache = new Map<string, { expiresAt: number; reply: AskReply }>();
 const kimiInFlight = new Map<string, Promise<AskReply>>();
-
-function readEnvValue(name: string) {
-  const value = process.env[name];
-  return value ? value.trim().replace(/^['"]|['"]$/g, "") : "";
-}
-
-function readFirstEnvValue(names: string[]) {
-  for (const name of names) {
-    const value = readEnvValue(name);
-    if (value) {
-      return value;
-    }
-  }
-  return "";
-}
 
 function pruneExpiredCache() {
   const now = Date.now();
@@ -361,21 +347,10 @@ async function runKimiWithCache(
     knowledgeIds?: string[];
   },
 ) {
-  const apiKey = readFirstEnvValue([
-    "KIMI_API_KEY",
-    "MOONSHOT_API_KEY",
-    "OPENAI_API_KEY",
-  ]).replace(/^Bearer\s+/i, "");
-  const baseURL =
-    readFirstEnvValue(["KIMI_BASE_URL", "MOONSHOT_BASE_URL"]) ||
-    "https://api.moonshot.cn/v1";
-  const modelCandidates = [
-    readFirstEnvValue(["KIMI_MODEL", "MOONSHOT_MODEL"]),
-    "kimi-k2.6",
-    "kimi-k3",
-    "moonshot-v1-8k",
-    "moonshot-v1-32k",
-  ];
+  const config = getAiModelConfig("text");
+  const apiKey = config.apiKey.replace(/^Bearer\s+/i, "");
+  const baseURL = config.baseURL;
+  const modelCandidates = getTextModelCandidates();
 
   if (!apiKey) {
     return {
@@ -443,19 +418,10 @@ async function runKimiWithCache(
 }
 
 function getKimiRuntimeInfo() {
-  const hasApiKey = Boolean(
-    readFirstEnvValue(["KIMI_API_KEY", "MOONSHOT_API_KEY", "OPENAI_API_KEY"]),
-  );
-  const baseURL =
-    readFirstEnvValue(["KIMI_BASE_URL", "MOONSHOT_BASE_URL"]) ||
-    "https://api.moonshot.cn/v1";
-  const modelCandidates = [
-    readFirstEnvValue(["KIMI_MODEL", "MOONSHOT_MODEL"]),
-    "kimi-k2.6",
-    "kimi-k3",
-    "moonshot-v1-8k",
-    "moonshot-v1-32k",
-  ].filter(Boolean);
+  const config = getAiModelConfig("text");
+  const hasApiKey = Boolean(config.apiKey);
+  const baseURL = config.baseURL;
+  const modelCandidates = getTextModelCandidates();
 
   return {
     hasApiKey,
