@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseCatalog, demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({
   id: z.string().uuid().optional(),
@@ -26,6 +27,7 @@ async function requireAdmin(request: NextRequest) { const auth = await getApiAut
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(adminShowcaseCatalog, traceId);
   if (!auth?.supabase || !auth.profile) return apiError("FORBIDDEN", "只有管理员可以管理服务目录。", 403, traceId);
   const { data, error } = await auth.supabase.from("service_catalog").select("*").eq("organization_id", auth.profile.organization_id).order("name");
   return error ? apiError("SERVICE_CATALOG_LIST_FAILED", error.message, 500, traceId) : apiOk({ items: data ?? [] }, traceId);
@@ -33,6 +35,7 @@ export async function GET(request: NextRequest) {
 
 async function save(request: NextRequest, update: boolean) {
   const traceId = createTraceId(); const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ item: { id: crypto.randomUUID() } }), traceId, update ? 200 : 201);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以管理服务目录。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_SERVICE", parsed.error.issues[0]?.message ?? "服务信息不完整。", 400, traceId);

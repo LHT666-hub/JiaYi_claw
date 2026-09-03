@@ -3,10 +3,12 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({ scheduleIds: z.array(z.string().uuid()).min(1).max(200), decision: z.enum(["verified", "cancelled"]), note: z.string().trim().max(500).nullable().default(null) });
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ schedules: [{ id: crypto.randomUUID(), status: "verified" }] }), traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有排班核验权限。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_SCHEDULE_REVIEW", "排班核验参数无效。", 400, traceId);

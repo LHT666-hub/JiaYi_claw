@@ -6,6 +6,7 @@ import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { assertSafeOfficialUrl } from "@/lib/security/safeUrl";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({ sourceId: z.string().uuid(), url: z.string().url(), category: z.enum(["notice", "activity", "health_classroom", "schedule_notice", "policy"]) });
 
@@ -29,6 +30,7 @@ function cleanPageTitle(value: string) {
 
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ item: { id: crypto.randomUUID(), status: "candidate" }, requiresReview: true }), traceId, 201);
   if (!auth.supabase || auth.profile?.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以采集内容。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_INGEST_REQUEST", "采集参数无效。", 400, traceId);

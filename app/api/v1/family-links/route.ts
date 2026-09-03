@@ -5,6 +5,9 @@ import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { listFamilyBindingsForRole } from "@/lib/db/familyBindings";
 import { CURRENT_POLICY_VERSION } from "@/lib/policies";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
+
+const demoBinding = { id: "a0000000-0000-4000-8000-000000000001", residentId: "showcase-resident", residentName: "张阿姨", familyId: "showcase-family", familyName: "张阿姨女儿", relationship: "女儿", isPrimary: true, status: "active", createdAt: new Date().toISOString() };
 
 const redeemSchema = z.object({
   code: z.string().trim().toUpperCase().regex(/^[2-9A-HJ-NP-Z]{8}$/),
@@ -25,6 +28,7 @@ function hashCode(code: string) {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, role: "resident", bindings: [demoBinding] }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (!["resident", "family", "admin"].includes(profile.role)) {
     return apiError("FAMILY_LINK_FORBIDDEN", "当前身份不使用家属绑定。", 403, traceId);
@@ -40,6 +44,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ code: "CLAW2026", expiresAt: new Date(Date.now() + 900_000).toISOString() }), traceId, 201);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (profile.role !== "resident") return apiError("RESIDENT_REQUIRED", "只有居民本人可以生成家属授权码。", 403, traceId);
 
@@ -57,6 +62,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ binding: demoBinding }), traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (profile.role !== "family") return apiError("FAMILY_ROLE_REQUIRED", "请使用家属账号完成绑定。", 403, traceId);
 
@@ -78,6 +84,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ binding: { ...demoBinding, status: "revoked" } }), traceId);
   if (!supabase || !profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (!["resident", "family", "admin"].includes(profile.role))

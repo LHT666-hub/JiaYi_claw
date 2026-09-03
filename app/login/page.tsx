@@ -9,7 +9,10 @@ import { PhoneShell } from "@/components/PhoneShell";
 import { PhoneOtpCard } from "@/components/auth/PhoneOtpCard";
 import { useAuthCapabilities } from "@/components/auth/useAuthCapabilities";
 import { useToast } from "@/components/ToastProvider";
+import { demoUsers } from "@/data/demoUsers";
+import { loginAs } from "@/lib/useDemoUser";
 import { getPostLoginPath } from "@/lib/supabase/mvp";
+import type { AppRole } from "@/lib/types";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,10 +23,26 @@ export default function LoginPage() {
   const [showcaseLoading, setShowcaseLoading] = useState(false);
 
   async function enterDevelopmentSession(
-    role: "resident" | "family" | "doctor" | "admin",
+    role: AppRole,
   ) {
     setShowcaseLoading(true);
     try {
+      if (demoEnabled) {
+        const demoUser = demoUsers.find((user) => user.role === role);
+        if (!demoUser) throw new Error("演示身份不存在。");
+        loginAs(demoUser);
+        router.replace(
+          role === "admin"
+            ? "/admin"
+            : ["doctor", "nurse", "pharmacist", "community"].includes(role)
+              ? "/doctor"
+              : role === "family"
+                ? "/family"
+                : "/",
+        );
+        router.refresh();
+        return;
+      }
       const response = await fetch("/api/v1/auth/dev-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -90,10 +109,30 @@ export default function LoginPage() {
         />
 
         {demoEnabled ? (
-          <Link href="/" className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-navy px-4 py-3.5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(16,42,67,0.18)]">
-            进入居民端完整展示
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+          <section className="mt-4 rounded-[28px] border border-sage/25 bg-health-soft/80 p-4">
+            <p className="flex items-center gap-2 text-xs font-semibold text-navy">
+              <LogIn className="h-4 w-4 text-sage" />
+              全功能演示入口
+            </p>
+            <p className="mt-1 text-xs leading-5 text-navy/50">无需验证码，可切换全部角色；演示操作不写入真实居民数据。</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {demoUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  disabled={showcaseLoading}
+                  onClick={() => void enterDevelopmentSession(user.role)}
+                  className={`rounded-full px-3 py-2.5 text-xs font-semibold disabled:opacity-50 ${user.role === "resident" ? "bg-navy text-white" : "border border-line bg-surface-card text-navy"}`}
+                >
+                  {user.roleLabel}
+                </button>
+              ))}
+            </div>
+            <Link href="/demo-center" className="mt-3 flex w-full items-center justify-center gap-2 rounded-full border border-sage/25 bg-white px-4 py-3 text-sm font-semibold text-sage">
+              打开全部页面清单
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </section>
         ) : null}
 
         <Link
@@ -129,7 +168,7 @@ export default function LoginPage() {
           </Link>
         </div>
 
-        {devLoginEnabled ? (
+        {devLoginEnabled && !demoEnabled ? (
           <section className="mt-5 rounded-[28px] border border-dashed border-sage/45 bg-health-soft/75 p-4">
             <p className="flex items-center gap-2 text-xs font-semibold text-navy">
               <LogIn className="h-4 w-4 text-sage" />

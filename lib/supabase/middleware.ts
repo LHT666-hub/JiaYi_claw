@@ -41,6 +41,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // The showcase environment is intentionally isolated from real auth/data.
+  // This also keeps a stale or unavailable Supabase endpoint from blocking a demo.
+  if (demoEnabled) return NextResponse.next();
+
   if (!isSupabaseConfigured()) {
     if (requiresAuth && !demoEnabled) return NextResponse.redirect(new URL("/login", request.url));
     return NextResponse.next();

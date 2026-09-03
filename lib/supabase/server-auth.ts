@@ -5,6 +5,9 @@ import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseConfigured } from "@/lib/
 import { AppRole, ProfileRow } from "@/lib/types";
 
 export async function getServerAuthContext() {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return { supabase: null, user: null, profile: null as ProfileRow | null };
+  }
   const supabase = await createSupabaseServerClient();
 
   if (!supabase) {
@@ -44,6 +47,9 @@ export async function getServerAuthContext() {
 }
 
 export async function getApiAuthContext(request: NextRequest) {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    return { supabase: null, user: null, profile: null as ProfileRow | null };
+  }
   const authorization = request.headers.get("authorization")?.trim() ?? "";
   const token = authorization.toLowerCase().startsWith("bearer ")
     ? authorization.slice(7).trim()

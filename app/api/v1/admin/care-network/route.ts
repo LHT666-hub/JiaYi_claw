@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseCareNetwork, demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.discriminatedUnion("entity", [
   z.object({ entity: z.literal("institution"), name: z.string().trim().min(2).max(160), shortName: z.string().trim().max(80).nullable().optional(), institutionType: z.enum(["community", "secondary", "tertiary", "public_service"]), levelLabel: z.string().trim().max(80).nullable().optional(), address: z.string().trim().max(300).nullable().optional(), servicePhone: z.string().trim().max(30).nullable().optional(), officialUrl: z.string().url().nullable().optional(), registrationUrl: z.string().url().nullable().optional(), sourceUrl: z.string().url().nullable().optional(), networkRole: z.enum(["primary_care", "referral", "specialty_support", "public_service"]).default("referral") }),
@@ -14,6 +15,7 @@ const schema = z.discriminatedUnion("entity", [
 async function requireAdmin(request: NextRequest) { const auth = await getApiAuthContext(request); return auth.profile?.role === "admin" ? auth : null; }
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(adminShowcaseCareNetwork, traceId);
   if (!auth?.supabase || !auth.profile) return apiError("FORBIDDEN", "只有管理员可以配置医疗网络。", 403, traceId);
   const org = auth.profile.organization_id;
   const [networks, institutions, departments, practitioners, routes] = await Promise.all([
@@ -28,6 +30,7 @@ export async function GET(request: NextRequest) {
 }
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ saved: true }), traceId, 201);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以配置医疗网络。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_CARE_NETWORK_ENTITY", parsed.error.issues[0]?.message ?? "配置无效。", 400, traceId);

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseContent, demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -23,6 +24,7 @@ async function contentStaff(request: NextRequest) { const auth = await getApiAut
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await contentStaff(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(adminShowcaseContent, traceId);
   if (!auth?.supabase || !auth.profile) return apiError("FORBIDDEN", "没有内容运营权限。", 403, traceId);
   const [sources, candidates, institutions] = await Promise.all([
     auth.supabase.from("content_sources").select("*,institution:institutions(name)").eq("organization_id", auth.profile.organization_id).order("created_at", { ascending: false }),
@@ -46,6 +48,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await contentStaff(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ source: { id: crypto.randomUUID() } }), traceId, 201);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以添加内容来源。", 403, traceId);
   if (auth.profile.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以添加官方来源。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const traceId = createTraceId(); const auth = await contentStaff(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ source: { id: crypto.randomUUID() } }), traceId);
   if (!auth?.supabase || auth.profile?.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以更新官方来源。", 403, traceId);
   const parsed = updateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_CONTENT_SOURCE_UPDATE", parsed.error.issues[0]?.message ?? "来源更新无效。", 400, traceId);

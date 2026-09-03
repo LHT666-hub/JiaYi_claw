@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { normalizeChinaPhone } from "@/lib/auth/phone";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseStaff, demoMutation } from "@/lib/showcase/admin";
 
 const inviteSchema = z.object({
   phone: z.string().min(11).max(20),
@@ -26,6 +27,7 @@ async function requireAdmin(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(adminShowcaseStaff, traceId);
   if (!auth?.supabase || !auth.profile) return apiError("FORBIDDEN", "只有管理员可以管理人员。", 403, traceId);
   const [profilesResult, invitesResult, communitiesResult] = await Promise.all([
     auth.supabase.from("profiles").select("id,display_name,role,phone,community_id,account_status,created_at")
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ invite: { id: crypto.randomUUID() }, token: "DEMO-ONLY" }), traceId, 201);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以邀请人员。", 403, traceId);
   const parsed = inviteSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_STAFF_INVITE", parsed.error.issues[0]?.message ?? "邀请信息不完整。", 400, traceId);
@@ -72,6 +75,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ revoked: true }), traceId);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以撤销邀请。", 403, traceId);
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return apiError("INVITE_ID_REQUIRED", "缺少邀请编号。", 400, traceId);
@@ -85,6 +89,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireAdmin(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth?.supabase) return apiOk(demoMutation({ staff: { account_status: "active" } }), traceId);
   if (!auth?.supabase || !auth.profile?.organization_id) return apiError("FORBIDDEN", "只有管理员可以管理人员。", 403, traceId);
   const parsed = statusSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_STAFF_STATUS", "人员状态参数不完整。", 400, traceId);

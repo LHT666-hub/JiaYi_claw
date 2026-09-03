@@ -4,6 +4,7 @@ import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/resp
 import { actionServiceRequest } from "@/lib/db/serviceRequests";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import { processOutboxEvents } from "@/lib/notifications/processOutbox";
+import { demoMutation } from "@/lib/showcase/admin";
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +12,10 @@ export async function POST(
 ) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) {
+    const params = await context.params;
+    return apiOk(demoMutation({ request: { id: params.id, status: params.action === "cancel" ? "cancelled" : params.action === "confirm_booking" ? "booked" : "checking_availability" } }), traceId);
+  }
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const params = await context.params;
   const body = await request.json().catch(() => ({}));

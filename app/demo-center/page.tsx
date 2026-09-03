@@ -95,26 +95,54 @@ const pageGroups = [
     pages: [
       { name: "首页", href: "/", desc: "总览任务、提醒、找人和小组入口" },
       { name: "问家医 Claw", href: "/ask", desc: "流程问答、安全拦截和待办生成" },
+      { name: "一键帮预约", href: "/appointments", desc: "预约、转诊、续方和家医服务申请" },
+      { name: "服务中心", href: "/services", desc: "今日坐班、分级诊疗网络、活动和小课堂" },
+      { name: "服务进度", href: "/service-progress", desc: "查看团队处理状态、下一步和结果" },
+      { name: "消息中心", href: "/messages", desc: "预约、随访、资料补充和活动通知" },
+      { name: "健康记录", href: "/health-records", desc: "手工记录血压、血糖、体重和步数" },
+      { name: "长期记忆", href: "/memory", desc: "查看待确认事实、长期资料和健康时间线" },
       { name: "任务积分", href: "/tasks", desc: "完成健康小事并领取积分" },
       { name: "家医小课堂", href: "/courses", desc: "学习内容并同步积分记录" },
       { name: "一键找人", href: "/contacts", desc: "联系医生、护士、药师和社区支持" },
       { name: "健康小组", href: "/group", desc: "查看群提醒、打卡和互助消息" },
-      { name: "服务进度", href: "/service-progress", desc: "查看家医团队处理状态轨迹" },
+      { name: "公开信息", href: "/public-info", desc: "查看有来源、有效期和原文入口的信息" },
+      { name: "随访确认", href: "/followup", desc: "确认随访安排并补充近期情况" },
     ],
   },
   {
-    title: "家属与团队",
+    title: "家属与个人设置",
     pages: [
       { name: "家属协助", href: "/family", desc: "查看老人提醒、任务和服务进度" },
-      { name: "团队工作台", href: "/doctor", desc: "分角色处理待办和风险提醒" },
+      { name: "家属授权", href: "/family-link", desc: "生成或使用授权码绑定家人" },
       { name: "通知中心", href: "/notifications", desc: "接收处理状态、任务和系统提醒" },
+      { name: "通知设置", href: "/notification-settings", desc: "设置短信、企业微信、小程序和免打扰" },
+      { name: "隐私授权", href: "/privacy", desc: "管理敏感健康、AI、家属和通知授权" },
+      { name: "账号安全", href: "/account-security", desc: "查看登录安全和账号注销入口" },
+      { name: "我的", href: "/me", desc: "查看身份、社区、家医网络和服务历史" },
+      { name: "帮助与反馈", href: "/support", desc: "联系支持并提交正式反馈" },
     ],
   },
   {
-    title: "管理与设置",
+    title: "家庭医生团队",
     pages: [
-      { name: "管理后台", href: "/admin", desc: "看板、FAQ、课程、任务和反馈管理" },
-      { name: "我的", href: "/me", desc: "查看身份资料、入口设置和反馈入口" },
+      { name: "团队今日总览", href: "/doctor", desc: "风险、超时、待认领和群事实概览" },
+      { name: "服务工作队列", href: "/workbench/requests", desc: "受理、补资料、核验资源和回写预约结果" },
+      { name: "内容与群运营", href: "/workbench/operations", desc: "签约、群事实、内容、排班和广播审核" },
+    ],
+  },
+  {
+    title: "机构管理后台",
+    pages: [
+      { name: "运营总览", href: "/admin", desc: "服务、人员、内容、排班和渠道指标" },
+      { name: "分级诊疗网络", href: "/admin/care-network", desc: "配置机构、科室、医生和上转路线" },
+      { name: "服务目录", href: "/admin/service-catalog", desc: "配置办理模式、责任岗位和响应时限" },
+      { name: "工作人员", href: "/admin/staff", desc: "邀请和管理医生、护士、药师及社区人员" },
+      { name: "内容来源", href: "/admin/content-sources", desc: "登记公众号和官网，采集候选内容" },
+      { name: "企业微信", href: "/admin/channels", desc: "配置官方群渠道和定时通知" },
+      { name: "Agent Skill 与 RAG", href: "/admin/skills", desc: "查看 Skill 来源、许可、评测和知识索引" },
+      { name: "审计日志", href: "/admin/audit", desc: "查看关键权限和业务操作证据" },
+      { name: "居民反馈处理", href: "/admin/feedback", desc: "受理反馈并记录处理结论" },
+      { name: "上线准备度", href: "/admin/readiness", desc: "区分演示可用与正式上线阻断项" },
       { name: "体验反馈", href: "/feedback", desc: "提交使用建议和改进意见" },
       { name: "身份选择", href: "/welcome", desc: "重新选择角色并进入对应入口" },
     ],
@@ -167,7 +195,7 @@ export default function DemoCenterPage() {
     };
   }, []);
 
-  const quickUsers = useMemo(() => demoUsers.slice(0, 6), []);
+  const quickUsers = useMemo(() => demoUsers, []);
 
   return (
     <PhoneShell showBottomNav>

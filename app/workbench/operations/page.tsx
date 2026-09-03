@@ -85,11 +85,11 @@ export default function OperationsPage() {
     void load();
   }, [load]);
   async function fact(id: string, decision: "confirm" | "reject") {
-    if (isDemo)
-      return showToast(
-        "展示环境为只读，登录试点工作台后才能确认入档。",
-        "warning",
-      );
+    if (isDemo) {
+      setFacts((items) => items.filter((item) => String(item.id) !== id));
+      showToast(decision === "confirm" ? "演示：候选事实已模拟确认入档。" : "演示：候选事实已模拟拒绝。", "success");
+      return;
+    }
     const response = await fetch(
       `/api/v1/staff/fact-candidates/${id}/${decision}`,
       {
@@ -230,7 +230,7 @@ export default function OperationsPage() {
       />
       {isDemo ? (
         <div className="border-b border-[#E5C77B] bg-[#FFF8E7] px-5 py-2 text-center text-xs text-[#7A5A12]">
-          当前为只读工作台展示。群消息只生成候选事实，必须由家医确认后才能进入居民档案。
+          全功能演示模式：可模拟审核与确认，结果不会写入真实居民档案。
         </div>
       ) : null}
       <div className="mx-auto max-w-[1500px] px-5 py-6">
@@ -361,7 +361,7 @@ export default function OperationsPage() {
                             onClick={() =>
                               void fact(String(item.id), "confirm")
                             }
-                        disabled={!item.resident_id || isDemo}
+                        disabled={!item.resident_id}
                             className="inline-flex items-center gap-1 rounded-md bg-success px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
                           >
                             <CheckCircle2 className="h-4 w-4" />
@@ -369,7 +369,6 @@ export default function OperationsPage() {
                           </button>
                       <button
                         onClick={() => void fact(String(item.id), "reject")}
-                        disabled={isDemo}
                             className="inline-flex items-center gap-1 rounded-md border border-line px-3 py-2 text-xs font-semibold"
                           >
                             <XCircle className="h-4 w-4" />

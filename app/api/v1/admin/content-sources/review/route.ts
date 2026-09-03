@@ -4,6 +4,7 @@ import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { indexKnowledgeSource } from "@/lib/rag/indexer";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({
   itemId: z.string().uuid(),
@@ -16,6 +17,7 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ item: { id: crypto.randomUUID(), status: "published" }, ragIndex: { queued: true } }), traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有内容审核权限。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_REVIEW", "审核参数无效。", 400, traceId);

@@ -6,10 +6,13 @@ import { createServiceRequest, listServiceRequests } from "@/lib/db/serviceReque
 import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import { processOutboxEvents } from "@/lib/notifications/processOutbox";
+import { residentShowcaseRequest } from "@/lib/showcase/resident";
+import { demoMutation } from "@/lib/showcase/admin";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, residentId: "showcase-resident", careSubject: { residentId: "showcase-resident", displayName: "张阿姨", relationship: "本人", isSelf: true }, requests: [residentShowcaseRequest] }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   try {
     const careSubject = await resolveCareSubject(
@@ -31,6 +34,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ request: { ...residentShowcaseRequest, id: crypto.randomUUID(), status: "submitted", created_at: new Date().toISOString() }, deduplicated: false }), traceId, 201);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录后再提交服务申请。", 401, traceId);
 
   const parsed = serviceRequestCreateSchema.safeParse(await request.json().catch(() => null));

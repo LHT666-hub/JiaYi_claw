@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { indexKnowledgeSource, processPendingKnowledgeJobs } from "@/lib/rag/indexer";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.union([
   z.object({ mode: z.literal("source"), sourceType: z.enum(["public_info", "content_item"]), sourceId: z.string().uuid() }),
@@ -12,6 +13,7 @@ const schema = z.union([
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ processed: 2, results: [] }), traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) {
     return apiError("FORBIDDEN", "没有知识索引管理权限。", 403, traceId);
   }

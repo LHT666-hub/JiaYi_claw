@@ -166,7 +166,7 @@ export default function WorkbenchRequestsPage() {
   const sourceContext = selected?.payload?.sourceContext;
   const briefFacts = stringList(briefs[0]?.structured_content?.residentReportedFacts);
   const briefMissing = stringList(briefs[0]?.structured_content?.missingInformation);
-  const canAct = Boolean(!isDemo && selected && profile && (!selected.assigned_to || selected.assigned_to === profile.id || profile.role === "admin"));
+  const canAct = Boolean(selected && profile && (isDemo || !selected.assigned_to || selected.assigned_to === profile.id || profile.role === "admin"));
 
   const counts = useMemo(() => ({
     all: items.length,
@@ -217,8 +217,17 @@ export default function WorkbenchRequestsPage() {
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (!resident?.id || isDemo) {
+    if (!resident?.id) {
       setBriefs([]);
+      return;
+    }
+    if (isDemo) {
+      setBriefs([{
+        id: "showcase-brief",
+        summary: `${resident.display_name}希望办理${selected?.title ?? "家医服务"}。Claw 已整理居民自述、预约偏好和待补信息，接诊前仍需由医生核对原始资料。`,
+        structured_content: { residentReportedFacts: [selected?.summary ?? "居民已提交服务诉求", "希望由家医团队协助确认下一步"], missingInformation: ["近期检查报告原件", "当前完整用药清单"] },
+        source_refs: [], skill_id: "clinician-previsit-summary", skill_version: "1.0.0", human_review_status: "pending", created_at: new Date().toISOString(),
+      }]);
       return;
     }
     const residentId = resident.id;
@@ -233,7 +242,7 @@ export default function WorkbenchRequestsPage() {
       })
       .catch(() => setBriefs([]))
       .finally(() => setBriefLoading(false));
-  }, [isDemo, resident?.id, selected?.id]);
+  }, [isDemo, resident?.display_name, resident?.id, selected?.id, selected?.summary, selected?.title]);
 
   function resetComposer(action: ServiceAction | null = null) {
     setSelectedAction(action);
@@ -260,7 +269,17 @@ export default function WorkbenchRequestsPage() {
 
   async function reviewBrief(decision: "reviewed" | "rejected") {
     const brief = briefs[0];
-    if (!brief || isDemo) return;
+    if (!brief) return;
+    if (isDemo) {
+      if (decision === "reviewed") {
+        setBriefs((current) => current.map((item, index) => index === 0 ? { ...item, human_review_status: "reviewed" } : item));
+        showToast("演示：摘要已模拟完成人工核对。", "success");
+      } else {
+        setBriefs((current) => current.slice(1));
+        showToast("演示：摘要已模拟退回。", "success");
+      }
+      return;
+    }
     setReviewingBrief(true);
     try {
       const response = await fetch(`/api/v1/clinical-briefs/${brief.id}/review`, {
@@ -318,9 +337,14 @@ export default function WorkbenchRequestsPage() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error?.message ?? "状态更新失败。");
       actionKeys.current.delete(operation);
-      showToast("状态、居民通知和审计记录已更新。", "success");
+      showToast(isDemo ? "演示：状态、居民通知和审计记录已模拟更新。" : "状态、居民通知和审计记录已更新。", "success");
       resetComposer(null);
-      await load();
+      if (isDemo) {
+        const nextStatus: Partial<Record<ServiceAction, ServiceStatus>> = { accept: "accepted", request_info: "needs_info", check_availability: "checking_availability", propose_slot: "awaiting_user_confirmation", waitlist: "waitlisted", fail: "failed", update_booking: "booked", complete: "completed" };
+        setItems((current) => current.map((item) => item.id === selected.id ? { ...item, status: nextStatus[selectedAction] ?? item.status, updated_at: new Date().toISOString() } : item));
+      } else {
+        await load();
+      }
     } catch (actionError) {
       showToast(actionError instanceof Error ? actionError.message : "状态更新失败。", "warning");
     } finally {
@@ -337,7 +361,7 @@ export default function WorkbenchRequestsPage() {
         actions={<button type="button" onClick={() => void load()} className="flex h-9 items-center gap-2 rounded-[10px] border border-line bg-white px-3 text-xs font-semibold hover:bg-[#F4F6F5]"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /><span className="hidden sm:inline">刷新</span></button>}
       />
 
-      {isDemo ? <div className="border-b border-[#E5C77B] bg-[#FFF8E7] px-5 py-2 text-center text-xs text-[#7A5A12]">当前为只读展示数据。正式登录后可受理申请、回写预约凭证并形成完整审计记录。</div> : null}
+      {isDemo ? <div className="border-b border-[#E5C77B] bg-[#FFF8E7] px-5 py-2 text-center text-xs text-[#7A5A12]">全功能演示模式：可模拟受理、回写与审核；所有结果仅保留在本次展示中。</div> : null}
 
       <div className="mx-auto grid min-h-[calc(100dvh-73px)] max-w-[1500px] grid-cols-1 border-x border-line bg-white lg:grid-cols-[430px_minmax(0,1fr)]">
         <section className={`${selectedId ? "hidden lg:block" : "block"} border-r border-line bg-[#F8FAF9]`}>
@@ -381,7 +405,7 @@ export default function WorkbenchRequestsPage() {
                   {sourceContext ? <section className="rounded-md border border-sage/20 bg-health-soft/45 p-4"><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />居民引用的已审核内容</h3><p className="mt-2 text-sm font-semibold">{sourceContext.title ?? "已审核内容"}</p><p className="mt-1 text-xs text-navy/50">{sourceContext.sourceName ?? "官方来源"}{sourceContext.reviewedAt ? ` · 核验于 ${new Date(sourceContext.reviewedAt).toLocaleDateString("zh-CN")}` : ""}</p>{sourceContext.originalUrl ? <a href={sourceContext.originalUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sage">打开官方原文核对</a> : null}</section> : null}
                   {appointment ? <section><h3 className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="h-4 w-4 text-sage" />预约偏好与回执</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="目标" value={appointment.target ?? "未填写"} /><Detail label="期望日期" value={appointment.preferred_dates?.join("、") ?? "未填写"} /><Detail label="期望时段" value={appointment.preferred_time ?? "未填写"} /><Detail label="期望科室/医生" value={[appointment.department, appointment.preferred_doctor].filter(Boolean).join(" · ") || "未指定"} />{appointment.scheduled_at ? <Detail label="已提出时间" value={new Date(appointment.scheduled_at).toLocaleString("zh-CN")} /> : null}{appointment.institution_name ? <Detail label="机构与科室" value={[appointment.institution_name, appointment.department_name, appointment.clinician_name].filter(Boolean).join(" · ")} /> : null}</div></section> : null}
 
-                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />Claw 接诊前摘要</h3>{briefLoading ? <p className="mt-3 text-sm text-navy/45">正在读取摘要...</p> : briefs.length ? <div className="mt-3 border-l-2 border-sage bg-[#F7FAF8] px-4 py-3"><div className="mb-2 flex items-center justify-between gap-3"><span className="text-[11px] font-semibold text-sage">{briefs[0].human_review_status === "reviewed" ? "已人工核对" : "待医生核对"}</span><span className="text-[10px] text-navy/35">不作为诊断或病历</span></div><p className="text-sm leading-7 text-navy/72">{briefs[0].summary}</p>{briefFacts.length || briefMissing.length ? <div className="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-2">{briefFacts.length ? <BriefList label="已整理事实" items={briefFacts} /> : null}{briefMissing.length ? <BriefList label="仍需补充" items={briefMissing} warning /> : null}</div> : null}<p className="mt-3 text-[11px] text-navy/38">{briefs[0].skill_id} · {briefs[0].skill_version} · {formatDate(briefs[0].created_at)}</p>{briefs[0].human_review_status !== "reviewed" && !isDemo && ["doctor", "admin"].includes(profile?.role ?? "") ? <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3"><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("reviewed")} className="rounded-[8px] bg-sage px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">确认摘要与原始资料一致</button><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("rejected")} className="rounded-[8px] border border-line bg-white px-3 py-2 text-xs font-semibold text-navy/60 disabled:opacity-50">退回摘要</button></div> : null}</div> : <p className="mt-3 border border-dashed border-line px-4 py-5 text-sm leading-6 text-navy/45">本次申请没有可核对的结构化摘要。请以居民原始诉求、预约偏好和后续沟通为准。</p>}</section>
+                  <section><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />Claw 接诊前摘要</h3>{briefLoading ? <p className="mt-3 text-sm text-navy/45">正在读取摘要...</p> : briefs.length ? <div className="mt-3 border-l-2 border-sage bg-[#F7FAF8] px-4 py-3"><div className="mb-2 flex items-center justify-between gap-3"><span className="text-[11px] font-semibold text-sage">{briefs[0].human_review_status === "reviewed" ? "已人工核对" : "待医生核对"}</span><span className="text-[10px] text-navy/35">不作为诊断或病历</span></div><p className="text-sm leading-7 text-navy/72">{briefs[0].summary}</p>{briefFacts.length || briefMissing.length ? <div className="mt-3 grid gap-3 border-t border-line pt-3 sm:grid-cols-2">{briefFacts.length ? <BriefList label="已整理事实" items={briefFacts} /> : null}{briefMissing.length ? <BriefList label="仍需补充" items={briefMissing} warning /> : null}</div> : null}<p className="mt-3 text-[11px] text-navy/38">{briefs[0].skill_id} · {briefs[0].skill_version} · {formatDate(briefs[0].created_at)}</p>{briefs[0].human_review_status !== "reviewed" && ["doctor", "admin"].includes(profile?.role ?? "") ? <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3"><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("reviewed")} className="rounded-[8px] bg-sage px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">确认摘要与原始资料一致</button><button type="button" disabled={reviewingBrief} onClick={() => void reviewBrief("rejected")} className="rounded-[8px] border border-line bg-white px-3 py-2 text-xs font-semibold text-navy/60 disabled:opacity-50">退回摘要</button></div> : null}</div> : <p className="mt-3 border border-dashed border-line px-4 py-5 text-sm leading-6 text-navy/45">本次申请没有可核对的结构化摘要。请以居民原始诉求、预约偏好和后续沟通为准。</p>}</section>
 
                   <section><h3 className="flex items-center gap-2 text-sm font-semibold"><ClipboardCheck className="h-4 w-4 text-sage" />办理记录</h3><div className="mt-3 divide-y divide-line border-y border-line">{[...(selected.service_request_events ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)).map((event) => <div key={event.id} className="flex gap-4 py-3"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-sage" /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><p className="text-sm font-medium">{serviceStatusLabels[event.new_status as ServiceStatus] ?? event.action}</p><p className="shrink-0 text-[11px] text-navy/38">{formatDate(event.created_at)}</p></div>{event.note ? <p className="mt-1 text-xs leading-5 text-navy/55">{event.note}</p> : null}</div></div>)}</div></section>
                 </div>
@@ -390,7 +414,7 @@ export default function WorkbenchRequestsPage() {
               <aside className="bg-[#F8FAF9] px-5 py-6 xl:sticky xl:top-0 xl:h-[calc(100dvh-73px)] xl:overflow-y-auto">
                 <h3 className="text-sm font-semibold">下一步处理</h3>
                 <p className="mt-1 text-xs leading-5 text-navy/48">选择动作、补全对居民可见的信息，再提交状态变化。</p>
-                {!canAct ? <div className="mt-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">{isDemo ? "展示环境为只读，所有写操作均已关闭。" : `该申请已由 ${assignee?.display_name ?? "其他工作人员"} 认领。您可以查看资料，但不能直接更改状态。`}</div> : null}
+                {!canAct ? <div className="mt-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">该申请已由 {assignee?.display_name ?? "其他工作人员"} 认领。您可以查看资料，但不能直接更改状态。</div> : null}
                 <div className="mt-4 space-y-2">{canAct ? (actionOptions[selected.status] ?? []).map((option) => <button key={option.action} type="button" onClick={() => resetComposer(option.action)} className={`flex w-full items-center justify-between border px-3 py-3 text-left ${selectedAction === option.action ? "border-navy bg-navy text-white" : "border-line bg-white hover:border-sage/50"}`}><span><span className="block text-sm font-semibold">{option.label}</span><span className={`mt-1 block text-xs ${selectedAction === option.action ? "text-white/60" : "text-navy/45"}`}>{option.description}</span></span><ChevronRight className="h-4 w-4 shrink-0" /></button>) : null}</div>
 
                 {canAct && selectedAction ? <div className="mt-5 border-t border-line pt-5">

@@ -5,10 +5,17 @@ import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/resp
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { assertVerifiedResidentCareBinding } from "@/lib/db/carePlatform";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
+
+const demoObservations = [
+  { id: "90000000-0000-4000-8000-000000000001", observation_type: "blood_pressure", value: 138, secondary_value: 86, unit: "mmHg", measured_at: new Date(Date.now() - 3_600_000).toISOString(), note: "晨起测量（演示）", source: "manual", can_delete: true },
+  { id: "90000000-0000-4000-8000-000000000002", observation_type: "weight", value: 63.5, secondary_value: null, unit: "kg", measured_at: new Date(Date.now() - 86_400_000).toISOString(), note: null, source: "manual", can_delete: true },
+];
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, residentId: "showcase-resident", careSubject: { displayName: "张阿姨", isSelf: true }, observations: demoObservations }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   try {
     const { residentId, selected } = await resolveCareSubject(
@@ -47,6 +54,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ observation: { id: crypto.randomUUID(), source: "manual", can_delete: true } }), traceId, 201);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const body = await request.json().catch(() => null);
   const parsed = healthObservationSchema.safeParse(body?.observation ?? body);
@@ -94,6 +102,7 @@ const deleteSchema = z.object({ id: z.string().uuid() });
 export async function DELETE(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk(demoMutation({ deleted: true }), traceId);
   if (!supabase || !profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const parsed = deleteSchema.safeParse(await request.json().catch(() => null));

@@ -1,9 +1,11 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseOverview } from "@/lib/showcase/admin";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(adminShowcaseOverview, traceId);
   if (!auth.supabase || auth.profile?.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以查看运营总览。", 403, traceId);
   const org = auth.profile.organization_id;
   const [requests, staff, content, facts, schedules, channels] = await Promise.all([

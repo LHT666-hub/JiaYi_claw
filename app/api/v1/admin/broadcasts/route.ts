@@ -2,16 +2,19 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const schema = z.object({ channelGroupId: z.string().uuid(), contentItemId: z.string().uuid().nullable().optional(), title: z.string().trim().min(2).max(120), body: z.string().trim().min(2).max(2000), linkUrl: z.string().url().nullable().optional(), scheduledAt: z.string().datetime(), confirmed: z.literal(true) });
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk({ demo: true, broadcasts: [] }, traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有群通知管理权限。", 403, traceId);
   const { data, error } = await auth.supabase.from("scheduled_broadcasts").select("*,channel_group:channel_groups(name)").eq("organization_id", auth.profile.organization_id).order("scheduled_at", { ascending: false }).limit(100);
   return error ? apiError("BROADCAST_LIST_FAILED", error.message, 500, traceId) : apiOk({ broadcasts: data ?? [] }, traceId);
 }
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ broadcast: { id: crypto.randomUUID(), status: "scheduled" } }), traceId, 201);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有群通知管理权限。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_BROADCAST", "群通知信息不完整。", 400, traceId);

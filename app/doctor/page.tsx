@@ -72,7 +72,7 @@ export default function DoctorPage() {
   return <main className="min-h-dvh bg-[#F2F5F4] text-navy">
     <WorkbenchHeader title="今日总览" subtitle="先处理高风险、超时和无人认领的居民服务" profile={profile ? { displayName: profile.displayName, role: roleLabels[profile.role] ?? profile.role } : null} actions={<button type="button" onClick={() => void load()} aria-label="刷新工作台" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-line bg-white text-navy/55 hover:bg-[#F4F7F6]"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /></button>} />
     <div className="mx-auto max-w-[1500px] px-5 py-6">
-      {isDemo ? <div className="mb-5 flex items-center gap-2 border border-sage/20 bg-health-soft px-4 py-3 text-xs font-semibold text-sage"><CheckCircle2 className="h-4 w-4" />当前为只读工作台展示，处理动作和居民信息写入均已关闭。</div> : null}
+      {isDemo ? <div className="mb-5 flex items-center gap-2 border border-sage/20 bg-health-soft px-4 py-3 text-xs font-semibold text-sage"><CheckCircle2 className="h-4 w-4" />全功能演示模式已开启，可进入队列模拟处理，不写入真实居民数据。</div> : null}
       {error ? <div className="mb-5 border border-danger/20 bg-risk-soft px-4 py-3 text-sm text-danger">{error}</div> : null}
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">

@@ -20,6 +20,7 @@ const consentInput = z.object({
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, residentId: "showcase-resident", careSubject: { displayName: "张阿姨", isSelf: true }, consents: ["privacy", "sensitive_health", "ai_processing", "notification"].map((scope) => ({ id: `demo-${scope}`, scope, policy_version: "2026-01", granted: true, granted_at: new Date().toISOString(), revoked_at: null })) }, traceId);
   if (!supabase || !profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (!["resident", "family"].includes(profile.role)) {
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, simulated: true, consent: { id: crypto.randomUUID(), granted: true } }, traceId);
   if (!supabase || !profile)
     return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const parsed = consentInput.safeParse(await request.json().catch(() => null));

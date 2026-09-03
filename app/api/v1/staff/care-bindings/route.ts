@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId, readErrorMessage } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation, showcaseIds } from "@/lib/showcase/admin";
 
 const reviewSchema = z.object({
   bindingId: z.string().uuid(),
@@ -14,6 +15,7 @@ const reviewRoles = ["doctor", "nurse", "community", "admin"];
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk({ demo: true, bindings: [{ id: "c0000000-0000-4000-8000-000000000001", resident_id: "showcase-resident", care_network_id: showcaseIds.network, community_id: showcaseIds.community, status: "pending", created_at: new Date(Date.now() - 7_200_000).toISOString(), resident: { display_name: "周阿姨", phone: "135****2218" }, network: { name: "海湾镇分级诊疗协作网络（演示）" }, community: { name: "海湾镇社区（演示）" } }] }, traceId);
   if (!auth.supabase || !auth.profile || !reviewRoles.includes(auth.profile.role)) {
     return apiError("FORBIDDEN", "没有家医签约核验权限。", 403, traceId);
   }
@@ -38,6 +40,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ binding: { id: "c0000000-0000-4000-8000-000000000001", status: "active" } }), traceId);
   if (!auth.supabase || !auth.profile || !reviewRoles.includes(auth.profile.role)) {
     return apiError("FORBIDDEN", "没有家医签约核验权限。", 403, traceId);
   }

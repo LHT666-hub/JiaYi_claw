@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseAudit } from "@/lib/showcase/admin";
 
 const querySchema = z.object({
   action: z.string().trim().max(80).optional(),
@@ -11,6 +12,7 @@ const querySchema = z.object({
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(adminShowcaseAudit, traceId);
   if (!auth.supabase || auth.profile?.role !== "admin" || !auth.profile.organization_id) {
     return apiError("FORBIDDEN", "只有管理员可以查看审计日志。", 403, traceId);
   }

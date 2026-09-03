@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseFeedback, demoMutation } from "@/lib/showcase/admin";
 
 const updateInput = z.object({
   id: z.string().uuid(),
@@ -19,6 +20,7 @@ async function requireFeedbackStaff(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireFeedbackStaff(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth) return apiOk(adminShowcaseFeedback, traceId);
   if (!auth) return apiError("FORBIDDEN", "没有居民反馈处理权限。", 403, traceId);
   const profile = auth.profile!;
   const supabase = auth.supabase!;
@@ -45,6 +47,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await requireFeedbackStaff(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth) return apiOk(demoMutation({ feedback: { status: "resolved" } }), traceId);
   if (!auth) return apiError("FORBIDDEN", "没有居民反馈处理权限。", 403, traceId);
   const parsed = updateInput.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

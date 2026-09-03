@@ -1,10 +1,12 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseRagStatus } from "@/lib/showcase/admin";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(adminShowcaseRagStatus, traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) {
     return apiError("FORBIDDEN", "没有知识索引查看权限。", 403, traceId);
   }

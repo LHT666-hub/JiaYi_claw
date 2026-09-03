@@ -2,10 +2,12 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseChannels, demoMutation } from "@/lib/showcase/admin";
 
 const accountSchema = z.object({ name: z.string().trim().min(2).max(100), corpId: z.string().trim().min(2).max(100), agentId: z.string().trim().max(100).nullable().optional(), receiveCapability: z.enum(["outbound_only", "callback", "archive"]).default("outbound_only") });
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(adminShowcaseChannels, traceId);
   if (!auth.supabase || auth.profile?.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以管理企业微信渠道。", 403, traceId);
   const [accounts, groups] = await Promise.all([
     auth.supabase.from("channel_accounts").select("id,name,corp_id,agent_id,receive_capability,status,created_at").eq("organization_id", auth.profile.organization_id),
@@ -16,6 +18,7 @@ export async function GET(request: NextRequest) {
 }
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ account: { id: crypto.randomUUID(), status: "active" } }), traceId, 201);
   if (!auth.supabase || auth.profile?.role !== "admin") return apiError("FORBIDDEN", "只有管理员可以管理企业微信渠道。", 403, traceId);
   const parsed = accountSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_CHANNEL_ACCOUNT", "企业微信账号信息无效。", 400, traceId);

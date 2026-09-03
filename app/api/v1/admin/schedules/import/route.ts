@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { writeAuditLog } from "@/lib/db/audit";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { demoMutation } from "@/lib/showcase/admin";
 
 const row = z.object({ institutionId: z.string().uuid(), departmentId: z.string().uuid().nullable().optional(), practitionerId: z.string().uuid().nullable().optional(), startsAt: z.string().datetime(), endsAt: z.string().datetime(), serviceMode: z.enum(["clinic", "phone", "home_visit", "online"]).default("clinic"), location: z.string().trim().max(200).nullable().optional(), registrationUrl: z.string().url().nullable().optional(), sourceUrl: z.string().url().nullable().optional(), note: z.string().trim().max(500).nullable().optional() }).superRefine((value, context) => {
   if (new Date(value.endsAt) <= new Date(value.startsAt)) context.addIssue({ code: "custom", path: ["endsAt"], message: "结束时间必须晚于开始时间。" });
@@ -12,6 +13,7 @@ const schema = z.object({ schedules: z.array(row).min(1).max(200) });
 
 export async function POST(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(demoMutation({ schedules: [{ id: crypto.randomUUID(), status: "draft" }], requiresVerification: true }), traceId, 201);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有排班导入权限。", 403, traceId);
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_SCHEDULE_IMPORT", parsed.error.issues[0]?.message ?? "排班格式无效。", 400, traceId);

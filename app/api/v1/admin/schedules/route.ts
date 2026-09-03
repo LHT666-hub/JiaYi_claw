@@ -1,9 +1,11 @@
 import type { NextRequest } from "next/server";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseCareNetwork } from "@/lib/showcase/admin";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId(); const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk({ demo: true, schedules: [{ id: "b0000000-0000-4000-8000-000000000001", institution_id: adminShowcaseCareNetwork.institutions[0].id, department_id: null, practitioner_id: adminShowcaseCareNetwork.practitioners[0].id, starts_at: new Date(Date.now() + 86_400_000).toISOString(), ends_at: new Date(Date.now() + 90_000_000).toISOString(), status: "draft", source_url: null, note: "机构负责人待核验（演示）", institution: { name: adminShowcaseCareNetwork.institutions[0].name }, practitioner: { name: "李医生", title: "主治医师" } }], institutions: adminShowcaseCareNetwork.institutions, departments: adminShowcaseCareNetwork.departments, practitioners: adminShowcaseCareNetwork.practitioners }, traceId);
   if (!auth.supabase || !auth.profile || !["admin", "community"].includes(auth.profile.role)) return apiError("FORBIDDEN", "没有排班管理权限。", 403, traceId);
   const [schedules, institutions, departments, practitioners] = await Promise.all([
     auth.supabase.from("practitioner_schedules").select("*,institution:institutions(name),department:departments(name),practitioner:practitioners(name,title)").eq("organization_id", auth.profile.organization_id).gte("ends_at", new Date(Date.now() - 86_400_000).toISOString()).order("starts_at").limit(200),

@@ -28,6 +28,7 @@ const defaults = {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, preferences: { user_id: "showcase-resident", ...defaults } }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const { data, error } = await supabase.from("notification_preferences").select("*").eq("user_id", profile.id).maybeSingle();
   return error
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, simulated: true, preferences: defaults }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   const parsed = input.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return apiError("INVALID_PREFERENCES", "通知设置格式不正确。", 400, traceId);

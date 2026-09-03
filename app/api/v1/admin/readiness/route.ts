@@ -6,12 +6,14 @@ import {
   type ReadinessCheck,
 } from "@/lib/operations/readiness";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
+import { adminShowcaseReadiness } from "@/lib/showcase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const auth = await getApiAuthContext(request);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !auth.supabase) return apiOk(adminShowcaseReadiness, traceId);
   if (!auth.supabase || auth.profile?.role !== "admin") {
     return apiError("FORBIDDEN", "只有管理员可以查看上线准备度。", 403, traceId);
   }
