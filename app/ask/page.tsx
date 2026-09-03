@@ -66,8 +66,11 @@ const sourceLabels: Record<string, string> = {
   agent: "Claw 服务编排",
   knowledge: "已审核公开信息",
   knowledge_kimi: "知识库与 AI 整理",
+  knowledge_model: "知识库与 AI 整理",
   faq: "服务知识库",
   faq_kimi: "服务知识库与 AI 整理",
+  faq_model: "服务知识库与 AI 整理",
+  model: "AI 模型整理",
   kimi: "AI 通用整理",
   fallback: "安全兜底",
 };

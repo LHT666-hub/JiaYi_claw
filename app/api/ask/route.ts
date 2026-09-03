@@ -797,7 +797,7 @@ export async function POST(request: NextRequest) {
         {
           category: faqReply.category,
           nextStep: faqReply.nextStep,
-          source: "faq_kimi",
+          source: "faq_model",
         },
       );
 
@@ -810,7 +810,7 @@ export async function POST(request: NextRequest) {
 
       return finalize({
         ...reply,
-        source: "faq_kimi",
+        source: "faq_model",
         category: faqReply.category || reply.category || "服务导航",
       });
     }
@@ -826,7 +826,7 @@ export async function POST(request: NextRequest) {
         category: knowledgeHits[0].category,
         nextStep:
           "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
-        source: "knowledge_kimi" as const,
+        source: "knowledge_model" as const,
         knowledgeIds,
       };
 
@@ -846,7 +846,7 @@ export async function POST(request: NextRequest) {
 
       return finalize({
         ...reply,
-        source: "knowledge_kimi",
+        source: "knowledge_model",
         category: knowledgeHits[0].category,
         knowledgeIds,
       });
@@ -860,7 +860,7 @@ export async function POST(request: NextRequest) {
         category: "服务导航",
         nextStep:
           "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
-        source: "kimi",
+        source: "model",
       },
     );
 
@@ -873,7 +873,7 @@ export async function POST(request: NextRequest) {
 
     return finalize({
       ...reply,
-      source: "kimi",
+      source: "model",
       category: reply.category || "服务导航",
     });
   } catch {
@@ -946,7 +946,7 @@ export async function GET(request: NextRequest) {
         {
           category: faqReply.category,
           nextStep: faqReply.nextStep,
-          source: "faq_kimi",
+          source: "faq_model",
         },
       );
       return NextResponse.json({
@@ -961,7 +961,7 @@ export async function GET(request: NextRequest) {
               }
             : {
                 ...reply,
-                source: "faq_kimi",
+                source: "faq_model",
                 category: faqReply.category || reply.category || "服务导航",
               },
       });
@@ -982,7 +982,7 @@ export async function GET(request: NextRequest) {
         category: knowledgeHits[0].category,
         nextStep:
           "如果您还是拿不准，建议联系家庭医生或社区卫生服务中心进一步确认。",
-        source: "knowledge_kimi" as const,
+        source: "knowledge_model" as const,
         knowledgeIds: knowledgeHits.map((item) => item.id),
       };
       const { reply, errorReason } = await runKimiWithCache(
@@ -1000,7 +1000,7 @@ export async function GET(request: NextRequest) {
             ? { ...reply, reason: errorReason ?? reply.reason ?? "kimi_error" }
             : {
                 ...reply,
-                source: "knowledge_kimi",
+                source: "knowledge_model",
                 category: knowledgeHits[0].category,
                 knowledgeIds: fallbackMeta.knowledgeIds,
               },
@@ -1015,7 +1015,7 @@ export async function GET(request: NextRequest) {
         category: "服务导航",
         nextStep:
           "如果问题仍然不清楚，建议联系家庭医生或社区卫生服务中心确认。",
-        source: "kimi",
+        source: "model",
       },
     );
     return NextResponse.json({
@@ -1027,7 +1027,7 @@ export async function GET(request: NextRequest) {
           ? { ...reply, reason: errorReason ?? reply.reason ?? "kimi_error" }
           : {
               ...reply,
-              source: "kimi",
+              source: "model",
               category: reply.category || "服务导航",
             },
     });

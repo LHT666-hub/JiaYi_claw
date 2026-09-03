@@ -80,7 +80,7 @@ export async function buildGroundedKnowledgeReply(question: string, hits: Knowle
     return {
       ...fallback,
       answer: generated.answer,
-      source: "knowledge_kimi",
+      source: "knowledge_model",
       nextStep: `请以原文和所属家医团队的最新确认为准。\n${sourceLine(generated.citations)}`,
     };
   } catch {

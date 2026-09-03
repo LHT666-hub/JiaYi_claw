@@ -32,6 +32,9 @@ export type AskSource =
   | "faq_kimi"
   | "knowledge_kimi"
   | "kimi"
+  | "faq_model"
+  | "knowledge_model"
+  | "model"
   | "fallback"
   | "greeting"
   | "knowledge";

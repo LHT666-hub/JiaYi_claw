@@ -230,12 +230,14 @@ function inferIntent(result) {
     return "unverified";
   }
 
-  if (result.source === "faq" || result.source === "faq_kimi") {
+  if (result.source === "faq" || result.source === "faq_model" || result.source === "faq_kimi") {
     return "faq";
   }
 
   if (
     result.source === "knowledge" ||
+    result.source === "knowledge_model" ||
+    result.source === "model" ||
     result.source === "knowledge_kimi" ||
     result.source === "kimi"
   ) {

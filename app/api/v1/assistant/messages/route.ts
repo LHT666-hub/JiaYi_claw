@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
           (profile.role === "resident" ? profile.id : null),
         skill_id: skillId,
         skill_version: getSkillDefinition(skillId)?.version ?? "unknown",
-        model: reply.source?.includes("kimi")
+        model: reply.source?.includes("model") || reply.source?.includes("kimi")
           ? getAiModelConfig("rag").model
           : "deterministic",
         trace_id: traceId,

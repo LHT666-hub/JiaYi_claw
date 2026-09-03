@@ -79,7 +79,7 @@ export async function getAskDashboardMetrics(supabase: TypedSupabaseClient) {
     faqHitCount: sourceList.filter((item) => item === "faq").length,
     safetyBlockCount: sourceList.filter((item) => item === "safety").length,
     kimiCount: sourceList.filter(
-      (item) => item === "kimi" || item === "faq_kimi" || item === "knowledge_kimi",
+      (item) => ["model", "faq_model", "knowledge_model", "kimi", "faq_kimi", "knowledge_kimi"].includes(item),
     ).length,
     fallbackCount: sourceList.filter((item) => item === "fallback").length,
   };
