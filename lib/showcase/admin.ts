@@ -110,7 +110,7 @@ export const adminShowcaseReadiness = {
     { id: "database", label: "正式境内数据库", detail: "当前仅为合成数据演示，尚未接入正式居民数据库。", status: "blocked", action: "完成境内部署、备份、RLS 与灾备验收。" },
     { id: "sms", label: "短信验证码", detail: "登录界面已完成，正式短信签名与模板尚未配置。", status: "blocked", action: "申请腾讯云短信资质、签名和模板。" },
     { id: "wechat", label: "微信小程序", detail: "代码可构建，正式 AppID、合法域名和隐私审核待完成。", status: "pending", action: "完成主体认证并提交微信审核。" },
-    { id: "ai", label: "Agent 与安全分流", detail: "演示模型、受控 Skill、RAG 和安全分类链路可展示。", status: "ready", action: null },
+    { id: "ai", label: "Agent 与安全分流", detail: "阿里云百炼文本、视觉与向量模型已接通，受控 Skill、RAG 和安全分类链路可展示。", status: "ready", action: null },
     { id: "pilot", label: "机构试点协议", detail: "演示数据不代表已获得医院或社区系统接口。", status: "blocked", action: "确定试点机构、责任人、服务目录和数据处理协议。" },
   ],
   summary: { ready: 2, pending: 1, blocked: 3, total: 6 },
