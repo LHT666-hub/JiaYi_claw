@@ -50,6 +50,8 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
     || path.join(process.cwd(), ".venv-whisper-wu", "Scripts", "python.exe");
   const asrReady = asrProvider === "local_whisper_wu"
     ? existsSync(localAsrPython)
+    : asrProvider === "bailian_qwen_asr"
+      ? Boolean((process.env.DASHSCOPE_API_KEY || process.env.BAILIAN_API_KEY || process.env.AI_API_KEY)?.trim())
     : asrProvider === "tencent_asr"
       && Boolean(
         (process.env.TENCENT_ASR_SECRET_ID || process.env.TENCENT_SMS_SECRET_ID)?.trim()
@@ -124,7 +126,7 @@ export function getEnvironmentReadiness(): ReadinessCheck[] {
       "语音识别",
       asrReady,
       `语音识别 provider 已配置：${asrProvider}。`,
-      "生产建议配置 ASR_PROVIDER=tencent_asr 与服务端密钥；院内环境可使用 local_whisper_wu。",
+      "配置 ASR_PROVIDER=bailian_qwen_asr；院内环境也可使用 local_whisper_wu。",
       false,
     ),
     configured(

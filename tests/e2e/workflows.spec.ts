@@ -671,38 +671,40 @@ test("正式登录与首次建档保持移动端圆角视觉", async ({ page }) 
 
 test("居民语音先转写并确认文字", async ({ page }) => {
   await mockAssistantSession(page);
+  await page.route("**/api/v1/speech/transcribe", async (route) => {
+    await route.fulfill({
+      json: ok({
+        text: "我想预约明天下午的家庭医生",
+        provider: "aliyun-bailian-asr",
+        model: "qwen3-asr-flash",
+        retained: false,
+        requiresConfirmation: true,
+      }),
+    });
+  });
   await page.addInitScript(() => {
-    class MockSpeechRecognition {
-      lang = "";
-      continuous = false;
-      interimResults = false;
-      maxAlternatives = 1;
-      onstart: (() => void) | null = null;
-      onresult: ((event: unknown) => void) | null = null;
-      onerror: ((event: unknown) => void) | null = null;
-      onend: (() => void) | null = null;
-
-      start() {
-        this.onstart?.();
-      }
-
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: async () => ({
+          getTracks: () => [{ stop: () => undefined }],
+        }),
+      },
+    });
+    class MockMediaRecorder {
+      static isTypeSupported() { return true; }
+      state = "inactive";
+      mimeType = "audio/webm";
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start() { this.state = "recording"; }
       stop() {
-        this.onresult?.({
-          results: [[{ transcript: "我想预约明天下午的家庭医生" }]],
-        });
-        this.onend?.();
-      }
-
-      abort() {
-        this.onend?.();
+        this.state = "inactive";
+        this.ondataavailable?.({ data: new Blob(["voice"], { type: this.mimeType }) });
+        this.onstop?.();
       }
     }
-    for (const property of ["SpeechRecognition", "webkitSpeechRecognition"]) {
-      Object.defineProperty(window, property, {
-        configurable: true,
-        value: MockSpeechRecognition,
-      });
-    }
+    Object.defineProperty(window, "MediaRecorder", { configurable: true, value: MockMediaRecorder });
   });
   await page.goto("/ask");
   await expect(page.locator("nav")).toHaveCount(0);
@@ -713,10 +715,57 @@ test("居民语音先转写并确认文字", async ({ page }) => {
   await expect(holdToTalk).toContainText("按住说话");
   await holdToTalk.dispatchEvent("pointerdown", { button: 0, pointerId: 1 });
   await expect(holdToTalk).toContainText("松开，转成文字");
-  await holdToTalk.dispatchEvent("pointerup", { button: 0, pointerId: 1 });
+  await page.evaluate(() => window.dispatchEvent(new PointerEvent("pointerup", { button: 0, pointerId: 1 })));
   await expect(
     page.getByPlaceholder("问服务、排班、活动或准备材料"),
   ).toHaveValue("我想预约明天下午的家庭医生");
+});
+
+test("手机键盘弹起时页面外壳锁定且输入栏仍可见", async ({ page }) => {
+  await mockAssistantSession(page);
+  await page.addInitScript(() => {
+    const listeners = new Map<string, Set<EventListener>>();
+    Object.defineProperty(window, "visualViewport", {
+      configurable: true,
+      value: {
+        height: 420,
+        width: 390,
+        offsetLeft: 0,
+        offsetTop: 0,
+        scale: 1,
+        addEventListener: (type: string, listener: EventListener) => {
+          const current = listeners.get(type) ?? new Set<EventListener>();
+          current.add(listener);
+          listeners.set(type, current);
+        },
+        removeEventListener: (type: string, listener: EventListener) => {
+          listeners.get(type)?.delete(listener);
+        },
+      },
+    });
+  });
+  await page.goto("/ask");
+  const input = page.getByPlaceholder("问服务、排班、活动或准备材料");
+  await input.focus();
+  await expect(input).toBeVisible();
+  const layout = await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>(".phone-shell-stage");
+    const frame = document.querySelector<HTMLElement>(".phone-shell-frame");
+    return {
+      bodyOverflow: document.body.style.overflow,
+      stagePosition: stage ? getComputedStyle(stage).position : "",
+      stageHeight: stage?.getBoundingClientRect().height ?? 0,
+      frameHeight: frame?.getBoundingClientRect().height ?? 0,
+      keyboardClass: stage?.classList.contains("phone-keyboard-open") ?? false,
+    };
+  });
+  expect(layout).toMatchObject({
+    bodyOverflow: "hidden",
+    stagePosition: "fixed",
+    stageHeight: 420,
+    frameHeight: 420,
+    keyboardClass: true,
+  });
 });
 
 test("居民拍摄报告后先核对临时识别结果", async ({ page }) => {

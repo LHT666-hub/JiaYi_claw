@@ -3,6 +3,19 @@ import { isSafetyTriageQuestion } from "../safety/classifier";
 
 export const skillRegistry: SkillDefinition[] = [
   {
+    id: "speech-transcription-bailian-qwen",
+    name: "百炼实时语音转写",
+    version: "qwen3-asr-flash.1",
+    purpose: "把居民手机录音通过服务端转成可编辑文字，支持普通话、吴语等中文口音。",
+    source: "阿里云百炼 Qwen3-ASR-Flash",
+    license: "Commercial API",
+    risk: "medium",
+    enabled: true,
+    allowedTools: ["speech.transcribe"],
+    solves: "避免依赖不同手机浏览器的语音实现，并在松手后给出可核对文字。",
+    evalScore: 0,
+  },
+  {
     id: "speech-transcription-whisper-wu",
     name: "普通话与吴语语音转写",
     version: "v09-local.1",

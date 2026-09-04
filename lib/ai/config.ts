@@ -27,10 +27,10 @@ export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
   const provider = selectedProvider();
   if (provider === "aliyun_bailian") {
     const modelByPurpose: Record<AiPurpose, string> = {
-      text: first(process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
-      vision: first(process.env.AI_VISION_MODEL, process.env.DASHSCOPE_VISION_MODEL) || "qwen-vl-max",
-      memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
-      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen-plus",
+      text: first(process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.8-flash",
+      vision: first(process.env.AI_VISION_MODEL, process.env.DASHSCOPE_VISION_MODEL) || "qwen3.7-plus",
+      memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.8-flash",
+      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.7-plus",
     };
     return {
       provider,
@@ -71,7 +71,11 @@ export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
 
 export function getTextModelCandidates() {
   const config = getAiModelConfig("text");
-  if (config.provider === "aliyun_bailian") return [...new Set([config.model, "qwen-plus"])];
+  if (config.provider === "aliyun_bailian") {
+    return config.model === "qwen-plus"
+      ? [config.model]
+      : [...new Set([config.model, "qwen3.7-flash", "qwen-plus"])];
+  }
   if (config.provider === "moonshot") return [...new Set([config.model, "kimi-k2.6", "moonshot-v1-8k"])];
   return [config.model];
 }

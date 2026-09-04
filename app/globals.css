@@ -77,6 +77,24 @@ body {
   border-radius: 42px;
 }
 
+.phone-keyboard-open {
+  padding: 0 !important;
+}
+
+.phone-keyboard-open .phone-shell-frame {
+  border-radius: 28px;
+  max-height: none;
+}
+
+.phone-keyboard-open .ask-header {
+  padding-top: 10px;
+  padding-bottom: 8px;
+}
+
+.phone-keyboard-open .ask-composer {
+  margin-top: 4px;
+}
+
 .phone-bottom-nav {
   padding-right: max(16px, var(--safe-right));
   padding-bottom: max(20px, var(--safe-bottom));

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse, after } from "next/server";
-import { getAiModelConfig, getTextModelCandidates } from "@/lib/ai/config";
+import { getAiModelConfig, getTextModelCandidates, modelTemperature } from "@/lib/ai/config";
 import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
 import {
   getCurrentServiceOwnerRole,
@@ -69,7 +69,7 @@ const unauthenticatedUnverifiedReply: AskReply = {
 };
 
 const KIMI_CACHE_TTL_MS = 5 * 60 * 1000;
-const KIMI_TIMEOUT_MS = 40_000;
+const KIMI_TIMEOUT_MS = Math.max(4_000, Number(process.env.AI_RESPONSE_TIMEOUT_MS ?? 12_000));
 const kimiCache = new Map<string, { expiresAt: number; reply: AskReply }>();
 const kimiInFlight = new Map<string, Promise<AskReply>>();
 
@@ -288,7 +288,7 @@ async function requestKimi(
   const completion = (await Promise.race([
     client.chat.completions.create({
       model,
-      temperature: 1,
+      temperature: modelTemperature(model),
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },

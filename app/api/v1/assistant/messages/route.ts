@@ -10,8 +10,8 @@ import {
 } from "@/lib/assistant/activity";
 import { resolveCareSubject } from "@/lib/careSubjects";
 import { getResidentCareAccess } from "@/lib/db/carePlatform";
-import { inferServiceRequestFromQuestion } from "@/lib/agent";
-import { getGuardrailReply } from "@/lib/faq";
+import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
+import { getGreetingReply, getGuardrailReply } from "@/lib/faq";
 import { CURRENT_POLICY_VERSION } from "@/lib/policies";
 import { buildGroundedKnowledgeReply } from "@/lib/rag/answer";
 import { searchKnowledge } from "@/lib/rag/search";
@@ -45,11 +45,26 @@ export async function POST(request: NextRequest) {
     return apiError("INVALID_MESSAGE", "请输入要咨询的问题。", 400, traceId);
 
   let skillIds = routeSkillIds(parsed.data.question);
+  const immediateReply = getGuardrailReply(parsed.data.question)
+    ?? getGreetingReply(parsed.data.question);
+  if (immediateReply) {
+    const draft = inferServiceRequestFromQuestion(parsed.data.question);
+    return apiOk({
+      reply: immediateReply,
+      skillIds: immediateReply.source === "safety" ? ["safety-triage"] : skillIds,
+      actions: buildAssistantActions({ question: parsed.data.question, reply: immediateReply, serviceRequest: draft }),
+      draft,
+      careSubject: null,
+      writePerformed: false,
+      activity: null,
+      rawTranscriptStored: false,
+    }, traceId);
+  }
   const auth = await getApiAuthContext(request);
   if (!auth.supabase || !auth.profile) {
     const inferredDraft = inferServiceRequestFromQuestion(parsed.data.question);
-    const safetyReply = getGuardrailReply(parsed.data.question);
-    const publicMatches = safetyReply
+    const agentReply = buildAgentReply(parsed.data.question, inferredDraft);
+    const publicMatches = agentReply
       ? []
       : await searchPublicInfo(parsed.data.question);
     const publicReply = publicMatches[0]
@@ -57,8 +72,8 @@ export async function POST(request: NextRequest) {
       : null;
     const requiresCurrentSource = requiresVerifiedCurrentInfo(parsed.data.question);
     let reply =
-      safetyReply ??
       publicReply ??
+      agentReply ??
       (requiresCurrentSource ? buildCurrentInfoNotFoundReply() : null);
     if (!reply && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
       const demoRequest = new NextRequest(request.url, {
@@ -84,9 +99,7 @@ export async function POST(request: NextRequest) {
     return apiOk(
       {
         reply,
-        skillIds: safetyReply
-          ? ["safety-triage"]
-          : publicReply || requiresCurrentSource
+        skillIds: publicReply || requiresCurrentSource
             ? ["public-info-qa"]
             : routeSkillIds(parsed.data.question),
         actions: buildAssistantActions({
@@ -117,7 +130,17 @@ export async function POST(request: NextRequest) {
       traceId,
     );
   }
-  const careState = await getResidentCareAccess(careSubject.residentId, auth.supabase);
+  const [careState, consentResult] = await Promise.all([
+    getResidentCareAccess(careSubject.residentId, auth.supabase),
+    auth.supabase
+      .from("consents")
+      .select("granted")
+      .eq("user_id", auth.profile.id)
+      .eq("resident_id", careSubject.residentId)
+      .eq("scope", "ai_processing")
+      .eq("policy_version", CURRENT_POLICY_VERSION)
+      .maybeSingle(),
+  ]);
   if (!careState.access.canSubmitService) {
     const inferredDraft = inferServiceRequestFromQuestion(parsed.data.question);
     const safetyReply = getGuardrailReply(parsed.data.question);
@@ -150,14 +173,7 @@ export async function POST(request: NextRequest) {
     }, traceId);
   }
   {
-    const { data: aiConsent, error: consentError } = await auth.supabase
-      .from("consents")
-      .select("granted")
-      .eq("user_id", auth.profile.id)
-      .eq("resident_id", careSubject.residentId)
-      .eq("scope", "ai_processing")
-      .eq("policy_version", CURRENT_POLICY_VERSION)
-      .maybeSingle();
+    const { data: aiConsent, error: consentError } = consentResult;
     if (consentError) {
       return apiError(
         "AI_CONSENT_CHECK_FAILED",
@@ -173,25 +189,6 @@ export async function POST(request: NextRequest) {
         403,
         traceId,
       );
-    }
-  }
-
-  // Build memory context for prompt injection (with timeout to avoid blocking)
-  let residentMemory = null;
-  const memoryOrgId = auth.profile.organization_id;
-  if (memoryOrgId) {
-    try {
-      residentMemory = await Promise.race([
-        buildMemoryContext({
-          residentId: careSubject.residentId,
-          organizationId: memoryOrgId,
-          maxTokens: 2000,
-          supabase: auth.supabase,
-        }),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
-      ]);
-    } catch {
-      // Graceful: memory context failure never blocks chat
     }
   }
 
@@ -240,19 +237,32 @@ export async function POST(request: NextRequest) {
   const contextGuardrail = contentContext ? getGuardrailReply(parsed.data.question) : null;
   const generalGuardrail = getGuardrailReply(parsed.data.question);
   const communityId = careState.binding?.community_id ?? auth.profile.community_id;
-  const ragHits = !contentContext && !generalGuardrail && auth.profile.organization_id
-    ? await searchKnowledge({
-        supabase: auth.supabase,
-        query: parsed.data.question,
-        organizationId: auth.profile.organization_id,
-        communityId,
-        visibility: ["public", "resident"],
-        limit: 8,
-      }).catch(() => [])
+  const requiresCurrentSource = requiresVerifiedCurrentInfo(parsed.data.question);
+  const shouldSearchPublicInfo = !contentContext && !generalGuardrail
+    && (requiresCurrentSource || skillIds.includes("public-info-qa"));
+  const publicMatches = shouldSearchPublicInfo
+    ? await searchPublicInfo(parsed.data.question).catch(() => [])
     : [];
-  const ragReply = ragHits.length
-    ? await buildGroundedKnowledgeReply(parsed.data.question, ragHits)
+  const publicReply = publicMatches[0]
+    ? buildVerifiedPublicInfoReply(publicMatches[0])
     : null;
+  const agentReply = !contentContext && !generalGuardrail && !publicReply
+    ? buildAgentReply(parsed.data.question, inferredServiceRequest)
+    : null;
+  let ragReply = null;
+  if (!contentContext && !generalGuardrail && !publicReply && !agentReply && auth.profile.organization_id) {
+    const ragHits = await searchKnowledge({
+      supabase: auth.supabase,
+      query: parsed.data.question,
+      organizationId: auth.profile.organization_id,
+      communityId,
+      visibility: ["public", "resident"],
+      limit: 8,
+    }).catch(() => []);
+    ragReply = ragHits.length
+      ? await buildGroundedKnowledgeReply(parsed.data.question, ragHits)
+      : null;
+  }
   if (contentContext && !contextGuardrail) {
     const reviewedLabel = contentContext.reviewed_at
       ? `，核验于 ${new Date(contentContext.reviewed_at).toLocaleDateString("zh-CN")}`
@@ -266,13 +276,38 @@ export async function POST(request: NextRequest) {
       source: "knowledge",
       knowledgeIds: [contentContext.id],
     };
+  } else if (generalGuardrail) {
+    reply = generalGuardrail;
+    skillIds = [...new Set([...skillIds, "safety-triage"] )];
+  } else if (publicReply) {
+    reply = publicReply;
+    skillIds = [...new Set([...skillIds, "public-info-qa"] )];
+  } else if (agentReply) {
+    reply = agentReply;
   } else if (ragReply) {
     reply = ragReply;
     skillIds = [...new Set([...skillIds, "public-info-qa"] )];
-  } else if (requiresVerifiedCurrentInfo(parsed.data.question)) {
+  } else if (requiresCurrentSource) {
     reply = buildCurrentInfoNotFoundReply();
     skillIds = [...new Set([...skillIds, "public-info-qa"] )];
   } else {
+    let residentMemory = null;
+    const memoryOrgId = auth.profile.organization_id;
+    if (memoryOrgId) {
+      try {
+        residentMemory = await Promise.race([
+          buildMemoryContext({
+            residentId: careSubject.residentId,
+            organizationId: memoryOrgId,
+            maxTokens: 2000,
+            supabase: auth.supabase,
+          }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200)),
+        ]);
+      } catch {
+        // Memory context is optional and never blocks the current answer.
+      }
+    }
     const legacyRequest = new NextRequest(request.url, {
       method: "POST",
       headers: request.headers,
@@ -325,25 +360,6 @@ export async function POST(request: NextRequest) {
   }
 
   const { supabase, profile } = auth;
-  if (supabase && profile && skillIds.length) {
-    await supabase.from("skill_runs").insert(
-      skillIds.map((skillId) => ({
-        user_id: profile.id,
-        resident_id:
-          careSubject?.residentId ??
-          (profile.role === "resident" ? profile.id : null),
-        skill_id: skillId,
-        skill_version: getSkillDefinition(skillId)?.version ?? "unknown",
-        model: reply.source?.includes("model") || reply.source?.includes("kimi")
-          ? getAiModelConfig("rag").model
-          : "deterministic",
-        trace_id: traceId,
-        status: "success",
-        source_refs: reply.knowledgeIds ?? [],
-        metadata: { source: reply.source, category: reply.category, sourceContext: contentContext ? { type: "content", id: contentContext.id } : null },
-      })),
-    );
-  }
 
   const actions = buildAssistantActions({
     question: parsed.data.question,
@@ -368,9 +384,7 @@ export async function POST(request: NextRequest) {
     skillIds,
   });
   let activity = null;
-  const { data: recordedActivity, error: activityError } = await supabase.rpc(
-    "record_assistant_activity",
-    {
+  const activityPromise = supabase.rpc("record_assistant_activity", {
       p_resident_id: careSubject.residentId,
       p_activity_type: activityDescriptor.activityType,
       p_service_type: activityDescriptor.serviceType,
@@ -384,8 +398,28 @@ export async function POST(request: NextRequest) {
         request.headers.get("x-client-platform") === "weapp"
           ? "wechat"
           : "web",
-    },
-  );
+  });
+  const skillRunPromise = profile && skillIds.length
+    ? supabase.from("skill_runs").insert(
+        skillIds.map((skillId) => ({
+          user_id: profile.id,
+          resident_id: careSubject.residentId,
+          skill_id: skillId,
+          skill_version: getSkillDefinition(skillId)?.version ?? "unknown",
+          model: reply.source?.includes("model") || reply.source?.includes("kimi")
+            ? getAiModelConfig("rag").model
+            : "deterministic",
+          trace_id: traceId,
+          status: "success",
+          source_refs: reply.knowledgeIds ?? [],
+          metadata: { source: reply.source, category: reply.category, sourceContext: contentContext ? { type: "content", id: contentContext.id } : null },
+        })),
+      )
+    : Promise.resolve(null);
+  const [{ data: recordedActivity, error: activityError }] = await Promise.all([
+    activityPromise,
+    skillRunPromise,
+  ]);
   if (!activityError && recordedActivity) {
     const recorded = recordedActivity as {
       activityId: string;

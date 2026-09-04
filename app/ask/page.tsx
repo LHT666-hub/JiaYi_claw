@@ -120,6 +120,7 @@ export default function AskPage() {
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState("正在理解您的问题…");
   const [inputMode, setInputMode] = useState<"text" | "voice">("text");
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [activities, setActivities] = useState<AssistantActivity[]>([]);
@@ -129,6 +130,7 @@ export default function AskPage() {
   const endRef = useRef<HTMLDivElement>(null);
   const messageScrollRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<DocumentImagePanelHandle>(null);
+  const loadingTimersRef = useRef<number[]>([]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initial = params.get("q");
@@ -137,6 +139,7 @@ export default function AskPage() {
     if (params.get("photo") === "1")
       window.setTimeout(() => documentRef.current?.openCamera(), 180);
   }, []);
+  useEffect(() => () => loadingTimersRef.current.forEach((timer) => window.clearTimeout(timer)), []);
   useEffect(() => {
     let active = true;
     void fetch("/api/v1/assistant/session", { cache: "no-store" })
@@ -157,6 +160,15 @@ export default function AskPage() {
     if (!container) return;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const keepConversationVisible = () => window.requestAnimationFrame(() => {
+      const container = messageScrollRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    viewport?.addEventListener("resize", keepConversationVisible);
+    return () => viewport?.removeEventListener("resize", keepConversationVisible);
+  }, []);
   async function submit(event: FormEvent) {
     event.preventDefault();
     const text = question.trim();
@@ -167,12 +179,22 @@ export default function AskPage() {
       { id: crypto.randomUUID(), role: "user", text },
     ]);
     setLoading(true);
+    setLoadingStage("正在理解您的问题…");
+    loadingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    loadingTimersRef.current = [
+      window.setTimeout(() => setLoadingStage("正在检索已审核资料…"), 700),
+      window.setTimeout(() => setLoadingStage("正在核对来源并整理回答…"), 2600),
+    ];
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 18_000);
       const response = await fetch("/api/v1/assistant/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text }),
+        signal: controller.signal,
       });
+      window.clearTimeout(timeout);
       const payload = await response.json();
       if (response.status === 401) return router.replace("/login");
       if (payload.error?.code === "AI_CONSENT_REQUIRED") {
@@ -228,12 +250,16 @@ export default function AskPage() {
           id: crypto.randomUUID(),
           role: "assistant",
           text:
-            error instanceof Error
+            error instanceof DOMException && error.name === "AbortError"
+              ? "这次检索超过 18 秒，已自动停止。请重试，或从服务页联系家医团队。"
+              : error instanceof Error
               ? error.message
               : "网络连接失败，请稍后重试。",
         },
       ]);
     } finally {
+      loadingTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      loadingTimersRef.current = [];
       setLoading(false);
     }
   }
@@ -266,7 +292,7 @@ export default function AskPage() {
   return (
     <PhoneShell contentMode="fixed">
       <div className="absolute inset-0 mx-auto flex min-h-0 w-full flex-col">
-        <header className="flex shrink-0 items-center gap-3 border-b border-line/60 px-4 pb-3 pt-7">
+        <header className="ask-header flex shrink-0 items-center gap-3 border-b border-line/60 px-4 pb-3 pt-7">
           <button
             onClick={() => router.back()}
             aria-label="返回"
@@ -480,7 +506,10 @@ export default function AskPage() {
             </div>
           ))}
           {loading ? (
-            <div className="text-sm text-navy/45">Claw 正在整理...</div>
+            <div className="flex items-center gap-2 text-sm text-navy/45">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-sage" />
+              {loadingStage}
+            </div>
           ) : null}
           <div ref={endRef} />
         </div>
@@ -564,7 +593,7 @@ export default function AskPage() {
         ) : null}
         <form
           onSubmit={submit}
-          className="mx-3 mt-2 flex shrink-0 gap-2 rounded-[28px] border border-white/70 bg-surface-nav/92 p-2 shadow-[0_14px_34px_rgba(16,42,67,0.13)] backdrop-blur-2xl"
+          className="ask-composer mx-3 mt-2 flex shrink-0 gap-2 rounded-[28px] border border-white/70 bg-surface-nav/92 p-2 shadow-[0_14px_34px_rgba(16,42,67,0.13)] backdrop-blur-2xl"
         >
           <button
             type="button"
@@ -606,6 +635,10 @@ export default function AskPage() {
               <input
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
+                onFocus={() => window.requestAnimationFrame(() => {
+                  const container = messageScrollRef.current;
+                  if (container) container.scrollTop = container.scrollHeight;
+                })}
                 placeholder="问服务、排班、活动或准备材料"
                 className="h-12 min-w-0 flex-1 rounded-full border border-line bg-surface-card px-4 text-sm outline-none focus:border-sage"
               />

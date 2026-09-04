@@ -79,12 +79,20 @@ function fromDatabaseRow(item: Record<string, unknown>): PublicInfoRecord {
 export async function searchPublicInfo(query: string) {
   const supabase = createSupabasePublicServerClient();
   if (supabase) {
-    const { data } = await supabase
-      .from("public_info_entries")
-      .select("id, title, category, content, keywords, source_name, source_url, verified_at, expires_at, status")
-      .eq("status", "published")
-      .order("verified_at", { ascending: false })
-      .limit(100);
+    const timeoutMs = Math.max(500, Number(process.env.PUBLIC_INFO_TIMEOUT_MS ?? 1800));
+    let data: Record<string, unknown>[] | null = null;
+    try {
+      const result = await supabase
+        .from("public_info_entries")
+        .select("id, title, category, content, keywords, source_name, source_url, verified_at, expires_at, status")
+        .eq("status", "published")
+        .order("verified_at", { ascending: false })
+        .limit(100)
+        .abortSignal(AbortSignal.timeout(timeoutMs));
+      data = result.data as Record<string, unknown>[] | null;
+    } catch {
+      data = null;
+    }
     if (data?.length) {
       return data
         .map((item) => fromDatabaseRow(item))

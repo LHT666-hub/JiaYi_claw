@@ -67,8 +67,14 @@ export async function POST(request: NextRequest) {
       resident_id: auth.profile.role === "resident" ? auth.profile.id : null,
       skill_id: result.provider === "whisper-wu-local"
         ? "speech-transcription-whisper-wu"
-        : "speech-transcription-tencent-asr",
-      skill_version: result.provider === "whisper-wu-local" ? "v09-local.1" : "v3-sentence.1",
+        : result.provider === "aliyun-bailian-asr"
+          ? "speech-transcription-bailian-qwen"
+          : "speech-transcription-tencent-asr",
+      skill_version: result.provider === "whisper-wu-local"
+        ? "v09-local.1"
+        : result.provider === "aliyun-bailian-asr"
+          ? "qwen3-asr-flash.1"
+          : "v3-sentence.1",
       model: result.model,
       trace_id: traceId,
       status: "success",
@@ -94,7 +100,9 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : "ASR_FAILED";
     if (message.includes("NO_SPEECH_DETECTED")) return apiError("NO_SPEECH", "没有听清楚，请再说一遍。", 422, traceId);
     if (message.includes("TENCENT_ASR_NOT_CONFIGURED")) return apiError("ASR_PROVIDER_UNAVAILABLE", "生产语音服务尚未配置。", 503, traceId);
+    if (message.includes("BAILIAN_ASR_NOT_CONFIGURED")) return apiError("ASR_PROVIDER_UNAVAILABLE", "百炼语音服务尚未配置。", 503, traceId);
     if (message.includes("TENCENT_ASR_AUDIO_TOO_LARGE")) return apiError("AUDIO_TOO_LARGE", "本次录音过长，请控制在 30 秒内。", 413, traceId);
+    if (message.includes("BAILIAN_ASR_AUDIO_TOO_LARGE")) return apiError("AUDIO_TOO_LARGE", "本次录音过长，请控制在 30 秒内。", 413, traceId);
     if (message.includes("ASR_AUDIO_FORMAT_UNSUPPORTED")) return apiError("AUDIO_TYPE_UNSUPPORTED", "暂不支持这种录音格式。", 415, traceId);
     if (message.includes("TIMEOUT")) return apiError("ASR_TIMEOUT", "语音识别等待时间较长，请重试。", 504, traceId);
     return apiError("ASR_FAILED", "语音暂时没有识别成功，请重试或改用文字输入。", 503, traceId);

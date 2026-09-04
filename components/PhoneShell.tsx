@@ -22,34 +22,54 @@ export function PhoneShell({
   onClawAppointmentDraft,
 }: PhoneShellProps) {
   const pathname = usePathname();
-  const [visualHeight, setVisualHeight] = useState<number | null>(null);
+  const [viewportState, setViewportState] = useState<{
+    height: number;
+    width: number;
+    keyboardOpen: boolean;
+  } | null>(null);
   const shouldHideBottomNav = pathname === "/group";
   const shouldShowBottomNav = showBottomNav && !shouldHideBottomNav;
 
   useEffect(() => {
     if (contentMode !== "fixed") return;
     const viewport = window.visualViewport;
-    const updateHeight = () =>
-      setVisualHeight(Math.round(viewport?.height ?? window.innerHeight));
-    updateHeight();
-    viewport?.addEventListener("resize", updateHeight);
-    viewport?.addEventListener("scroll", updateHeight);
-    window.addEventListener("resize", updateHeight);
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    const updateViewport = () => {
+      const height = Math.round(viewport?.height ?? window.innerHeight);
+      setViewportState({
+        height,
+        width: Math.round(viewport?.width ?? window.innerWidth),
+        keyboardOpen: height < window.innerHeight - 120,
+      });
+    };
+    updateViewport();
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
     return () => {
-      viewport?.removeEventListener("resize", updateHeight);
-      viewport?.removeEventListener("scroll", updateHeight);
-      window.removeEventListener("resize", updateHeight);
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
     };
   }, [contentMode]);
 
   const fixedViewportStyle =
-    contentMode === "fixed" && visualHeight
-      ? { height: `${visualHeight}px`, minHeight: `${visualHeight}px` }
+    contentMode === "fixed" && viewportState
+      ? {
+          height: `${viewportState.height}px`,
+          minHeight: `${viewportState.height}px`,
+          width: `${viewportState.width}px`,
+        }
       : undefined;
   return (
     <main
       style={fixedViewportStyle}
-      className={`phone-shell-stage mx-auto flex w-full items-center justify-center overflow-hidden sm:px-6 sm:py-6 ${contentMode === "fixed" ? "h-dvh min-h-0" : "min-h-dvh"}`}
+      className={`phone-shell-stage mx-auto flex w-full items-center justify-center overflow-hidden sm:px-6 sm:py-6 ${contentMode === "fixed" ? "fixed inset-x-0 top-0 h-dvh min-h-0 overscroll-none" : "min-h-dvh"} ${viewportState?.keyboardOpen ? "phone-keyboard-open" : ""}`}
     >
       <div
         className={`phone-shell-frame relative w-full max-w-[430px] overflow-hidden border border-line/80 bg-cream shadow-[0_28px_70px_rgba(16,42,67,0.16),inset_0_1px_0_rgba(255,255,255,0.9)] sm:max-h-[920px] ${contentMode === "fixed" ? "h-full" : "h-[calc(100dvh-1.5rem)]"}`}

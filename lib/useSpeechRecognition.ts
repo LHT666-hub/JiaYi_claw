@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SpeechState = "idle" | "listening" | "result" | "error" | "unsupported";
+export type SpeechState = "idle" | "listening" | "processing" | "result" | "error" | "unsupported";
 
 export type SpeechError = "no-speech" | "not-allowed" | "network" | "unknown";
 
@@ -36,6 +36,9 @@ export function useSpeechRecognition() {
   const [transcript, setTranscript] = useState("");
   const [errorType, setErrorType] = useState<SpeechError | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const transcriptRef = useRef("");
+  const finishingRef = useRef(false);
+  const finishTimerRef = useRef<number | null>(null);
   const supported = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -64,6 +67,9 @@ export function useSpeechRecognition() {
     }
 
     const recognition = new Ctor();
+    transcriptRef.current = "";
+    finishingRef.current = false;
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current);
     recognition.lang = "zh-CN";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
@@ -78,7 +84,8 @@ export function useSpeechRecognition() {
     recognition.onresult = (event: { results: { 0: { 0: { transcript: string } } } }) => {
       const result: string = event.results?.[0]?.[0]?.transcript ?? "";
       if (result.trim()) {
-        setTranscript(result.trim());
+        transcriptRef.current = result.trim();
+        setTranscript(transcriptRef.current);
         setState("result");
       } else {
         setErrorType("no-speech");
@@ -94,6 +101,18 @@ export function useSpeechRecognition() {
 
     recognition.onend = () => {
       recognitionRef.current = null;
+      if (finishTimerRef.current !== null) {
+        window.clearTimeout(finishTimerRef.current);
+        finishTimerRef.current = null;
+      }
+      if (transcriptRef.current) {
+        setTranscript(transcriptRef.current);
+        setState("result");
+      } else if (finishingRef.current) {
+        setErrorType("no-speech");
+        setState("error");
+      }
+      finishingRef.current = false;
     };
 
     recognitionRef.current = recognition;
@@ -107,22 +126,65 @@ export function useSpeechRecognition() {
   }, []);
 
   const stop = useCallback(() => {
-    if (recognitionRef.current) {
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      finishingRef.current = true;
+      setState("processing");
       try {
-        recognitionRef.current.stop();
+        recognition.stop();
       } catch {
-        // ignore
+        recognitionRef.current = null;
+        setErrorType("unknown");
+        setState("error");
       }
-      recognitionRef.current = null;
+      finishTimerRef.current = window.setTimeout(() => {
+        if (recognitionRef.current === recognition) {
+          try {
+            recognition.abort();
+          } catch {
+            // ignore
+          }
+          recognitionRef.current = null;
+        }
+        if (transcriptRef.current) {
+          setTranscript(transcriptRef.current);
+          setState("result");
+        } else {
+          setErrorType("no-speech");
+          setState("error");
+        }
+        finishingRef.current = false;
+        finishTimerRef.current = null;
+      }, 2200);
     }
   }, []);
 
   const reset = useCallback(() => {
-    stop();
+    if (finishTimerRef.current !== null) {
+      window.clearTimeout(finishTimerRef.current);
+      finishTimerRef.current = null;
+    }
+    try {
+      recognitionRef.current?.abort();
+    } catch {
+      // ignore
+    }
+    recognitionRef.current = null;
     setState("idle");
     setTranscript("");
+    transcriptRef.current = "";
+    finishingRef.current = false;
     setErrorType(null);
-  }, [stop]);
+  }, []);
+
+  useEffect(() => () => {
+    if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current);
+    try {
+      recognitionRef.current?.abort();
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const errorMessage = errorType ? errorMessageMap[errorType] : null;
 

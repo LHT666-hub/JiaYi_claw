@@ -63,7 +63,10 @@ async function generateWithModel(question: string, hits: KnowledgeSearchHit[]) {
   });
   const completion = await Promise.race([
     request,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("RAG_GENERATION_TIMEOUT")), 20_000)),
+    new Promise<never>((_, reject) => setTimeout(
+      () => reject(new Error("RAG_GENERATION_TIMEOUT")),
+      Math.max(4_000, Number(process.env.RAG_GENERATION_TIMEOUT_MS ?? 12_000)),
+    )),
   ]);
   const answer = completion.choices[0]?.message?.content?.trim();
   const referenced = answer ? [...answer.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1])) : [];
