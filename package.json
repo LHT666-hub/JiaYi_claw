@@ -30,6 +30,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "audit:mobile": "node scripts/audit-mobile-layout.mjs",
     "eval:ask": "node scripts/ask-eval.mjs",
     "bootstrap:local": "node --env-file=.env.local scripts/bootstrap-local.mjs",
     "verify:onboarding": "node --env-file=.env.local scripts/verify-onboarding-flow.mjs",

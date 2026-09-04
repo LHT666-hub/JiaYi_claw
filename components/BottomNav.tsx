@@ -37,7 +37,7 @@ export function BottomNav() {
     pathname.startsWith("/contacts") || pathname.startsWith("/family");
 
   return (
-    <nav className="absolute inset-x-0 bottom-0 z-20 px-4 pb-5 pt-3">
+    <nav className="phone-bottom-nav absolute inset-x-0 bottom-0 z-20 pt-3">
       <div className="rounded-[32px] border border-white/55 bg-surface-nav/78 px-2.5 py-3 shadow-[0_18px_44px_rgba(16,42,67,0.14),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl">
         <div className={`grid gap-1.5 ${navItems.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
           {navItems.map((item) => {

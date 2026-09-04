@@ -67,7 +67,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-20 z-50 mx-auto flex w-full max-w-[430px] flex-col gap-2 px-5">
+      <div className="phone-toast-stack pointer-events-none fixed z-50 mx-auto flex w-full max-w-[430px] flex-col gap-2 px-5">
         {toasts.map((toast) => {
           const config = toneConfig[toast.tone];
           const Icon = config.Icon;

@@ -587,8 +587,13 @@ test("居民端保持原版圆角手机视觉", async ({ page }) => {
   });
 
   for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 360, height: 640 },
     { width: 375, height: 812 },
+    { width: 390, height: 844 },
+    { width: 412, height: 915 },
     { width: 430, height: 932 },
+    { width: 844, height: 390 },
     { width: 1280, height: 800 },
   ]) {
     await page.setViewportSize(viewport);
@@ -598,9 +603,14 @@ test("居民端保持原版圆角手机视觉", async ({ page }) => {
       shellWidth: document
         .querySelector<HTMLElement>(".resident-ui")
         ?.parentElement?.getBoundingClientRect().width,
+      shellHeight: document
+        .querySelector<HTMLElement>(".resident-ui")
+        ?.parentElement?.getBoundingClientRect().height,
+      viewportHeight: window.innerHeight,
     }));
     expect(metrics.pageWidth).toBe(metrics.viewport);
     expect(metrics.shellWidth).toBeLessThanOrEqual(430);
+    expect(metrics.shellHeight).toBeLessThanOrEqual(metrics.viewportHeight);
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
