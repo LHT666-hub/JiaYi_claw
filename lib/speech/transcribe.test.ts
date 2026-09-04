@@ -61,20 +61,20 @@ describe("speech provider routing", () => {
   it("uses Bailian Qwen ASR with an ephemeral data URI", async () => {
     vi.stubEnv("ASR_PROVIDER", "bailian_qwen_asr");
     vi.stubEnv("DASHSCOPE_API_KEY", "test-bailian-key");
-    vi.stubEnv("ASR_MODEL", "qwen3-asr-flash");
+    vi.stubEnv("ASR_MODEL", "qwen-audio-3.0-asr-flash");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
-      id: "asr-bailian-1",
-      choices: [{ message: { content: "我要预约明天下午的家庭医生。" } }],
+      request_id: "asr-bailian-1",
+      output: { text: "我要预约明天下午的家庭医生。" },
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
     const { transcribeAudio } = await import("./transcribe");
     const result = await transcribeAudio("recording.webm");
     expect(result).toMatchObject({
       provider: "aliyun-bailian-asr",
-      model: "qwen3-asr-flash",
+      model: "qwen-audio-3.0-asr-flash",
       text: "我要预约明天下午的家庭医生。",
     });
     const request = fetchMock.mock.calls[0];
-    expect(request[0]).toContain("/chat/completions");
+    expect(request[0]).toContain("/multimodal-generation/generation");
     expect(String(request[1]?.body)).toContain("data:audio/webm;base64,");
     fetchMock.mockRestore();
   });

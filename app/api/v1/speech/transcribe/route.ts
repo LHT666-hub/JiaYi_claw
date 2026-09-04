@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       skill_version: result.provider === "whisper-wu-local"
         ? "v09-local.1"
         : result.provider === "aliyun-bailian-asr"
-          ? "qwen3-asr-flash.1"
+          ? "qwen-audio-3.0-asr-flash.1"
           : "v3-sentence.1",
       model: result.model,
       trace_id: traceId,

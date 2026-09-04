@@ -5,9 +5,9 @@ export const skillRegistry: SkillDefinition[] = [
   {
     id: "speech-transcription-bailian-qwen",
     name: "百炼实时语音转写",
-    version: "qwen3-asr-flash.1",
+    version: "qwen-audio-3.0-asr-flash.1",
     purpose: "把居民手机录音通过服务端转成可编辑文字，支持普通话、吴语等中文口音。",
-    source: "阿里云百炼 Qwen3-ASR-Flash",
+    source: "阿里云百炼 Qwen-Audio 3.0 ASR Flash",
     license: "Commercial API",
     risk: "medium",
     enabled: true,

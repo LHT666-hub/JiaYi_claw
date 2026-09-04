@@ -18,9 +18,8 @@ function aliyunCredential() {
   if (!apiKey) throw new Error("BAILIAN_ASR_NOT_CONFIGURED");
   return {
     apiKey: apiKey.replace(/^Bearer\s+/i, ""),
-    baseURL: (process.env.DASHSCOPE_BASE_URL?.trim()
-      || process.env.AI_BASE_URL?.trim()
-      || "https://dashscope.aliyuncs.com/compatible-mode/v1").replace(/\/$/, ""),
+    endpoint: process.env.DASHSCOPE_ASR_URL?.trim()
+      || "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
   };
 }
 
@@ -40,53 +39,73 @@ function audioMimeType(audioPath: string) {
   return type;
 }
 
+function audioFileFormat(audioPath: string) {
+  const extension = path.extname(audioPath).slice(1).toLowerCase();
+  if (extension === "m4a") return "mp4";
+  if (["aac", "mp3", "mp4", "ogg", "opus", "wav", "webm"].includes(extension)) {
+    return extension;
+  }
+  throw new Error("ASR_AUDIO_FORMAT_UNSUPPORTED");
+}
+
 async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscription> {
   const bytes = await readFile(audioPath);
   if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("BAILIAN_ASR_AUDIO_TOO_LARGE");
-  const { apiKey, baseURL } = aliyunCredential();
-  const model = process.env.ASR_MODEL?.trim() || "qwen3-asr-flash";
-  const response = await fetch(`${baseURL}/chat/completions`, {
+  const { apiKey, endpoint } = aliyunCredential();
+  const model = process.env.ASR_MODEL?.trim() || "qwen-audio-3.0-asr-flash";
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "X-DashScope-SSE": "disable",
     },
     body: JSON.stringify({
       model,
-      messages: [
-        {
-          role: "system",
-          content: "基层家庭医生服务场景。常见词包括家医、复诊、转诊、续方、配药、血压、血糖、海湾镇、社区卫生服务中心。",
-        },
-        {
-          role: "user",
-          content: [{
-            type: "input_audio",
-            input_audio: {
-              data: `data:${audioMimeType(audioPath)};base64,${bytes.toString("base64")}`,
-            },
-          }],
-        },
-      ],
-      asr_options: { language: "zh", enable_itn: true },
+      input: {
+        messages: [
+          {
+            role: "user",
+            content: [{
+              type: "input_text",
+              text: "家医、复诊、转诊、续方、配药、血压、血糖、海湾镇、社区卫生服务中心",
+            }],
+          },
+          {
+            role: "user",
+            content: [{
+              type: "input_audio",
+              input_audio: {
+                data: `data:${audioMimeType(audioPath)};base64,${bytes.toString("base64")}`,
+              },
+            }],
+          },
+        ],
+      },
+      parameters: {
+        format: audioFileFormat(audioPath),
+        language_hints: ["zh"],
+        vocabulary: { "家医": 5, "复诊": 5, "转诊": 5, "续方": 5, "配药": 5, "海湾镇": 5 },
+      },
     }),
     signal: AbortSignal.timeout(25_000),
   });
   const payload = await response.json() as {
-    id?: string;
     request_id?: string;
-    choices?: Array<{ message?: { content?: string } }>;
+    output?: { text?: string };
+    code?: string;
+    message?: string;
     error?: { code?: string; message?: string };
   };
   if (!response.ok) {
-    throw new Error(`BAILIAN_ASR_FAILED:${payload.error?.code ?? response.status}`);
+    throw new Error(`BAILIAN_ASR_FAILED:${payload.code ?? payload.error?.code ?? response.status}`);
   }
   return {
-    text: payload.choices?.[0]?.message?.content?.trim() ?? "",
+    text: payload.output?.text?.trim() ?? "",
     provider: "aliyun-bailian-asr",
     model,
     device: "aliyun-cn-beijing",
-    requestId: payload.request_id ?? payload.id,
+    requestId: payload.request_id,
   };
 }
 
