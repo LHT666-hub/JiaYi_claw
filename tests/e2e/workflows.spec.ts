@@ -676,7 +676,7 @@ test("居民语音先转写并确认文字", async ({ page }) => {
       json: ok({
         text: "我想预约明天下午的家庭医生",
         provider: "aliyun-bailian-asr",
-        model: "qwen3-asr-flash",
+        model: "qwen-audio-3.0-asr-flash",
         retained: false,
         requiresConfirmation: true,
       }),
