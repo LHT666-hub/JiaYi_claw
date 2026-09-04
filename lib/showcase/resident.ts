@@ -30,6 +30,7 @@ export const residentShowcaseHome = {
   careSubject: { residentId: "showcase-resident", displayName: "张阿姨", relationship: "本人", isSelf: true },
   careSubjects: [{ residentId: "showcase-resident", displayName: "张阿姨", relationship: "本人", isSelf: true }],
   access: {
+    level: "verified",
     bindingStatus: "active",
     canSubmitService: true,
     canStoreHealthData: true,

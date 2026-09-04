@@ -363,14 +363,14 @@ export default function WorkbenchRequestsPage() {
 
       {isDemo ? <div className="border-b border-[#E5C77B] bg-[#FFF8E7] px-5 py-2 text-center text-xs text-[#7A5A12]">全功能演示模式：可模拟受理、回写与审核；所有结果仅保留在本次展示中。</div> : null}
 
-      <div className="mx-auto grid min-h-[calc(100dvh-73px)] max-w-[1500px] grid-cols-1 border-x border-line bg-white lg:grid-cols-[430px_minmax(0,1fr)]">
+      <div className="mx-3 mt-3 grid min-h-[calc(100dvh-98px)] max-w-[1500px] grid-cols-1 overflow-hidden rounded-[20px] border border-line bg-white lg:mx-auto lg:mt-0 lg:min-h-[calc(100dvh-73px)] lg:rounded-none lg:border-y-0 lg:grid-cols-[430px_minmax(0,1fr)]">
         <section className={`${selectedId ? "hidden lg:block" : "block"} border-r border-line bg-[#F8FAF9]`}>
           <div className="border-b border-line p-4">
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索居民、手机号或服务" className="h-10 w-full border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-sage" /></div>
-            <div className="mt-3 grid grid-cols-5 gap-1 border border-line bg-white p-1">
+            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-navy/35" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索居民、手机号或服务" className="h-10 w-full rounded-[12px] border border-line bg-white pl-9 pr-3 text-sm outline-none focus:border-sage lg:rounded-[6px]" /></div>
+            <div className="mt-3 grid grid-cols-3 gap-1 rounded-[12px] border border-line bg-white p-1 sm:grid-cols-5 lg:rounded-[6px]">
               {([
                 ["all", "全部"], ["overdue", "已超时"], ["new", "新申请"], ["resident", "待居民"], ["processing", "处理中"],
-              ] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setFilter(id)} className={`px-2 py-2 text-xs font-semibold ${filter === id ? "bg-navy text-white" : "text-navy/55 hover:bg-[#F4F6F5]"}`}>{label}<span className="ml-1 opacity-70">{counts[id]}</span></button>)}
+              ] as const).map(([id, label]) => <button key={id} type="button" onClick={() => setFilter(id)} className={`min-w-0 rounded-[9px] px-1.5 py-2 text-xs font-semibold lg:rounded-[4px] lg:px-2 ${filter === id ? "bg-navy text-white" : "text-navy/55 hover:bg-[#F4F6F5]"}`}>{label}<span className="ml-1 opacity-70">{counts[id]}</span></button>)}
             </div>
           </div>
 
@@ -394,12 +394,12 @@ export default function WorkbenchRequestsPage() {
           {selected ? (
             <div className="grid min-h-full xl:grid-cols-[minmax(0,1fr)_390px]">
               <div className="min-w-0 border-r border-line">
-                <div className="border-b border-line px-6 py-5">
+                <div className="border-b border-line px-4 py-4 sm:px-6 sm:py-5">
                   <button type="button" onClick={() => setSelectedId(null)} className="mb-4 inline-flex items-center gap-1 text-xs font-semibold text-sage lg:hidden"><ChevronRight className="h-3.5 w-3.5 rotate-180" />返回服务列表</button>
                   <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs font-semibold text-sage">{serviceStatusLabels[selected.status]}</p><h2 className="mt-1 text-xl font-semibold">{selected.title}</h2><p className="mt-2 text-sm text-navy/48">申请于 {new Date(selected.created_at).toLocaleString("zh-CN")}</p></div><span className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold ${["high", "emergency"].includes(selected.priority) ? "bg-risk-soft text-danger" : "bg-[#F1F4F3] text-navy/55"}`}>{["high", "emergency"].includes(selected.priority) ? <CircleAlert className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}{selected.priority === "emergency" ? "紧急" : selected.priority === "high" ? "高优先" : "常规"}</span></div>
                 </div>
 
-                <div className="space-y-7 px-6 py-6">
+                <div className="space-y-7 px-4 py-5 sm:px-6 sm:py-6">
                   <section><h3 className="flex items-center gap-2 text-sm font-semibold"><UserRound className="h-4 w-4 text-sage" />居民与申请</h3><div className="mt-3 grid gap-x-6 gap-y-3 border-y border-line py-4 sm:grid-cols-2"><Detail label="居民" value={resident?.display_name ?? "未命名居民"} /><Detail label="联系电话" value={resident?.phone ?? "未留手机号"} /><Detail label="服务类型" value={serviceTypeLabels[selected.service_type] ?? "家医服务"} /><Detail label="当前经办人" value={assignee?.display_name ?? "尚未认领"} /></div><p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-navy/72">{selected.summary}</p></section>
 
                   {sourceContext ? <section className="rounded-md border border-sage/20 bg-health-soft/45 p-4"><h3 className="flex items-center gap-2 text-sm font-semibold"><FileText className="h-4 w-4 text-sage" />居民引用的已审核内容</h3><p className="mt-2 text-sm font-semibold">{sourceContext.title ?? "已审核内容"}</p><p className="mt-1 text-xs text-navy/50">{sourceContext.sourceName ?? "官方来源"}{sourceContext.reviewedAt ? ` · 核验于 ${new Date(sourceContext.reviewedAt).toLocaleDateString("zh-CN")}` : ""}</p>{sourceContext.originalUrl ? <a href={sourceContext.originalUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs font-semibold text-sage">打开官方原文核对</a> : null}</section> : null}
@@ -411,7 +411,7 @@ export default function WorkbenchRequestsPage() {
                 </div>
               </div>
 
-              <aside className="bg-[#F8FAF9] px-5 py-6 xl:sticky xl:top-0 xl:h-[calc(100dvh-73px)] xl:overflow-y-auto">
+              <aside className="border-t border-line bg-[#F8FAF9] px-4 py-5 sm:px-5 sm:py-6 xl:sticky xl:top-0 xl:h-[calc(100dvh-73px)] xl:overflow-y-auto xl:border-l xl:border-t-0">
                 <h3 className="text-sm font-semibold">下一步处理</h3>
                 <p className="mt-1 text-xs leading-5 text-navy/48">选择动作、补全对居民可见的信息，再提交状态变化。</p>
                 {!canAct ? <div className="mt-4 border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">该申请已由 {assignee?.display_name ?? "其他工作人员"} 认领。您可以查看资料，但不能直接更改状态。</div> : null}

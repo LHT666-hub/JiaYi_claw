@@ -233,13 +233,13 @@ export default function OperationsPage() {
           全功能演示模式：可模拟审核与确认，结果不会写入真实居民档案。
         </div>
       ) : null}
-      <div className="mx-auto max-w-[1500px] px-5 py-6">
+      <div className="mx-auto max-w-[1500px] px-3 py-4 sm:px-5 sm:py-6">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           {tabs.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`flex items-center justify-between rounded-[10px] border p-3 text-left ${tab === item.id ? "border-navy bg-navy text-white" : "border-line bg-white"}`}
+              className={`flex min-w-0 items-center justify-between rounded-[14px] border p-3 text-left sm:rounded-[8px] ${tab === item.id ? "border-navy bg-navy text-white" : "border-line bg-white"}`}
             >
               <span className="flex items-center gap-2 text-sm font-semibold">
                 <item.icon className="h-4 w-4" />
@@ -256,7 +256,7 @@ export default function OperationsPage() {
             正在读取工作队列...
           </div>
         ) : (
-          <div className="mt-5">
+          <div className="mt-4 overflow-hidden rounded-[18px] sm:mt-5 sm:rounded-[8px]">
             {moduleState[tab] !== "available" ? (
               <div className="border border-dashed border-line bg-white p-10 text-center">
                 <p className="text-sm font-semibold">{moduleState[tab] === "forbidden" ? "当前岗位没有该模块权限" : "该模块暂时无法读取"}</p>

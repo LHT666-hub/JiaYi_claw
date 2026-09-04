@@ -18,6 +18,12 @@ const routes = [
   "/privacy",
   "/login",
   "/onboarding",
+  "/doctor",
+  "/workbench/requests",
+  "/workbench/operations",
+  "/admin",
+  "/admin/content-sources",
+  "/admin/readiness",
 ];
 const viewports = [
   { width: 320, height: 568, label: "small-phone" },

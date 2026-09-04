@@ -32,6 +32,26 @@ export async function POST(request: Request) {
   if (isWechatClient && !["resident", "family"].includes(parsed.data.role)) {
     return apiError("ROLE_NOT_AVAILABLE", "小程序预览仅提供居民和家属身份。", 403, traceId);
   }
+  if (isWechatClient && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
+    const role = parsed.data.role as "resident" | "family";
+    return apiOk({
+      profile: {
+        id: `showcase-${role}`,
+        display_name: role === "resident" ? "张阿姨" : "张阿姨女儿",
+        role,
+        organization_id: "showcase-organization",
+        community_id: "showcase-community",
+        account_status: "active",
+        onboarding_completed_at: new Date().toISOString(),
+      },
+      needsOnboarding: false,
+      session: {
+        accessToken: `local-preview-${role}`,
+        refreshToken: `local-preview-refresh-${role}`,
+      },
+      demo: true,
+    }, traceId);
+  }
   const supabase = await createSupabaseServerClient();
   if (!supabase) return apiError("AUTH_NOT_CONFIGURED", "本地账号服务尚未启动。", 503, traceId);
 
