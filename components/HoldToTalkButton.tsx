@@ -14,6 +14,7 @@ function preferredMimeType() {
 }
 
 export function HoldToTalkButton({ disabled = false, onTranscript, onFallback }: Props) {
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
   const browserSpeech = useSpeechRecognition();
   const [serverState, setServerState] = useState<ServerVoiceState>("idle");
   const [serverError, setServerError] = useState("");
@@ -105,7 +106,7 @@ export function HoldToTalkButton({ disabled = false, onTranscript, onFallback }:
     holdingRef.current = true;
     setSeconds(0);
     navigator.vibrate?.(18);
-    if (typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined") {
+    if (!demoMode && typeof navigator.mediaDevices?.getUserMedia === "function" && typeof MediaRecorder !== "undefined") {
       serverModeRef.current = true;
       void startServerRecording();
     } else if (browserSpeech.isSupported()) {
@@ -115,7 +116,7 @@ export function HoldToTalkButton({ disabled = false, onTranscript, onFallback }:
       holdingRef.current = false;
       onFallback?.();
     }
-  }, [browserSpeech, disabled, onFallback, serverState, startServerRecording]);
+  }, [browserSpeech, demoMode, disabled, onFallback, serverState, startServerRecording]);
 
   const finish = useCallback(() => {
     if (!holdingRef.current) return;

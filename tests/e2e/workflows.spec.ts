@@ -705,6 +705,25 @@ test("居民语音先转写并确认文字", async ({ page }) => {
       }
     }
     Object.defineProperty(window, "MediaRecorder", { configurable: true, value: MockMediaRecorder });
+    class MockSpeechRecognition {
+      lang = "";
+      continuous = false;
+      interimResults = false;
+      maxAlternatives = 1;
+      onstart: (() => void) | null = null;
+      onresult: ((event: unknown) => void) | null = null;
+      onerror: ((event: unknown) => void) | null = null;
+      onend: (() => void) | null = null;
+      start() { this.onstart?.(); }
+      stop() {
+        this.onresult?.({ results: [[{ transcript: "我想预约明天下午的家庭医生" }]] });
+        this.onend?.();
+      }
+      abort() { this.onend?.(); }
+    }
+    for (const property of ["SpeechRecognition", "webkitSpeechRecognition"]) {
+      Object.defineProperty(window, property, { configurable: true, value: MockSpeechRecognition });
+    }
   });
   await page.goto("/ask");
   await expect(page.locator("nav")).toHaveCount(0);
