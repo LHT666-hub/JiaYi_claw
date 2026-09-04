@@ -1,8 +1,8 @@
-const CACHE_NAME = "jiayi-claw-public-shell-v2";
-const PUBLIC_SHELL = ["/login", "/app-icon.svg"];
+const CACHE_NAME = "jiayi-claw-static-v3";
+const STATIC_ASSETS = ["/app-icon.svg", "/app-icon.png"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(PUBLIC_SHELL)));
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
   self.skipWaiting();
 });
 
@@ -16,8 +16,8 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
-  if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
-  if (!url.pathname.startsWith("/_next/static/") && !PUBLIC_SHELL.includes(url.pathname)) return;
+  if (request.method !== "GET" || url.origin !== self.location.origin) return;
+  if (!STATIC_ASSETS.includes(url.pathname)) return;
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
       if (!response.ok || response.type === "opaque") return response;
