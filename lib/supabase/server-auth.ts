@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseConfigured } from "@/lib/supabase/env";
 import { AppRole, ProfileRow } from "@/lib/types";
+import { createShowcaseProfile, readShowcaseRole } from "@/lib/showcase/session";
 
 export async function getServerAuthContext() {
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
@@ -48,7 +49,7 @@ export async function getServerAuthContext() {
 
 export async function getApiAuthContext(request: NextRequest) {
   if (process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
-    return { supabase: null, user: null, profile: null as ProfileRow | null };
+    return { supabase: null, user: null, profile: createShowcaseProfile(readShowcaseRole(request)) };
   }
   const authorization = request.headers.get("authorization")?.trim() ?? "";
   const token = authorization.toLowerCase().startsWith("bearer ")

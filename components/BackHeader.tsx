@@ -7,9 +7,10 @@ type BackHeaderProps = {
   title: string;
   subtitle?: string;
   sticky?: boolean;
+  backHref?: string;
 };
 
-export function BackHeader({ title, subtitle, sticky = false }: BackHeaderProps) {
+export function BackHeader({ title, subtitle, sticky = false, backHref }: BackHeaderProps) {
   const router = useRouter();
 
   return (
@@ -22,7 +23,7 @@ export function BackHeader({ title, subtitle, sticky = false }: BackHeaderProps)
     >
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => backHref ? router.push(backHref) : router.back()}
         className="ios-control mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-navy"
         aria-label="返回"
       >

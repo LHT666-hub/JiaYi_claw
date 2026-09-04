@@ -30,6 +30,12 @@ export default function LoginPage() {
       if (demoEnabled) {
         const demoUser = demoUsers.find((user) => user.role === role);
         if (!demoUser) throw new Error("演示身份不存在。");
+        const response = await fetch("/api/v1/auth/demo-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role }),
+        });
+        if (!response.ok) throw new Error("演示身份切换失败，请重试。");
         loginAs(demoUser);
         router.replace(
           role === "admin"

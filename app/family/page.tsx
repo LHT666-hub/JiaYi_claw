@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell, CalendarClock, ChevronRight, ClipboardList, HeartPulse, MessageCircleMore, ShieldCheck, Stethoscope, Users } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
@@ -99,7 +100,10 @@ export default function FamilyPage() {
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="家属协助" subtitle={me ? `${me.profile.display_name} · 仅查看已授权家人` : "读取授权关系中"} />
+        <div className="relative">
+          <BackHeader backHref="/" title="家属协助" subtitle={me ? `${me.profile.display_name} · 仅查看已授权家人` : "读取授权关系中"} />
+          <Link href="/login?switch=1" className="absolute right-1 top-9 rounded-full border border-line bg-white px-3 py-2 text-xs font-semibold text-sage shadow-sm">切换身份</Link>
+        </div>
 
         {error ? <div className="rounded-[24px] border border-danger/20 bg-risk-soft p-4 text-sm leading-6 text-danger">{error}<button type="button" onClick={() => void loadMe()} className="mt-3 block font-semibold underline">重新加载</button></div> : null}
         {loading ? <SectionCard><div className="py-12 text-center text-sm text-navy/50">正在读取已授权家人</div></SectionCard> : null}

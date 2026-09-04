@@ -16,10 +16,16 @@ export function useCurrentProfile() {
   useEffect(() => {
     let active = true;
     void (async () => {
+      if (demoEnabled && demoReady) {
+        if (active) {
+          setProfile(currentUser ? { id: currentUser.id, display_name: currentUser.name, role: currentUser.role, avatar_url: currentUser.avatarUrl ?? null, phone: null, organization_id: null, community_id: null, account_status: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString() } : null);
+          setLoading(false);
+        }
+        return;
+      }
       const remote = supabase ? await fetchCurrentProfile(supabase).catch(() => null) : null;
       if (!active) return;
       if (remote) setProfile(remote);
-      else if (demoEnabled && demoReady && currentUser) setProfile({ id: currentUser.id, display_name: currentUser.name, role: currentUser.role, avatar_url: currentUser.avatarUrl ?? null, phone: null, organization_id: null, community_id: null, account_status: "active", created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
       setLoading(false);
     })();
     return () => { active = false; };

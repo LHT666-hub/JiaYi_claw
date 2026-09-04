@@ -28,7 +28,7 @@ function hashCode(code: string) {
 export async function GET(request: NextRequest) {
   const traceId = createTraceId();
   const { supabase, profile } = await getApiAuthContext(request);
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, role: "resident", bindings: [demoBinding] }, traceId);
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "true" && !supabase) return apiOk({ demo: true, role: profile?.role ?? "resident", bindings: [demoBinding] }, traceId);
   if (!supabase || !profile) return apiError("UNAUTHENTICATED", "请先登录。", 401, traceId);
   if (!["resident", "family", "admin"].includes(profile.role)) {
     return apiError("FAMILY_LINK_FORBIDDEN", "当前身份不使用家属绑定。", 403, traceId);

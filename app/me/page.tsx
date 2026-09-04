@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Activity, Bell, Brain, ChevronRight, ClipboardList, HeartPulse, LifeBuoy, LockKeyhole, Settings, ShieldCheck, Stethoscope, Users } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
+import { logout as clearDemoUser } from "@/lib/useDemoUser";
 
 type MeData = { demo?: boolean; profile: { display_name: string; role: string; phone: string | null }; access?: { bindingStatus: "pending" | "active" | "revoked" | "unbound"; canSubmitService: boolean; canStoreHealthData: boolean; message: string }; network: null | { name: string; community?: { name?: string; service_phone?: string | null }; institutions?: Array<{ id: string; name: string }> }; consents: Array<{ scope: string; granted: boolean }>; observations: Array<Record<string, unknown>>; serviceRequests: Array<Record<string, unknown>>; channelBindings: Array<Record<string, unknown>>; familyBindings: Array<Record<string, unknown>> };
 const roleLabels: Record<string, string> = { resident: "居民", family: "家属代办", doctor: "医生", nurse: "护士", pharmacist: "药师", community: "社区工作人员", admin: "管理员" };
@@ -12,7 +13,7 @@ const roleLabels: Record<string, string> = { resident: "居民", family: "家属
 export default function MePage() {
   const router = useRouter(); const [data, setData] = useState<MeData | null>(null); const [error, setError] = useState("");
   useEffect(() => { void fetch("/api/v1/me", { cache: "no-store" }).then(async (response) => { const payload = await response.json(); if (response.status === 401) return router.replace("/login"); if (!response.ok) setError(payload.error?.message ?? "资料加载失败"); else setData(payload.data); }).catch(() => setError("网络连接失败。")); }, [router]);
-  async function logout() { await fetch("/api/v1/auth/logout", { method: "POST" }); router.replace("/login"); router.refresh(); }
+  async function logout() { await fetch("/api/v1/auth/logout", { method: "POST" }); clearDemoUser(); router.replace("/login"); router.refresh(); }
   const actions = [
     { href: "/family-link", label: data?.profile.role === "family" ? "绑定与管理家人" : "家属协助授权", detail: data?.profile.role === "family" ? "使用居民授权码建立代办关系" : "生成一次性授权码邀请家属", icon: Users },
     { href: "/health-records", label: "健康记录", detail: `${data?.observations.length ?? 0} 条近期记录`, icon: HeartPulse },

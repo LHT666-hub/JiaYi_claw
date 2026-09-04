@@ -58,6 +58,25 @@ test("演示环境无需验证码即可切换全部角色", async ({ page }) => 
   await expect(page.getByText("服务工作队列")).toBeVisible();
 });
 
+test("家属演示身份保持统一四栏导航并可明确切换身份", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "家属", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/family$/);
+  await expect(page.getByRole("heading", { name: "家属协助" })).toBeVisible();
+  await expect(page.getByText("张阿姨女儿 · 仅查看已授权家人")).toBeVisible();
+  await expect(page.getByText("张阿姨", { exact: true }).first()).toBeVisible();
+  for (const label of ["首页", "服务", "消息", "我的"]) {
+    await expect(page.locator("nav").getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(page.locator("nav").getByText("待办", { exact: true })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "切换身份" }).click();
+  await expect(page).toHaveURL(/\/login\?switch=1$/);
+  await expect(page.getByText("全功能演示入口")).toBeVisible();
+});
+
 test("演示环境核心居民、团队和管理接口全部开放", async ({ request }) => {
   for (const path of showcaseApis) {
     const response = await request.get(path);

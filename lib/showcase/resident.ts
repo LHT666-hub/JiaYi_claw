@@ -118,3 +118,18 @@ export const residentShowcaseMe = {
   channelBindings: [],
   familyBindings: [],
 };
+
+export const familyShowcaseMe = {
+  ...residentShowcaseMe,
+  profile: { id: "showcase-family", display_name: "张阿姨女儿", role: "family", phone: null },
+  residentId: "showcase-resident",
+  familyBindings: [
+    {
+      resident_id: "showcase-resident",
+      relationship: "女儿",
+      is_primary: true,
+      status: "active",
+      resident: { display_name: "张阿姨", phone: null },
+    },
+  ],
+};
