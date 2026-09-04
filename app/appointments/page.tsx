@@ -26,6 +26,7 @@ import type {
 import { BackHeader } from "@/components/BackHeader";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
 import { PhoneShell } from "@/components/PhoneShell";
+import type { ClawAppointmentDraft } from "@/components/GlobalClawAssistant";
 import { useToast } from "@/components/ToastProvider";
 import { serviceStatusLabels } from "@/lib/serviceRequests/stateMachine";
 
@@ -75,6 +76,22 @@ const serviceTitles: Partial<Record<ServiceType, string>> = {
 
 function one<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+function resolveClawDate(value?: string) {
+  if (!value) return "";
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  if (value === "明天") date.setDate(date.getDate() + 1);
+  else if (value === "后天") date.setDate(date.getDate() + 2);
+  else {
+    const weekday = value.match(/下周([一二三四五六日天])/);
+    if (!weekday) return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+    const target = "一二三四五六日天".indexOf(weekday[1]) % 7 + 1;
+    const current = date.getDay() || 7;
+    date.setDate(date.getDate() + (7 - current) + target);
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 export default function AppointmentsPage() {
@@ -248,8 +265,23 @@ export default function AppointmentsPage() {
     await loadRequests();
   }
 
+  function applyClawDraft(draft: ClawAppointmentDraft) {
+    if (draft.serviceType && serviceOptions.some((item) => item.value === draft.serviceType)) setServiceType(draft.serviceType);
+    if (draft.target) setTarget(draft.target.slice(0, 160));
+    if (draft.department) setDepartment(draft.department.slice(0, 80));
+    if (draft.doctor) setDoctor(draft.doctor.slice(0, 80));
+    if (draft.note) setNote(draft.note.slice(0, 600));
+    const resolvedDate = resolveClawDate(draft.preferredDate);
+    if (resolvedDate) setPreferredDate(resolvedDate);
+    if (draft.preferredTime) setPreferredTime(draft.preferredTime);
+    if (draft.contactPhone) setPhone(draft.contactPhone);
+    setFromClaw(true);
+    setConfirmed(false);
+    showToast("Claw 已填入可确定的信息，请核对仍为空的项目后提交。", "success");
+  }
+
   return (
-    <PhoneShell showBottomNav>
+    <PhoneShell showBottomNav onClawAppointmentDraft={applyClawDraft}>
       <main className="space-y-5 px-4 pb-8">
         <div className="relative">
           <BackHeader

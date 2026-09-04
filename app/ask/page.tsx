@@ -12,7 +12,6 @@ import {
   Clock3,
   Camera,
   FileText,
-  Headphones,
   History,
   ImagePlus,
   Keyboard,
@@ -26,7 +25,6 @@ import {
 } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
-import { VoiceInputPanel } from "@/components/VoiceInputPanel";
 import { HoldToTalkButton } from "@/components/HoldToTalkButton";
 import {
   DocumentImagePanel,
@@ -48,6 +46,13 @@ type Message = {
     description: string;
     href: string;
     requiresConfirmation: boolean;
+  }>;
+  citations?: Array<{
+    index: number;
+    title: string;
+    sourceName: string;
+    sourceUrl: string;
+    reviewedAt: string;
   }>;
 };
 
@@ -80,6 +85,30 @@ const sourceLabels: Record<string, string> = {
   kimi: "AI 通用整理",
   fallback: "安全兜底",
 };
+const DEMO_HISTORY_KEY = "jiayi-claw-demo-conversation-history";
+
+function retainDemoConversation(question: string, reply: { answer?: string; category?: string; riskLevel?: string }) {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return;
+  try {
+    const current = JSON.parse(sessionStorage.getItem(DEMO_HISTORY_KEY) ?? "[]") as unknown[];
+    sessionStorage.setItem(
+      DEMO_HISTORY_KEY,
+      JSON.stringify([
+        {
+          id: crypto.randomUUID(),
+          question,
+          answer: reply.answer ?? null,
+          category: reply.category ?? null,
+          risk_level: reply.riskLevel ?? "low",
+          created_at: new Date().toISOString(),
+        },
+        ...current,
+      ].slice(0, 100)),
+    );
+  } catch {
+    // Demo history is optional and never replaces production server storage.
+  }
+}
 export default function AskPage() {
   const router = useRouter();
   const [question, setQuestion] = useState("");
@@ -91,7 +120,6 @@ export default function AskPage() {
     },
   ]);
   const [loading, setLoading] = useState(false);
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [inputMode, setInputMode] = useState<"text" | "voice">("text");
   const [attachmentOpen, setAttachmentOpen] = useState(false);
   const [activities, setActivities] = useState<AssistantActivity[]>([]);
@@ -99,12 +127,13 @@ export default function AskPage() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [clearingActivity, setClearingActivity] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const messageScrollRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<DocumentImagePanelHandle>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const initial = params.get("q");
     if (initial) setQuestion(initial);
-    if (params.get("voice") === "1") setVoiceOpen(true);
+    if (params.get("voice") === "1") setInputMode("voice");
     if (params.get("photo") === "1")
       window.setTimeout(() => documentRef.current?.openCamera(), 180);
   }, []);
@@ -124,7 +153,9 @@ export default function AskPage() {
     };
   }, [router]);
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messageScrollRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -168,6 +199,7 @@ export default function AskPage() {
       if (!response.ok)
         throw new Error(payload.error?.message ?? "Claw 暂时无法回答");
       const reply = payload.data.reply;
+      retainDemoConversation(text, reply);
       setMessages((items) => [
         ...items,
         {
@@ -179,6 +211,7 @@ export default function AskPage() {
           risk: reply.riskLevel,
           suggestDoctor: Boolean(reply.suggestDoctor),
           actions: payload.data.actions ?? [],
+          citations: reply.citations ?? [],
         },
       ]);
       const activity = payload.data.activity as AssistantActivity | null;
@@ -232,7 +265,7 @@ export default function AskPage() {
   }
   return (
     <PhoneShell contentMode="fixed">
-      <div className="relative mx-auto flex h-full min-h-0 w-full flex-col">
+      <div className="absolute inset-0 mx-auto flex min-h-0 w-full flex-col">
         <header className="flex shrink-0 items-center gap-3 border-b border-line/60 px-4 pb-3 pt-7">
           <button
             onClick={() => router.back()}
@@ -249,18 +282,15 @@ export default function AskPage() {
               服务导航与资料整理，不替代医生
             </p>
           </div>
-          {activities.length ? (
-            <button
-              type="button"
-              onClick={() => setActivityOpen((value) => !value)}
-              aria-label="查看服务轨迹"
-              className="ios-control ml-auto flex h-11 w-11 items-center justify-center rounded-full text-navy"
-            >
-              <History className="h-4 w-4" />
-            </button>
-          ) : null}
+          <Link
+            href="/ask/history"
+            aria-label="查看对话记录"
+            className="ios-control ml-auto flex h-11 w-11 items-center justify-center rounded-full text-navy"
+          >
+            <History className="h-4 w-4" />
+          </Link>
         </header>
-        <div className="phone-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
+        <div ref={messageScrollRef} className="phone-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
         <div className="mt-3">
           <CareSubjectSwitcher compact />
         </div>
@@ -336,7 +366,7 @@ export default function AskPage() {
                   ))}
                 </div>
                 <div className="flex items-center justify-between border-t border-line/45 pt-3 text-[10px] text-navy/38">
-                  <span>仅保留结构化轨迹 30 天，不保存对话原文</span>
+                  <span>服务轨迹保留 30 天，对话记录可单独管理</span>
                   <button
                     type="button"
                     disabled={clearingActivity}
@@ -353,7 +383,7 @@ export default function AskPage() {
         ) : (
           <div className="mt-4 flex items-center gap-2 px-1 text-[11px] leading-5 text-navy/42">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-sage" />
-            对话原文不保存；办理动作会形成可清除的服务轨迹
+            对话记录仅本人可见；办理动作会形成独立服务轨迹
           </div>
         )}
         <div className="mt-4 rounded-[22px] border border-danger/15 bg-risk-soft p-3 text-xs leading-5 text-danger">
@@ -379,6 +409,31 @@ export default function AskPage() {
                   <p className="mt-2 text-[11px] opacity-50">
                     回答依据：{sourceLabels[item.source] ?? item.source}
                   </p>
+                ) : null}
+                {item.citations?.length ? (
+                  <div className="mt-3 space-y-2 border-t border-line/50 pt-3">
+                    <p className="text-[11px] font-semibold opacity-65">可核验依据</p>
+                    {item.citations.map((citation) => (
+                      <a
+                        key={`${citation.index}-${citation.sourceUrl}`}
+                        href={citation.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 rounded-[16px] bg-health-soft px-3 py-2.5 text-left text-navy"
+                      >
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[11px] font-bold text-sage">
+                          {citation.index}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-semibold">{citation.title}</span>
+                          <span className="mt-0.5 block truncate text-[10px] text-navy/48">
+                            {citation.sourceName} · 核验于 {new Date(citation.reviewedAt).toLocaleDateString("zh-CN")}
+                          </span>
+                        </span>
+                        <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-sage" />
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
                 {item.actions?.length ? (
                   <div className="mt-3 space-y-2 border-t border-line/50 pt-3">
@@ -478,8 +533,8 @@ export default function AskPage() {
                   },
                   {
                     label: "录音",
-                    icon: Headphones,
-                    action: () => setVoiceOpen(true),
+                    icon: Mic,
+                    action: () => setInputMode("voice"),
                   },
                 ].map((item) => {
                   const Icon = item.icon;
@@ -531,7 +586,16 @@ export default function AskPage() {
           {inputMode === "voice" ? (
             <HoldToTalkButton
               disabled={loading}
-              onFallback={() => setVoiceOpen(true)}
+              onFallback={() =>
+                setMessages((items) => [
+                  ...items,
+                  {
+                    id: crypto.randomUUID(),
+                    role: "assistant",
+                    text: "当前浏览器没有开放语音识别能力。请先用键盘输入，或在微信小程序中按住说话。",
+                  },
+                ])
+              }
               onTranscript={(text) => {
                 setQuestion((current) => current.trim() ? `${current.trim()} ${text}` : text);
                 setInputMode("text");
@@ -557,13 +621,8 @@ export default function AskPage() {
         </form>
         <p className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-1.5 text-center text-[10px] text-navy/35">
           <MessageCircle className="mr-1 inline h-3 w-3" />
-          默认不保存完整健康对话，仅记录脱敏运行与服务审计
+          对话记录不自动写入健康档案，可在右上角查看和清除
         </p>
-        <VoiceInputPanel
-          open={voiceOpen}
-          onClose={() => setVoiceOpen(false)}
-          onConfirm={(text) => setQuestion(text)}
-        />
       </div>
     </PhoneShell>
   );

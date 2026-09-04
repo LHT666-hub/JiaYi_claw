@@ -1,94 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { MessageCircle, ShieldCheck, Trash2 } from "lucide-react";
 import { BackHeader } from "@/components/BackHeader";
 import { PhoneShell } from "@/components/PhoneShell";
 import { SectionCard } from "@/components/SectionCard";
-import { readAskLogs, STORAGE_CHANGE_EVENT } from "@/lib/storage";
-import { AskLogItem, RiskLevel } from "@/lib/types";
-import { formatMessageTime } from "@/lib/format";
 
-const riskColors: Record<RiskLevel, string> = {
-  low: "bg-health-success text-success",
-  medium: "bg-[#FFF1DD] text-amber",
-  high: "bg-[#F8DDD9] text-danger",
-  emergency: "bg-[#F8DDD9] text-danger",
+type HistoryItem = {
+  id: string;
+  question: string;
+  answer: string | null;
+  category: string | null;
+  risk_level: "low" | "medium" | "high" | "emergency" | null;
+  created_at: string;
 };
 
-const riskLabels: Record<RiskLevel, string> = {
-  low: "低风险",
-  medium: "中风险",
-  high: "高风险",
-  emergency: "紧急",
-};
+const DEMO_HISTORY_KEY = "jiayi-claw-demo-conversation-history";
+
+function readDemoItems() {
+  try {
+    return JSON.parse(sessionStorage.getItem(DEMO_HISTORY_KEY) ?? "[]") as HistoryItem[];
+  } catch {
+    return [];
+  }
+}
 
 export default function AskHistoryPage() {
-  const [logs, setLogs] = useState<AskLogItem[]>([]);
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [demo, setDemo] = useState(false);
+  const [retentionEnabled, setRetentionEnabled] = useState(true);
 
-  useEffect(() => {
-    function refresh() {
-      setLogs(readAskLogs().slice().reverse());
+  const load = useCallback(async () => {
+    setLoading(true);
+    const response = await fetch("/api/v1/assistant/history", { cache: "no-store" });
+    const payload = await response.json();
+    if (response.ok) {
+      const isDemo = Boolean(payload.data.demo);
+      setDemo(isDemo);
+      setRetentionEnabled(payload.data.retentionEnabled !== false);
+      setItems(isDemo ? readDemoItems() : (payload.data.items ?? []));
     }
-
-    refresh();
-    window.addEventListener(STORAGE_CHANGE_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-
-    return () => {
-      window.removeEventListener(STORAGE_CHANGE_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
+    setLoading(false);
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function clear() {
+    if (!window.confirm("清除全部 Claw 对话记录？服务申请和审计轨迹不会被删除。")) return;
+    if (demo) sessionStorage.removeItem(DEMO_HISTORY_KEY);
+    else await fetch("/api/v1/assistant/history", { method: "DELETE" });
+    setItems([]);
+  }
 
   return (
     <PhoneShell>
-      <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="提问记录" subtitle="您之前问过 Claw 的所有问题" />
-
-        {logs.length === 0 ? (
-          <SectionCard>
-            <div className="rounded-[24px] bg-surface-card p-6 text-center">
-              <p className="text-base font-semibold text-navy">还没有提问记录</p>
-              <p className="mt-2 text-sm leading-6 text-navy/60">
-                有疑问可以先去问 Claw，流程、配药、体检、随访相关的问题都可以。
-              </p>
-              <a
-                href="/ask"
-                className="mt-4 inline-block rounded-full bg-navy px-5 py-2.5 text-sm font-semibold text-white"
-              >
-                去问 Claw
-              </a>
-            </div>
-          </SectionCard>
-        ) : (
+      <main className="space-y-5 px-4 pb-8">
+        <BackHeader title="对话记录" subtitle="仅本人可见，不自动写入健康档案" />
+        <div className="flex items-center justify-between rounded-[22px] bg-health-soft px-4 py-3 text-xs text-navy/60">
+          <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-sage" />{demo ? "演示环境仅保留本次浏览会话" : "记录可随时清除，办理轨迹单独留存"}</span>
+          {items.length ? <button onClick={() => void clear()} className="flex items-center gap-1 font-semibold text-danger"><Trash2 className="h-3.5 w-3.5" />清除</button> : null}
+        </div>
+        {loading ? (
+          <div className="h-28 animate-shimmer rounded-[26px]" />
+        ) : !retentionEnabled ? (
+          <SectionCard><p className="text-sm font-semibold text-navy">当前账号未开启对话留存</p><p className="mt-2 text-xs leading-5 text-navy/55">Claw 仍会保留必要的脱敏运行记录和服务审计，但不保存问答原文。</p></SectionCard>
+        ) : items.length ? (
           <div className="space-y-3">
-            {logs.map((log) => (
-              <SectionCard key={log.id}>
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-navy">{log.question}</p>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${riskColors[log.riskLevel]}`}
-                    >
-                      {riskLabels[log.riskLevel]}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-6 text-navy/68">
-                    {log.answer.length > 120 ? `${log.answer.slice(0, 120)}...` : log.answer}
-                  </p>
-                  <div className="flex items-center gap-3 text-xs text-navy/45">
-                    {log.category ? <span>{log.category}</span> : null}
-                    <span>{formatMessageTime(log.createdAt)}</span>
-                    {log.suggestDoctor ? (
-                      <span className="text-amber">建议联系家医</span>
-                    ) : null}
-                  </div>
-                </div>
-              </SectionCard>
+            {items.map((item) => (
+              <article key={item.id} className="ios-material rounded-[26px] p-4">
+                <p className="text-sm font-semibold leading-6 text-navy">{item.question}</p>
+                {item.answer ? <p className="mt-2 line-clamp-4 text-sm leading-6 text-navy/62">{item.answer}</p> : null}
+                <div className="mt-3 flex items-center justify-between text-[11px] text-navy/38"><span>{item.category ?? "Claw 对话"}</span><time>{new Date(item.created_at).toLocaleString("zh-CN")}</time></div>
+              </article>
             ))}
           </div>
+        ) : (
+          <SectionCard><div className="py-5 text-center"><MessageCircle className="mx-auto h-7 w-7 text-sage" /><p className="mt-3 text-sm font-semibold text-navy">还没有对话记录</p><Link href="/ask" className="mt-4 inline-flex rounded-full bg-navy px-5 py-2.5 text-sm font-semibold text-white">去问 Claw</Link></div></SectionCard>
         )}
-      </div>
+      </main>
     </PhoneShell>
   );
 }

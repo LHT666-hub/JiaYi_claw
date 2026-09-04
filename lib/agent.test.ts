@@ -18,6 +18,14 @@ describe("service intent extraction", () => {
     expect(inferServiceRequestFromQuestion("家医 Claw 能帮我做什么")).toBeNull();
   });
 
+  it("preserves a stated next-week weekday instead of inventing tomorrow", () => {
+    expect(inferServiceRequestFromQuestion("帮我预约下周二下午的家庭医生")).toMatchObject({
+      kind: "family_doctor",
+      preferredDate: "下周二",
+      preferredTime: "下午",
+    });
+  });
+
   it("keeps referral priority when the resident also says appointment", () => {
     expect(inferServiceRequestFromQuestion("帮我预约转诊到奉贤区中心医院")).toMatchObject({
       kind: "referral",

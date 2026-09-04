@@ -96,6 +96,14 @@ function inferPreferredDate(question: string) {
     return "本周";
   }
 
+  const nextWeekday = question.match(/下周[一二三四五六日天]/)?.[0];
+  if (nextWeekday) return nextWeekday;
+
+  if (question.includes("下周")) return "下周";
+
+  const calendarDate = question.match(/(?:\d{4}年)?\d{1,2}月\d{1,2}[日号]/)?.[0];
+  if (calendarDate) return calendarDate;
+
   return "明天";
 }
 

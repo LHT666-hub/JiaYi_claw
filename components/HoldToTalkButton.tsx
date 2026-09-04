@@ -13,7 +13,7 @@ import { useSpeechRecognition } from "@/lib/useSpeechRecognition";
 type HoldToTalkButtonProps = {
   disabled?: boolean;
   onTranscript: (text: string) => void;
-  onFallback: () => void;
+  onFallback?: () => void;
 };
 
 export function HoldToTalkButton({
@@ -59,7 +59,7 @@ export function HoldToTalkButton({
   function begin() {
     if (disabled || holdingRef.current) return;
     if (!isSupported()) {
-      onFallback();
+      onFallback?.();
       return;
     }
     deliveredRef.current = "";

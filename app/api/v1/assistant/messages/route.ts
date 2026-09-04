@@ -20,6 +20,10 @@ import {
   searchPublicInfo,
 } from "@/lib/publicInfoRepository";
 import { getSkillDefinition, routeSkillIds } from "@/lib/skills/registry";
+import {
+  buildCurrentInfoNotFoundReply,
+  requiresVerifiedCurrentInfo,
+} from "@/lib/assistant/verifiedCurrentInfo";
 import { getApiAuthContext } from "@/lib/supabase/server-auth";
 import {
   buildMemoryContext,
@@ -43,6 +47,7 @@ export async function POST(request: NextRequest) {
   let skillIds = routeSkillIds(parsed.data.question);
   const auth = await getApiAuthContext(request);
   if (!auth.supabase || !auth.profile) {
+    const inferredDraft = inferServiceRequestFromQuestion(parsed.data.question);
     const safetyReply = getGuardrailReply(parsed.data.question);
     const publicMatches = safetyReply
       ? []
@@ -50,7 +55,11 @@ export async function POST(request: NextRequest) {
     const publicReply = publicMatches[0]
       ? buildVerifiedPublicInfoReply(publicMatches[0])
       : null;
-    let reply = safetyReply ?? publicReply;
+    const requiresCurrentSource = requiresVerifiedCurrentInfo(parsed.data.question);
+    let reply =
+      safetyReply ??
+      publicReply ??
+      (requiresCurrentSource ? buildCurrentInfoNotFoundReply() : null);
     if (!reply && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
       const demoRequest = new NextRequest(request.url, {
         method: "POST",
@@ -75,12 +84,17 @@ export async function POST(request: NextRequest) {
     return apiOk(
       {
         reply,
-        skillIds: safetyReply ? ["safety-triage"] : publicReply ? ["public-info-qa"] : routeSkillIds(parsed.data.question),
+        skillIds: safetyReply
+          ? ["safety-triage"]
+          : publicReply || requiresCurrentSource
+            ? ["public-info-qa"]
+            : routeSkillIds(parsed.data.question),
         actions: buildAssistantActions({
           question: parsed.data.question,
           reply,
-          serviceRequest: null,
+          serviceRequest: inferredDraft,
         }),
+        draft: inferredDraft,
         careSubject: null,
         writePerformed: false,
       },
@@ -105,10 +119,16 @@ export async function POST(request: NextRequest) {
   }
   const careState = await getResidentCareAccess(careSubject.residentId, auth.supabase);
   if (!careState.access.canSubmitService) {
+    const inferredDraft = inferServiceRequestFromQuestion(parsed.data.question);
     const safetyReply = getGuardrailReply(parsed.data.question);
     const publicMatches = safetyReply ? [] : await searchPublicInfo(parsed.data.question);
     const publicReply = publicMatches[0] ? buildVerifiedPublicInfoReply(publicMatches[0]) : null;
-    const reply = safetyReply ?? publicReply;
+    const reply =
+      safetyReply ??
+      publicReply ??
+      (requiresVerifiedCurrentInfo(parsed.data.question)
+        ? buildCurrentInfoNotFoundReply()
+        : null);
     if (!reply) {
       return apiError(
         "CARE_BINDING_VERIFICATION_REQUIRED",
@@ -120,7 +140,8 @@ export async function POST(request: NextRequest) {
     return apiOk({
       reply,
       skillIds: safetyReply ? ["safety-triage"] : ["public-info-qa"],
-      actions: buildAssistantActions({ question: parsed.data.question, reply, serviceRequest: null }),
+      actions: buildAssistantActions({ question: parsed.data.question, reply, serviceRequest: inferredDraft }),
+      draft: inferredDraft,
       careSubject: careSubject.selected,
       writePerformed: false,
       activity: null,
@@ -247,6 +268,9 @@ export async function POST(request: NextRequest) {
     };
   } else if (ragReply) {
     reply = ragReply;
+    skillIds = [...new Set([...skillIds, "public-info-qa"] )];
+  } else if (requiresVerifiedCurrentInfo(parsed.data.question)) {
+    reply = buildCurrentInfoNotFoundReply();
     skillIds = [...new Set([...skillIds, "public-info-qa"] )];
   } else {
     const legacyRequest = new NextRequest(request.url, {
@@ -385,6 +409,7 @@ export async function POST(request: NextRequest) {
       writePerformed: false,
       activity,
       rawTranscriptStored: false,
+      draft: inferredServiceRequest,
     },
     traceId,
   );

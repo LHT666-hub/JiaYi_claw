@@ -25,11 +25,19 @@ function isStale(verifiedAt: string, expiresAt?: string | null) {
 function score(item: PublicInfoRecord, query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return 1;
-  let value = item.title.toLowerCase().includes(normalized) ? 8 : 0;
+  const title = item.title.toLowerCase();
+  let value = title === normalized ? 40 : title.includes(normalized) ? 18 : 0;
   for (const keyword of item.keywords) {
-    if (normalized.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(normalized)) value += 4;
+    const candidate = keyword.trim().toLowerCase();
+    if (!candidate) continue;
+    if (candidate === normalized) value += 32;
+    else if (candidate.includes(normalized)) value += 14;
+    else if (normalized.includes(candidate)) {
+      const specificity = Math.min(10, Math.max(1, candidate.length / normalized.length * 10));
+      value += specificity;
+    }
   }
-  if (item.content.toLowerCase().includes(normalized)) value += 2;
+  if (item.content.toLowerCase().includes(normalized)) value += 8;
   return value;
 }
 
@@ -99,6 +107,19 @@ export async function searchPublicInfo(query: string) {
 }
 
 export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
+  const citations: NonNullable<AskReply["citations"]> = [{
+    index: 1,
+    chunkId: `public-info-${item.id}`,
+    documentId: item.id,
+    sourceId: item.id,
+    sourceType: "public_info",
+    title: item.title,
+    heading: item.category,
+    sourceName: item.sourceName,
+    sourceUrl: item.sourceUrl,
+    reviewedAt: item.verifiedAt,
+    version: 1,
+  }];
   if (item.stale) {
     return {
       answer: `我找到了“${item.title}”的历史资料，但它已超过核验有效期，不能作为当前办理依据。`,
@@ -108,6 +129,7 @@ export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
       category: item.category,
       source: "knowledge",
       knowledgeIds: [item.id],
+      citations,
     };
   }
 
@@ -119,6 +141,7 @@ export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
     category: item.category,
     source: "knowledge",
     knowledgeIds: [item.id],
+    citations,
   };
 }
 
