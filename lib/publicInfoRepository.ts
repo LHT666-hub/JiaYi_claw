@@ -23,6 +23,33 @@ function isStale(verifiedAt: string, expiresAt?: string | null) {
   return now - new Date(verifiedAt).getTime() > 365 * 24 * 60 * 60 * 1000;
 }
 
+function localityAdjustment(item: PublicInfoRecord, query: string) {
+  const normalizedQuery = normalizeRetrievalQuery(query);
+  const itemText = normalizeRetrievalQuery(
+    `${item.title} ${item.category} ${item.keywords.join(" ")} ${item.content}`,
+  );
+
+  if (/五四/.test(normalizedQuery)) {
+    if (/五四/.test(itemText)) return 90;
+    if (/海湾/.test(itemText)) return 24;
+    if (/南桥/.test(itemText)) return -70;
+  }
+  if (/海旅/.test(normalizedQuery)) {
+    if (/海旅/.test(itemText)) return 90;
+    if (/海湾/.test(itemText)) return 24;
+    if (/南桥/.test(itemText)) return -70;
+  }
+  if (/海湾/.test(normalizedQuery)) {
+    if (/(?:海湾|五四|海旅|民乐路55号)/.test(itemText)) return 65;
+    if (/(?:南桥|育秀东路|新建西路)/.test(itemText)) return -70;
+  }
+  if (/南桥/.test(normalizedQuery)) {
+    if (/(?:南桥|育秀东路|新建西路)/.test(itemText)) return 65;
+    if (/(?:海湾|五四|海旅|民乐路55号)/.test(itemText)) return -70;
+  }
+  return 0;
+}
+
 export function scorePublicInfoRecord(item: PublicInfoRecord, query: string) {
   const normalized = normalizeRetrievalQuery(query);
   if (!normalized) return 1;
@@ -34,7 +61,8 @@ export function scorePublicInfoRecord(item: PublicInfoRecord, query: string) {
   const keywords = item.keywords.map((keyword) => normalizeRetrievalQuery(keyword)).filter(Boolean);
   const terms = getRetrievalTerms(query);
 
-  let value = title === normalized ? 48 : title.includes(normalized) ? 28 : 0;
+  let value = localityAdjustment(item, query);
+  value += title === normalized ? 48 : title.includes(normalized) ? 28 : 0;
   if (content.includes(normalized)) value += 12;
 
   let matchedTerms = 0;
