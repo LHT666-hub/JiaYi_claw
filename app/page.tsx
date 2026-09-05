@@ -5,15 +5,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
-  AlertTriangle,
   BookOpen,
-  ChevronRight,
   HeartPulse,
   Stethoscope,
   Users,
 } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
-import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
 import { PrimaryClawCard } from "@/components/PrimaryClawCard";
 import { SectionCard } from "@/components/SectionCard";
 import { TopBar } from "@/components/TopBar";
@@ -22,12 +19,6 @@ import { serviceStatusLabels } from "@/lib/serviceRequests/stateMachine";
 type HomeData = {
   demo?: boolean;
   profile: { displayName: string; role: string };
-  careSubject: import("@/lib/careSubjects").CareSubject;
-  careSubjects: import("@/lib/careSubjects").CareSubject[];
-  network: null | {
-    name: string;
-    community?: { name?: string; service_phone?: string | null };
-  };
   serviceRequests: Array<{
     id: string;
     title: string;
@@ -141,41 +132,6 @@ export default function HomePage() {
                 router.push(`/ask?q=${encodeURIComponent(question)}`)
               }
             />
-
-            <CareSubjectSwitcher
-              initialSelected={data.careSubject}
-              initialSubjects={data.careSubjects}
-            />
-
-            <div className="rounded-[24px] border border-danger/15 bg-risk-soft px-4 py-3">
-              <p className="flex items-center gap-2 text-sm font-semibold text-danger">
-                <AlertTriangle className="h-4 w-4" />
-                紧急情况
-              </p>
-              <p className="mt-1.5 text-xs leading-5 text-navy/60">
-                胸痛、呼吸困难、意识不清或大出血，请立即拨打 120。
-              </p>
-            </div>
-
-            <SectionCard title="我的家医服务">
-              <div className="rounded-[24px] bg-navy px-5 py-5 text-white shadow-[0_18px_38px_rgba(16,42,67,0.18)]">
-                <p className="text-xs text-white/58">已绑定服务网络</p>
-                <h2 className="mt-2 text-lg font-semibold">
-                  {data.network?.name ?? "尚未绑定家医网络"}
-                </h2>
-                <p className="mt-1.5 text-sm text-white/68">
-                  {data.network?.community?.name ??
-                    "请联系社区工作人员完成绑定"}
-                </p>
-                <Link
-                  href="/services"
-                  className="mt-4 flex items-center justify-between rounded-full bg-white/12 px-4 py-3 text-sm font-semibold"
-                >
-                  查看我的服务网络
-                  <ChevronRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </SectionCard>
 
             <SectionCard
               title="常用服务"
