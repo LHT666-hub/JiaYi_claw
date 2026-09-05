@@ -331,7 +331,7 @@ export default function AskPage() {
             item.id === assistantId
               ? {
                   ...item,
-                  text: reply.answer ?? item.text || "已收到您的问题。",
+                  text: reply.answer || item.text || "已收到您的问题。",
                   source: reply.source,
                   nextStep: reply.nextStep,
                   risk: reply.riskLevel,
