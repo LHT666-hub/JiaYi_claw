@@ -10,6 +10,7 @@ import messagesDefault from "../assets/tabbar/messages-default.png";
 import servicesActive from "../assets/tabbar/services-active.png";
 import servicesDefault from "../assets/tabbar/services-default.png";
 import "./index.scss";
+import { haptic } from "../lib/haptics";
 
 const tabs = [
   { pagePath: "/pages/home/index", label: "首页", icon: homeDefault, activeIcon: homeActive },
@@ -29,6 +30,7 @@ export default function CustomTabBar() {
 
   function switchTo(pagePath: string) {
     if (pagePath === activeRoute) return;
+    haptic("selection");
     void Taro.switchTab({ url: pagePath });
   }
 

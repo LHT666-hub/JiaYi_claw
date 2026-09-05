@@ -19,6 +19,7 @@ import {
   uploadVoiceBlob,
   withCareSubject,
 } from "../../lib/api";
+import { haptic } from "../../lib/haptics";
 
 type AssistantAction = {
   id: string;
@@ -163,6 +164,7 @@ export default function AskPage() {
   }
 
   async function start() {
+    haptic("medium");
     setText("");
     setError("");
     if (recorder) {
@@ -235,6 +237,7 @@ export default function AskPage() {
   }
 
   function stopRecording() {
+    haptic("selection");
     if (recorder) {
       recorder.stop();
       return;
@@ -264,6 +267,7 @@ export default function AskPage() {
       const result = await uploadDocumentImage(file.tempFilePath);
       setDocumentAnalysis(result);
       setState("idle");
+      haptic("success");
       void Taro.showToast({ title: "已完成临时识别", icon: "success" });
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : "图片识别失败";
@@ -289,6 +293,7 @@ export default function AskPage() {
   async function ask(questionOverride?: string) {
     const question = (questionOverride ?? text).trim();
     if (!question || state === "asking") return;
+    haptic("light");
     setText("");
     setError("");
     setMessages((items) => [

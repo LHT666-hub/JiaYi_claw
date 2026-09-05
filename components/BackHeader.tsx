@@ -23,7 +23,12 @@ export function BackHeader({ title, subtitle, sticky = false, backHref }: BackHe
     >
       <button
         type="button"
-        onClick={() => backHref ? router.push(backHref) : router.back()}
+        data-haptic="light"
+        onClick={() => {
+          document.documentElement.dataset.navDirection = "back";
+          if (backHref) router.push(backHref);
+          else router.back();
+        }}
         className="ios-control mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-navy"
         aria-label="返回"
       >

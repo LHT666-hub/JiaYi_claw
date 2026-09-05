@@ -18,6 +18,7 @@ import {
   WandSparkles,
   XCircle,
 } from "lucide-react";
+import { triggerHaptic } from "@/lib/haptics";
 import type {
   ServiceAction,
   ServiceStatus,
@@ -163,8 +164,10 @@ export default function AppointmentsPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!canSubmit)
+    if (!canSubmit) {
+      triggerHaptic("warning");
       return showToast("请补齐预约目标、日期、手机号并确认提交。", "warning");
+    }
     setSubmitting(true);
     const summary = `${target}${department ? `，希望就诊科室：${department}` : ""}${doctor ? `，优先医生：${doctor}` : ""}${note ? `。补充：${note}` : ""}`;
     const response = await fetch("/api/v1/service-requests", {
@@ -200,11 +203,14 @@ export default function AppointmentsPage() {
     });
     const payload = await response.json();
     setSubmitting(false);
-    if (!response.ok)
+    if (!response.ok) {
+      triggerHaptic("warning");
       return showToast(
         payload.error?.message ?? "预约申请提交失败。",
         "warning",
       );
+    }
+    triggerHaptic("success");
     showToast(
       payload.data.deduplicated
         ? "这条申请已经提交过了。"
@@ -403,6 +409,7 @@ export default function AppointmentsPage() {
               </span>
             </label>
             <button
+              data-haptic="medium"
               disabled={!canSubmit || submitting}
               className="flex w-full items-center justify-center gap-2 rounded-full bg-navy px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(16,42,67,0.18)] disabled:opacity-50"
             >

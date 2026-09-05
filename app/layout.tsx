@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ToastProvider } from "@/components/ToastProvider";
 import { PwaRegister } from "@/components/PwaRegister";
+import { MotionFeedbackProvider } from "@/components/MotionFeedbackProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
+        <MotionFeedbackProvider />
         <ToastProvider>{children}</ToastProvider>
         <PwaRegister />
       </body>

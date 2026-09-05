@@ -29,6 +29,7 @@ export function PhoneShell({
   } | null>(null);
   const shouldHideBottomNav = pathname === "/group";
   const shouldShowBottomNav = showBottomNav && !shouldHideBottomNav;
+  const isPrimaryRoute = ["/", "/services", "/messages", "/me"].includes(pathname);
 
   useEffect(() => {
     if (contentMode !== "fixed") return;
@@ -84,7 +85,12 @@ export function PhoneShell({
               : `overflow-y-auto ${shouldShowBottomNav ? "pb-32" : "pb-8"}`
           }`}
         >
-          {children}
+          <div
+            key={pathname}
+            className={`resident-route-motion ${isPrimaryRoute ? "resident-route-tab" : "resident-route-detail"} ${contentMode === "fixed" ? "flex h-full min-h-0 flex-col" : ""}`}
+          >
+            {children}
+          </div>
         </div>
         {shouldShowBottomNav ? <BottomNav /> : null}
         {shouldShowBottomNav ? (

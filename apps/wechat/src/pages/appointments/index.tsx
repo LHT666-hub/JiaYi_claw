@@ -3,6 +3,7 @@ import Taro, { useLoad } from "@tarojs/taro";
 import { useMemo, useRef, useState } from "react";
 import type { AppointmentDraftPayload } from "@jiayi/contracts";
 import { apiRequest, getCareSubjectId, withCareSubject } from "../../lib/api";
+import { haptic } from "../../lib/haptics";
 
 type ServiceType =
   | "clinic_registration"
@@ -163,17 +164,21 @@ export default function AppointmentPage() {
 
   function goNext() {
     if (contextError || !availableServiceOptions.some((item) => item.type === serviceType)) {
+      haptic("warning");
       Taro.showToast({ title: contextError || "这项服务当前未开放", icon: "none" });
       return;
     }
     if (step === 0 && target.trim().length < 2) {
+      haptic("warning");
       Taro.showToast({ title: "请简单说明本次服务需求", icon: "none" });
       return;
     }
     if (step === 1 && (!date || !/^1\d{10}$/.test(phone))) {
+      haptic("warning");
       Taro.showToast({ title: "请选择日期并填写正确手机号", icon: "none" });
       return;
     }
+    haptic("selection");
     setStep((value) => Math.min(value + 1, 2));
   }
 
@@ -266,6 +271,7 @@ export default function AppointmentPage() {
   }
 
   async function submit() {
+    haptic("medium");
     if (contextError || !availableServiceOptions.some((item) => item.type === serviceType)) {
       Taro.showToast({ title: contextError || "这项服务当前未开放", icon: "none" });
       return;
@@ -302,6 +308,7 @@ export default function AppointmentPage() {
         },
       });
       Taro.showToast({ title: "申请已提交", icon: "success" });
+      haptic("success");
       void apiRequest("/api/v1/service-drafts", {
         method: "DELETE",
         data: { residentId: getCareSubjectId() || undefined, draftType: "appointment" },
@@ -313,6 +320,7 @@ export default function AppointmentPage() {
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "提交失败，请稍后重试";
       setSubmitError(message);
+      haptic("warning");
       Taro.showToast({ title: "申请尚未提交", icon: "none" });
     } finally {
       setLoading(false);

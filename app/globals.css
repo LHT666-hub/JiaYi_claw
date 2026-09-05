@@ -195,13 +195,60 @@ textarea {
   transform: scale(0.98);
 }
 
+.phone-shell-frame [data-press="card"]:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
 .phone-shell-frame :is(button, a):focus-visible {
   outline: 3px solid #4f8378;
   outline-offset: 3px;
 }
 
-.resident-ui > :first-child {
-  animation: slide-in-from-bottom 220ms ease-out;
+.resident-route-motion {
+  transform-origin: center top;
+  will-change: transform, opacity;
+}
+
+.resident-route-tab {
+  animation: resident-tab-enter 180ms cubic-bezier(0.22, 0.78, 0.28, 1) both;
+}
+
+.resident-route-detail {
+  animation: resident-detail-enter 220ms cubic-bezier(0.22, 0.78, 0.28, 1) both;
+}
+
+html[data-nav-direction="back"] .resident-route-detail {
+  animation-name: resident-back-enter;
+}
+
+.phone-bottom-nav [aria-current="page"] svg {
+  animation: nav-icon-settle 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.claw-scrim {
+  animation: claw-scrim-enter 180ms ease-out both;
+}
+
+.claw-sheet {
+  transform-origin: center bottom;
+  animation: claw-sheet-enter 260ms cubic-bezier(0.2, 0.86, 0.24, 1) both;
+}
+
+.claw-scrim-exit {
+  animation: claw-scrim-exit 180ms ease-in both;
+}
+
+.claw-sheet-exit {
+  animation: claw-sheet-exit 180ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+.claw-launcher svg {
+  transition: transform 180ms ease-out;
+}
+
+.claw-launcher:active svg {
+  transform: rotate(-8deg) scale(0.94);
 }
 
 .resident-ui :is(input, textarea, select) {
@@ -363,6 +410,47 @@ textarea {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes resident-tab-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes resident-detail-enter {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes resident-back-enter {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes nav-icon-settle {
+  0% { transform: scale(0.86); }
+  65% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes claw-scrim-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes claw-sheet-enter {
+  from { opacity: 0; transform: translateY(22px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes claw-scrim-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes claw-sheet-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(14px) scale(0.99); }
 }
 
 .animate-in {

@@ -31,6 +31,8 @@ export function PrimaryClawCard({
       <div className="mt-5 grid gap-3">
         <button
           type="button"
+          data-haptic="medium"
+          data-press="card"
           onClick={onVoice}
           className="group flex items-center justify-between rounded-[26px] border border-white/60 bg-white/[0.94] px-4 py-4 text-left text-navy shadow-[0_14px_34px_rgba(16,42,67,0.12)] backdrop-blur-sm transition hover:-translate-y-0.5"
         >
@@ -47,6 +49,8 @@ export function PrimaryClawCard({
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
+            data-haptic="light"
+            data-press="card"
             onClick={onPhoto}
             className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
           >
@@ -58,6 +62,8 @@ export function PrimaryClawCard({
           </button>
           <button
             type="button"
+            data-haptic="light"
+            data-press="card"
             onClick={onText}
             className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
           >
@@ -74,6 +80,7 @@ export function PrimaryClawCard({
           <button
             key={question}
             type="button"
+            data-haptic="selection"
             onClick={() => onQuickQuestion(question)}
             className="rounded-full border border-white/18 bg-white/10 px-3 py-2 text-sm text-white/88 transition hover:bg-white/16"
           >

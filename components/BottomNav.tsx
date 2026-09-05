@@ -35,6 +35,8 @@ export function BottomNav() {
                 key={`${item.href}-${item.label}`}
                 href={item.href}
                 aria-current={isActive ? "page" : undefined}
+                data-nav-kind="tab"
+                data-haptic="selection"
                 className={`flex min-h-[62px] flex-col items-center justify-center gap-1.5 rounded-[22px] px-1 py-2.5 transition active:scale-95 ${
                   isActive
                     ? "-translate-y-1 bg-navy text-white shadow-[0_14px_26px_rgba(16,42,67,0.2)]"

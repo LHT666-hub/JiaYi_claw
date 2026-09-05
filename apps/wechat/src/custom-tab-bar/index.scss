@@ -44,6 +44,10 @@
   color: #204f40;
 }
 
+.resident-tab-item.active .resident-tab-icon-wrap {
+  animation: resident-tab-settle .22s cubic-bezier(.2, .9, .3, 1.2) both;
+}
+
 .resident-tab-icon-wrap {
   width: 42px;
   height: 42px;
@@ -69,4 +73,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .resident-tab-item { transition: none; }
+  .resident-tab-item.active .resident-tab-icon-wrap { animation: none; }
+}
+
+@keyframes resident-tab-settle {
+  0% { transform: scale(.86); }
+  65% { transform: scale(1.08); }
+  100% { transform: scale(1); }
 }
