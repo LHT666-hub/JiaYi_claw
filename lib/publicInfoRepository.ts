@@ -77,7 +77,30 @@ function fromDatabaseRow(item: Record<string, unknown>): PublicInfoRecord {
   };
 }
 
+function mergeRecords(databaseRecords: PublicInfoRecord[], curatedRecords: PublicInfoRecord[]) {
+  const merged = new Map<string, PublicInfoRecord>();
+  for (const item of curatedRecords) {
+    merged.set(`${item.title}\n${item.sourceUrl}`, item);
+  }
+  // Database rows win when the same official item has already been reviewed and
+  // synchronized. Curated Git knowledge still fills gaps in a partial database.
+  for (const item of databaseRecords) {
+    merged.set(`${item.title}\n${item.sourceUrl}`, item);
+  }
+  return [...merged.values()];
+}
+
+function rankRecords(records: PublicInfoRecord[], query: string) {
+  return records
+    .map((item) => ({ item, score: score(item, query) }))
+    .filter(({ score: itemScore }) => !query || itemScore > 0)
+    .sort((a, b) => b.score - a.score || new Date(b.item.verifiedAt).getTime() - new Date(a.item.verifiedAt).getTime())
+    .slice(0, 20)
+    .map(({ item }) => item);
+}
+
 export async function searchPublicInfo(query: string) {
+  const curatedRecords = localRecords();
   const supabase = createSupabasePublicServerClient();
   if (supabase) {
     const timeoutMs = Math.max(500, Number(process.env.PUBLIC_INFO_TIMEOUT_MS ?? 1800));
@@ -95,25 +118,17 @@ export async function searchPublicInfo(query: string) {
       data = null;
     }
     if (data?.length) {
-      return data
-        .map((item) => fromDatabaseRow(item))
-        .map((item) => ({ item, score: score(item, query) }))
-        .filter(({ score: itemScore }) => !query || itemScore > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 20)
-        .map(({ item }) => item);
+      return rankRecords(
+        mergeRecords(data.map((item) => fromDatabaseRow(item)), curatedRecords),
+        query,
+      );
     }
   }
 
-  // This fallback is not demo-only: every item is curated, source-linked and
-  // versioned in Git. It keeps verified public answers available during an
-  // empty index, a database outage, or before a fresh Supabase seed completes.
-  return localRecords()
-    .map((item) => ({ item, score: score(item, query) }))
-    .filter(({ score: itemScore }) => !query || itemScore > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20)
-    .map(({ item }) => item);
+  // Every local item is curated, source-linked and versioned in Git. This keeps
+  // verified public answers available during a partial/empty database, an
+  // outage, or before the latest Supabase/RAG sync completes.
+  return rankRecords(curatedRecords, query);
 }
 
 export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
