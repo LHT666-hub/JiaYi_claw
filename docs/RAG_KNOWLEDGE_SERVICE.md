@@ -9,14 +9,28 @@ content_items / public_info_entries
   -> 人工审核为 published
   -> knowledge_index_jobs
   -> 结构化中文分块
-  -> 可选 Embedding
+  -> Embedding（生产：text-embedding-v4）
   -> knowledge_document_versions / knowledge_chunks
   -> 机构、社区、权限、有效期过滤
-  -> 关键词 + 向量混合检索
-  -> 有来源回答与 chunk 级引用
+  -> 居民问法归一化 / 同义词与本地别名扩展
+  -> 关键词/别名候选 + 向量候选
+  -> RRF 融合
+  -> 可选 Qwen Reranker 二阶段重排
+  -> Top-K 证据
+  -> Qwen 基于证据回答 + chunk 级引用
 ```
 
 原始业务记录是唯一事实源。知识文档、版本、分块和向量均为可重建索引，不用于保存居民病历。
+
+## RAG V2 检索原则
+
+1. **先理解居民怎么说，再检索标准知识。** 例如“礼拜六打预防针伐”会归一化为“周六 / 预防接种 / 接种门诊 / 疫苗”等检索表达；“五四”“海旅”会补充其海湾镇片区语义。
+2. **两路召回。** Lexical 路径负责机构名、药名、政策名、地址、电话号码等精确信息；Dense Vector 路径负责自然语言改写和语义近义表达。
+3. **RRF 融合。** 两路候选先合并，避免单一 embedding 在知识库变大后召回退化。
+4. **Reranker 只做二阶段精排。** 初排保留较宽候选，再使用百炼文本重排模型把最直接回答问题的 5–8 个证据放到前面。Reranker 超时或未配置时自动退回原混合排序，不阻塞回答。
+5. **时效和来源高于“看起来相关”。** 只使用 active、indexed、未过期、当前版本；实时医生排班、号源和个人业务状态不进入静态 RAG。
+
+设计参考 RAGFlow 的 Hybrid Retrieval / Retrieval Test、QAnything 的 Embedding + Reranker 两阶段检索，以及 MedRAG 的 Corpus / Retriever / LLM 分层思路；代码保持家医 Claw 自己的 TypeScript + PostgreSQL/pgvector 实现，不引入新的重型运行框架。
 
 ## 环境变量
 
@@ -25,10 +39,14 @@ content_items / public_info_entries
 - `RAG_EMBEDDING_API_KEY`
 - `RAG_EMBEDDING_BASE_URL`
 - `RAG_EMBEDDING_MODEL`
+- `RAG_RERANK_ENABLED=true|false`
+- `RAG_RERANK_MODEL=qwen3.7-text-rerank`
+- `RAG_RERANK_TIMEOUT_MS=2200`
+- `RAG_RERANK_BASE_URL`（可选；优先使用百炼 Workspace native endpoint）
 - `RAG_GENERATION_ENABLED=true|false`
 - `RAG_GENERATION_MODEL`
 
-`deterministic` 只用于本地测试，生产环境默认禁止。未配置 Embedding 时，系统继续使用关键词检索，不会伪装成语义检索。
+`deterministic` 只用于本地测试，生产环境默认禁止。未配置 Embedding 时，系统继续使用关键词检索，不会伪装成语义检索。Reranker 未配置或失败时，系统使用关键词 + 向量融合结果继续回答。
 
 ## 管理接口
 
