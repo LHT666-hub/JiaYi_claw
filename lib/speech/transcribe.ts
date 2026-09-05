@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { asr } from "tencentcloud-sdk-nodejs-asr";
+import { getAiModelConfig, getDashscopeNativeBaseURL } from "@/lib/ai/config";
 import { transcribeLocalAudio } from "@/lib/speech/localWhisper";
 
 export type SpeechTranscription = {
@@ -19,7 +20,7 @@ function aliyunCredential() {
   return {
     apiKey: apiKey.replace(/^Bearer\s+/i, ""),
     endpoint: process.env.DASHSCOPE_ASR_URL?.trim()
-      || "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+      || `${getDashscopeNativeBaseURL()}/services/aigc/multimodal-generation/generation`,
   };
 }
 
@@ -29,6 +30,7 @@ function audioMimeType(audioPath: string) {
     aac: "audio/aac",
     m4a: "audio/mp4",
     mp3: "audio/mpeg",
+    mp4: "audio/mp4",
     ogg: "audio/ogg",
     opus: "audio/opus",
     wav: "audio/wav",
@@ -41,16 +43,20 @@ function audioMimeType(audioPath: string) {
 
 function audioFileFormat(audioPath: string) {
   const extension = path.extname(audioPath).slice(1).toLowerCase();
-  if (extension === "m4a") return "mp4";
-  if (["aac", "mp3", "mp4", "ogg", "opus", "wav", "webm"].includes(extension)) {
+  if (["aac", "m4a", "mp3", "mp4", "ogg", "opus", "wav", "webm"].includes(extension)) {
     return extension;
   }
   throw new Error("ASR_AUDIO_FORMAT_UNSUPPORTED");
 }
 
-async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscription> {
-  const bytes = await readFile(audioPath);
-  if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("BAILIAN_ASR_AUDIO_TOO_LARGE");
+function dataUri(bytes: Buffer, audioPath: string) {
+  return `data:${audioMimeType(audioPath)};base64,${bytes.toString("base64")}`;
+}
+
+async function transcribeAliyunNative(
+  audioPath: string,
+  bytes: Buffer,
+): Promise<SpeechTranscription> {
   const { apiKey, endpoint } = aliyunCredential();
   const model = process.env.ASR_MODEL?.trim() || "qwen-audio-3.0-asr-flash";
   const response = await fetch(endpoint, {
@@ -66,19 +72,12 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
         messages: [
           {
             role: "user",
-            content: [{
-              type: "input_text",
-              text: "上海话 吴语 家庭医生 家医 复诊 转诊 续方 配药 血压 血糖 慢病 奉贤区 南桥 奉浦 海湾镇 社区卫生服务中心",
-            }],
-          },
-          {
-            role: "user",
-            content: [{
-              type: "input_audio",
-              input_audio: {
-                data: `data:${audioMimeType(audioPath)};base64,${bytes.toString("base64")}`,
+            content: [
+              {
+                type: "input_audio",
+                input_audio: { data: dataUri(bytes, audioPath) },
               },
-            }],
+            ],
           },
         ],
       },
@@ -86,6 +85,8 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
         format: audioFileFormat(audioPath),
         language_hints: ["zh"],
         vocabulary: {
+          "上海话": 5,
+          "吴语": 5,
           "家庭医生": 5,
           "家医": 5,
           "复诊": 5,
@@ -94,6 +95,8 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
           "配药": 5,
           "慢病": 5,
           "奉贤区": 5,
+          "南桥": 5,
+          "奉浦": 5,
           "海湾镇": 5,
           "社区卫生服务中心": 5,
         },
@@ -101,7 +104,7 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
     }),
     signal: AbortSignal.timeout(25_000),
   });
-  const payload = await response.json() as {
+  const payload = await response.json().catch(() => ({})) as {
     request_id?: string;
     output?: { text?: string };
     code?: string;
@@ -109,15 +112,93 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
     error?: { code?: string; message?: string };
   };
   if (!response.ok) {
-    throw new Error(`BAILIAN_ASR_FAILED:${payload.code ?? payload.error?.code ?? response.status}`);
+    const code = payload.code ?? payload.error?.code ?? String(response.status);
+    const detail = payload.message ?? payload.error?.message ?? "unknown";
+    throw new Error(`BAILIAN_ASR_NATIVE_FAILED:${code}:${detail}`);
   }
+  const text = payload.output?.text?.trim() ?? "";
+  if (!text) throw new Error("NO_SPEECH_DETECTED");
   return {
-    text: payload.output?.text?.trim() ?? "",
+    text,
     provider: "aliyun-bailian-asr",
     model,
-    device: "aliyun-cn-beijing",
+    device: process.env.DASHSCOPE_REGION?.trim() || "cn-beijing",
     requestId: payload.request_id,
   };
+}
+
+async function transcribeAliyunCompatible(
+  audioPath: string,
+  bytes: Buffer,
+): Promise<SpeechTranscription> {
+  const config = getAiModelConfig("text");
+  if (!config.apiKey) throw new Error("BAILIAN_ASR_NOT_CONFIGURED");
+  const model = process.env.ASR_FALLBACK_MODEL?.trim() || "qwen3-asr-flash";
+  const response = await fetch(`${config.baseURL.replace(/\/$/, "")}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.apiKey.replace(/^Bearer\s+/i, "")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_audio",
+              input_audio: { data: dataUri(bytes, audioPath) },
+            },
+          ],
+        },
+      ],
+      asr_options: {
+        enable_itn: true,
+      },
+    }),
+    signal: AbortSignal.timeout(25_000),
+  });
+  const payload = await response.json().catch(() => ({})) as {
+    request_id?: string;
+    id?: string;
+    choices?: Array<{ message?: { content?: string } }>;
+    error?: { code?: string; message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(
+      `BAILIAN_ASR_COMPAT_FAILED:${payload.error?.code ?? response.status}:${payload.error?.message ?? "unknown"}`,
+    );
+  }
+  const text = payload.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!text) throw new Error("NO_SPEECH_DETECTED");
+  return {
+    text,
+    provider: "aliyun-bailian-asr",
+    model,
+    device: process.env.DASHSCOPE_REGION?.trim() || "cn-beijing",
+    requestId: payload.request_id ?? payload.id,
+  };
+}
+
+async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscription> {
+  const bytes = await readFile(audioPath);
+  if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("BAILIAN_ASR_AUDIO_TOO_LARGE");
+  try {
+    return await transcribeAliyunNative(audioPath, bytes);
+  } catch (nativeError) {
+    if (nativeError instanceof Error && nativeError.message.includes("NO_SPEECH_DETECTED")) {
+      throw nativeError;
+    }
+    try {
+      return await transcribeAliyunCompatible(audioPath, bytes);
+    } catch (compatibleError) {
+      const nativeMessage = nativeError instanceof Error ? nativeError.message : "native_failed";
+      const compatibleMessage = compatibleError instanceof Error ? compatibleError.message : "compatible_failed";
+      throw new Error(`BAILIAN_ASR_FAILED:${nativeMessage}|${compatibleMessage}`);
+    }
+  }
 }
 
 function audioFormat(audioPath: string) {
@@ -144,7 +225,6 @@ function tencentCredential() {
 
 async function transcribeTencentAudio(audioPath: string): Promise<SpeechTranscription> {
   const bytes = await readFile(audioPath);
-  // Tencent SentenceRecognition accepts at most 3 MB after base64 encoding.
   if (Buffer.byteLength(bytes.toString("base64"), "utf8") > 3 * 1024 * 1024) {
     throw new Error("TENCENT_ASR_AUDIO_TOO_LARGE");
   }
