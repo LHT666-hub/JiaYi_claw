@@ -7,13 +7,10 @@ type PrimaryClawCardProps = {
   onQuickQuestion: (question: string) => void;
 };
 
-const quickQuestions = ["药吃完了怎么办", "体检报告怎么看", "今天谁在坐班"];
-
 export function PrimaryClawCard({
   onVoice,
   onPhoto,
   onText,
-  onQuickQuestion,
 }: PrimaryClawCardProps) {
   return (
     <section className="relative overflow-hidden rounded-[32px] border border-navySoft bg-navy px-5 py-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.22)]">
@@ -48,38 +45,29 @@ export function PrimaryClawCard({
           <button
             type="button"
             onClick={onPhoto}
-            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
+            className="group flex items-center gap-3 rounded-[22px] border border-white/90 bg-white px-4 py-4 text-left text-navy shadow-[0_14px_30px_rgba(16,42,67,0.20),inset_0_1px_0_rgba(255,255,255,0.96)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(16,42,67,0.24),inset_0_1px_0_rgba(255,255,255,0.98)] active:scale-[0.98]"
           >
-            <Camera className="h-5 w-5 shrink-0" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#F3E7D9] text-navy shadow-[0_4px_10px_rgba(16,42,67,0.08),inset_0_1px_0_rgba(255,255,255,0.75)] transition group-hover:scale-105">
+              <Camera className="h-5 w-5" />
+            </span>
             <div>
-              <p className="text-sm font-semibold">拍照问</p>
-              <p className="mt-1 text-xs text-white/68">药盒、体检单</p>
+              <p className="text-sm font-bold">拍照问</p>
+              <p className="mt-1 text-xs text-navy/55">药盒、体检单</p>
             </div>
           </button>
           <button
             type="button"
             onClick={onText}
-            className="flex items-center gap-3 rounded-[22px] border border-white/20 bg-white/12 px-4 py-4 text-left backdrop-blur-sm transition hover:bg-white/18"
+            className="group flex items-center gap-3 rounded-[22px] border border-white/75 bg-white px-4 py-4 text-left text-navy shadow-[0_7px_16px_rgba(16,42,67,0.11),inset_0_1px_0_rgba(255,255,255,0.94)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_22px_rgba(16,42,67,0.15),inset_0_1px_0_rgba(255,255,255,0.96)] active:scale-[0.98]"
           >
-            <Keyboard className="h-5 w-5 shrink-0" />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface-tint text-sage shadow-[0_2px_8px_rgba(16,42,67,0.06),inset_0_1px_0_rgba(255,255,255,0.72)] transition group-hover:scale-105">
+              <Keyboard className="h-5 w-5" />
+            </span>
             <div>
               <p className="text-sm font-semibold">打字问</p>
             </div>
           </button>
         </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap gap-2">
-        {quickQuestions.map((question) => (
-          <button
-            key={question}
-            type="button"
-            onClick={() => onQuickQuestion(question)}
-            className="rounded-full border border-white/18 bg-white/10 px-3 py-2 text-sm text-white/88 transition hover:bg-white/16"
-          >
-            {question}
-          </button>
-        ))}
       </div>
     </section>
   );
