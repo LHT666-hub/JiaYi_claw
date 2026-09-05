@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, ClipboardList, House, MessageCircleMore, Settings, Sparkles } from "lucide-react";
-import { useCurrentProfile } from "@/lib/useCurrentProfile";
+import { House, MessageCircleMore, Settings, Sparkles } from "lucide-react";
 
-const residentNavItems = [
+const navItems = [
   { href: "/", label: "首页", icon: House },
   { href: "/services", label: "服务", icon: Sparkles },
   { href: "/messages", label: "消息", icon: MessageCircleMore },
@@ -14,22 +13,6 @@ const residentNavItems = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { profile } = useCurrentProfile();
-  const role = profile?.role ?? "resident";
-  const navItems =
-    role === "admin"
-        ? [
-            { href: "/admin", label: "看板", icon: ClipboardList },
-            { href: "/", label: "首页", icon: House },
-            { href: "/me", label: "设置", icon: Settings },
-          ]
-        : ["doctor", "nurse", "pharmacist", "community"].includes(role)
-          ? [
-              { href: "/doctor", label: "待办", icon: ClipboardList },
-              { href: "/", label: "首页", icon: House },
-              { href: "/messages", label: "消息", icon: Bell },
-            ]
-          : residentNavItems;
   const homeBranchPrefixes = ["/ask"];
   const isHomeBranch =
     pathname === "/" ||
@@ -39,7 +22,7 @@ export function BottomNav() {
   return (
     <nav className="phone-bottom-nav absolute inset-x-0 bottom-0 z-20 pt-3">
       <div className="rounded-[32px] border border-white/55 bg-surface-nav/78 px-2.5 py-3 shadow-[0_18px_44px_rgba(16,42,67,0.14),inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-2xl">
-        <div className={`grid gap-1.5 ${navItems.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
+        <div className="grid grid-cols-4 gap-1.5">
           {navItems.map((item) => {
             const isActive =
               item.href === "/"
