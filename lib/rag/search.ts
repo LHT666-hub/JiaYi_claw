@@ -1,4 +1,5 @@
 import { getEmbeddingProvider, vectorToSql } from "@/lib/rag/embeddings";
+import { expandRetrievalQuery } from "@/lib/rag/query";
 import type { KnowledgeSearchHit, KnowledgeVisibility, RagSupabaseClient } from "@/lib/rag/types";
 
 type SearchRow = {
@@ -9,7 +10,7 @@ type SearchRow = {
 };
 
 const institutionalKnowledgePattern =
-  /(?:家庭医生|家医|社区卫生服务中心|社区卫生|社卫|签约|门诊|排班|坐班|预约|挂号|转诊|复诊|随访|续方|配药|开药|长处方|体检|报告|检查单|化验单|健康云|政策|流程|办理|材料|地址|电话|几点|什么时候|今天|明天|本周|本月|活动|讲座|服务时间|营业时间)/;
+  /(?:家庭医生|家医|社区卫生服务中心|社区卫生|社卫|签约|门诊|排班|坐班|预约|挂号|转诊|复诊|随访|续方|配药|开药|长处方|体检|报告|检查单|化验单|健康云|政策|流程|办理|材料|地址|电话|几点|什么时候|今天|明天|本周|本月|活动|讲座|服务时间|营业时间|预防针|疫苗|接种|五四|海旅|海湾|南桥|奉贤)/;
 
 /**
  * RAG is a verified-source tool, not a mandatory gate in front of every chat.
@@ -33,15 +34,16 @@ export async function searchKnowledge(input: {
   if (!query) return [];
   if (!input.force && !shouldSearchInstitutionalKnowledge(query)) return [];
 
+  const retrievalQuery = expandRetrievalQuery(query) || query;
   let queryEmbedding: string | null = null;
   try {
     const provider = getEmbeddingProvider();
-    if (provider) queryEmbedding = vectorToSql((await provider.embedMany([query]))[0]);
+    if (provider) queryEmbedding = vectorToSql((await provider.embedMany([retrievalQuery]))[0]);
   } catch {
     queryEmbedding = null;
   }
   const { data, error } = await input.supabase.rpc("search_knowledge_chunks", {
-    p_query_text: query,
+    p_query_text: retrievalQuery,
     p_query_embedding: queryEmbedding,
     p_organization_id: input.organizationId,
     p_community_id: input.communityId ?? null,
