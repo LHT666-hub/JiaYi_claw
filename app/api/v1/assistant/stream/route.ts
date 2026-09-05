@@ -31,21 +31,28 @@ function sseEvent(event: string, payload: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
-async function delegateToResolvedPipeline(request: NextRequest, body: z.infer<typeof inputSchema>) {
-  const forwarded = new NextRequest(request.url.replace(/\/stream(?:\?.*)?$/, "/messages"), {
-    method: "POST",
-    headers: request.headers,
-    body: JSON.stringify(body),
-  });
+async function delegateToResolvedPipeline(
+  request: NextRequest,
+  body: z.infer<typeof inputSchema>,
+) {
+  const forwarded = new NextRequest(
+    request.url.replace(/\/stream(?:\?.*)?$/, "/messages"),
+    {
+      method: "POST",
+      headers: request.headers,
+      body: JSON.stringify(body),
+    },
+  );
   return resolvedAssistantPost(forwarded);
 }
 
-function shouldUseResolvedPipeline(question: string, serviceRequest: unknown) {
+function shouldUseResolvedPipeline(question: string) {
   if (getGuardrailReply(question) || getGreetingReply(question)) return true;
   if (requiresVerifiedCurrentInfo(question)) return true;
   if (shouldSearchInstitutionalKnowledge(question)) return true;
-  const inferred = serviceRequest ?? inferServiceRequestFromQuestion(question);
-  return Boolean(buildAgentReply(question, inferred));
+  return Boolean(
+    buildAgentReply(question, inferServiceRequestFromQuestion(question)),
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -58,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = parsed.data;
-  if (body.sourceContext || shouldUseResolvedPipeline(body.question, body.serviceRequest)) {
+  if (body.sourceContext || shouldUseResolvedPipeline(body.question)) {
     return delegateToResolvedPipeline(request, body);
   }
 
@@ -86,7 +93,11 @@ export async function POST(request: NextRequest) {
       .eq("policy_version", CURRENT_POLICY_VERSION)
       .maybeSingle(),
   ]);
-  if (!careState.access.canSubmitService || consentResult.error || !consentResult.data?.granted) {
+  if (
+    !careState.access.canSubmitService ||
+    consentResult.error ||
+    !consentResult.data?.granted
+  ) {
     return delegateToResolvedPipeline(request, body);
   }
 
@@ -112,12 +123,20 @@ export async function POST(request: NextRequest) {
   const question = body.question;
   const inferredServiceRequest = inferServiceRequestFromQuestion(question);
   const { supabase } = auth;
-  const clientPlatform = request.headers.get("x-client-platform") === "weapp" ? "wechat" : "web";
+  const clientPlatform =
+    request.headers.get("x-client-platform") === "weapp" ? "wechat" : "web";
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      let closed = false;
       const emit = (event: string, payload: unknown) => {
+        if (closed) return;
         controller.enqueue(encoder.encode(sseEvent(event, payload)));
+      };
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        controller.close();
       };
 
       void (async () => {
@@ -130,7 +149,10 @@ export async function POST(request: NextRequest) {
             onDelta: (text) => emit("delta", { text }),
           });
 
-          const personalHealthQuestion = /(?:我|我的|最近|这几天|一直).{0,18}(?:血压|血糖|疼|痛|晕|咳|不舒服|症状|药)/.test(question);
+          const personalHealthQuestion =
+            /(?:我|我的|最近|这几天|一直).{0,18}(?:血压|血糖|疼|痛|晕|咳|不舒服|症状|药)/.test(
+              question,
+            );
           const reply: AskReply = {
             answer: result.answer,
             nextStep: result.usedWebSearch
@@ -155,20 +177,26 @@ export async function POST(request: NextRequest) {
 
           let activity = null;
           try {
-            const { data, error } = await supabase.rpc("record_assistant_activity", {
-              p_resident_id: careSubject.residentId,
-              p_activity_type: activityDescriptor.activityType,
-              p_service_type: activityDescriptor.serviceType,
-              p_risk_level: activityDescriptor.riskLevel,
-              p_source: activityDescriptor.source,
-              p_skill_ids: activityDescriptor.skillIds,
-              p_knowledge_refs: activityDescriptor.knowledgeRefs,
-              p_action_kinds: activityDescriptor.actionKinds,
-              p_trace_id: crypto.randomUUID(),
-              p_channel: clientPlatform,
-            });
+            const { data, error } = await supabase.rpc(
+              "record_assistant_activity",
+              {
+                p_resident_id: careSubject.residentId,
+                p_activity_type: activityDescriptor.activityType,
+                p_service_type: activityDescriptor.serviceType,
+                p_risk_level: activityDescriptor.riskLevel,
+                p_source: activityDescriptor.source,
+                p_skill_ids: activityDescriptor.skillIds,
+                p_knowledge_refs: activityDescriptor.knowledgeRefs,
+                p_action_kinds: activityDescriptor.actionKinds,
+                p_trace_id: crypto.randomUUID(),
+                p_channel: clientPlatform,
+              },
+            );
             if (!error && data) {
-              const recorded = data as { activityId: string; occurredAt: string };
+              const recorded = data as {
+                activityId: string;
+                occurredAt: string;
+              };
               activity = presentAssistantActivity({
                 id: recorded.activityId,
                 activity_type: activityDescriptor.activityType,
@@ -195,17 +223,20 @@ export async function POST(request: NextRequest) {
             },
           });
         } catch (error) {
-          const message = error instanceof Error ? error.message : "Claw 暂时无法回答";
+          const message =
+            error instanceof Error ? error.message : "Claw 暂时无法回答";
           emit("error", {
             error: {
-              code: message.includes("NOT_CONFIGURED") ? "AI_NOT_CONFIGURED" : "ASSISTANT_STREAM_FAILED",
+              code: message.includes("NOT_CONFIGURED")
+                ? "AI_NOT_CONFIGURED"
+                : "ASSISTANT_STREAM_FAILED",
               message: message.includes("NOT_CONFIGURED")
                 ? "百炼模型尚未正确配置，请检查 DASHSCOPE_API_KEY。"
                 : "模型连接暂时没有成功，请重试。",
             },
           });
         } finally {
-          controller.close();
+          close();
         }
       })();
     },
