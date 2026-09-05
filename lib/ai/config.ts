@@ -23,6 +23,32 @@ function selectedProvider() {
   return "moonshot" as const;
 }
 
+function dashscopeWorkspaceOrigin() {
+  const workspaceId = first(
+    process.env.DASHSCOPE_WORKSPACE_ID,
+    process.env.BAILIAN_WORKSPACE_ID,
+  );
+  if (!workspaceId) return "";
+  const region = first(process.env.DASHSCOPE_REGION) || "cn-beijing";
+  return `https://${workspaceId}.${region}.maas.aliyuncs.com`;
+}
+
+export function getDashscopeCompatibleBaseURL() {
+  const explicit = first(process.env.DASHSCOPE_BASE_URL, process.env.AI_BASE_URL);
+  if (explicit) return explicit.replace(/\/$/, "");
+  const workspaceOrigin = dashscopeWorkspaceOrigin();
+  if (workspaceOrigin) return `${workspaceOrigin}/compatible-mode/v1`;
+  return "https://dashscope.aliyuncs.com/compatible-mode/v1";
+}
+
+export function getDashscopeNativeBaseURL() {
+  const explicit = first(process.env.DASHSCOPE_NATIVE_BASE_URL);
+  if (explicit) return explicit.replace(/\/$/, "");
+  const workspaceOrigin = dashscopeWorkspaceOrigin();
+  if (workspaceOrigin) return `${workspaceOrigin}/api/v1`;
+  return "https://dashscope.aliyuncs.com/api/v1";
+}
+
 export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
   const provider = selectedProvider();
   if (provider === "aliyun_bailian") {
@@ -35,7 +61,7 @@ export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
     return {
       provider,
       apiKey: first(process.env.DASHSCOPE_API_KEY, process.env.BAILIAN_API_KEY, process.env.AI_API_KEY),
-      baseURL: first(process.env.DASHSCOPE_BASE_URL, process.env.AI_BASE_URL) || "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      baseURL: getDashscopeCompatibleBaseURL(),
       model: modelByPurpose[purpose],
     };
   }
