@@ -382,7 +382,7 @@ export default function MemoryPage() {
   return (
     <PhoneShell showBottomNav>
       <div className="resident-ui">
-        <BackHeader title="CLAW 记忆" subtitle="查看和管理 AI 记忆" />
+        <BackHeader title="CLAW 记忆" />
 
         <div className="space-y-4 px-4 pb-8 pt-2">
           {/* ---- Tab Switcher ---- */}

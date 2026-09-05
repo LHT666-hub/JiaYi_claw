@@ -128,7 +128,7 @@ export default function FamilyPage() {
         ) : null}
 
         {selectedBinding ? (
-          <SectionCard title="常用代办" subtitle="写操作仍需在提交前再次确认">
+          <SectionCard title="常用代办">
             <div className="grid grid-cols-2 gap-3">
               {[{ label: "协助预约", note: "提交家医团队处理", icon: CalendarClock, href: "/appointments" }, { label: "代为提问", note: "整理问题与资料", icon: MessageCircleMore, href: "/ask" }, { label: "查看进度", note: "预约与转诊状态", icon: ClipboardList, href: "/appointments" }, { label: "健康记录", note: "查看授权范围内记录", icon: HeartPulse, href: "/health-records" }].map((item) => <button key={item.label} type="button" onClick={() => router.push(item.href)} className="rounded-[24px] border border-line bg-surface-card p-4 text-left"><item.icon className="h-5 w-5 text-sage" /><span className="mt-3 block text-sm font-semibold text-navy">{item.label}</span><span className="mt-1 block text-xs leading-5 text-navy/48">{item.note}</span></button>)}
             </div>
@@ -136,7 +136,7 @@ export default function FamilyPage() {
         ) : null}
 
         {home?.serviceRequests.length ? (
-          <SectionCard title="最近服务" subtitle="所有状态变化均由团队留痕">
+          <SectionCard title="最近服务">
             <div className="space-y-3">{home.serviceRequests.map((request) => <button key={request.id} type="button" onClick={() => router.push(`/appointments?id=${request.id}`)} className="flex w-full items-center gap-3 rounded-[24px] bg-surface-card p-4 text-left"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-health-soft text-sage"><Stethoscope className="h-5 w-5" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-navy">{request.title}</p><p className="mt-1 text-xs text-navy/48">{serviceStatusLabels[request.status as ServiceStatus] ?? request.status} · {new Date(request.updated_at).toLocaleDateString("zh-CN")}</p></div><ChevronRight className="h-4 w-4 text-navy/28" /></button>)}</div>
           </SectionCard>
         ) : null}

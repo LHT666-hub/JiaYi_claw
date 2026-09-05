@@ -286,7 +286,7 @@ export default function AppointmentsPage() {
         <div className="relative">
           <BackHeader
             title="一键帮预约"
-            subtitle="提交后由家医团队人工确认，不展示虚假号源。"
+            subtitle="提交申请后，由家医团队确认时段。"
           />
           <button
             type="button"

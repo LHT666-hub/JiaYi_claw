@@ -139,14 +139,8 @@ export default function ContactsPage() {
       <div className="space-y-5 px-4 pb-8">
         <BackHeader
           title="我的支持网络"
-          subtitle="不知道找谁？从这里找到合适的人"
         />
 
-        <div className="rounded-[22px] bg-surface-tint px-4 py-3">
-          <p className="text-sm leading-6 text-navy/70">
-            下面是围绕您建立的支持网络。遇到问题时，可以根据说明选择合适的联系人。
-          </p>
-        </div>
 
         {isRemoteMode && remoteError ? (
           <SectionCard>
@@ -168,7 +162,6 @@ export default function ContactsPage() {
                 title={group.title}
                 action={<Icon className="h-4 w-4 text-sage" />}
               >
-                <p className="mb-3 text-xs leading-5 text-navy/55">{group.description}</p>
                 <div className="space-y-3">
                   {groupContacts.map((contact) => (
                     <ContactNetworkCard key={contact.id} contact={contact} />
@@ -232,7 +225,7 @@ function ContactNetworkCard({ contact }: { contact: ContactItem }) {
   return (
     <a
       href={`/contacts/${contact.id}`}
-      className="flex items-center gap-3 rounded-[22px] border border-line/60 bg-white/40 p-3 transition hover:-translate-y-0.5 hover:shadow-soft"
+      className="flex items-center gap-3 rounded-[22px] border border-white/80 bg-white p-4 shadow-soft transition hover:-translate-y-0.5"
     >
       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-white/60 bg-surface-avatar shadow-soft">
         {contact.avatarPath ? (

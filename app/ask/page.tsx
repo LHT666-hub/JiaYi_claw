@@ -15,7 +15,6 @@ import {
   History,
   ImagePlus,
   Keyboard,
-  MessageCircle,
   Mic,
   Plus,
   Send,
@@ -301,12 +300,9 @@ export default function AskPage() {
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div>
-            <h1 className="font-brand text-xl font-semibold text-navy">
+            <h1 className="page-title">
               问 Claw
             </h1>
-            <p className="mt-1 text-xs text-navy/45">
-              服务导航与资料整理，不替代医生
-            </p>
           </div>
           <Link
             href="/ask/history"
@@ -652,10 +648,7 @@ export default function AskPage() {
             </>
           )}
         </form>
-        <p className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))] pt-1.5 text-center text-[10px] text-navy/35">
-          <MessageCircle className="mr-1 inline h-3 w-3" />
-          对话记录不自动写入健康档案，可在右上角查看和清除
-        </p>
+        <div className="shrink-0 pb-[max(12px,env(safe-area-inset-bottom))]" />
       </div>
     </PhoneShell>
   );

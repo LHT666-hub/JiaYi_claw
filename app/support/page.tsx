@@ -96,7 +96,7 @@ export default function SupportPage() {
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="帮助与反馈" subtitle="账号、预约或服务异常由工作人员人工处理。" />
+        <BackHeader title="帮助与反馈" />
 
         {error ? <div className="rounded-[22px] border border-danger/20 bg-risk-soft px-4 py-3 text-sm leading-6 text-danger">{error}</div> : null}
 

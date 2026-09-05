@@ -77,6 +77,19 @@ test("家属演示身份保持统一四栏导航并可明确切换身份", async
   await expect(page.getByText("全功能演示入口")).toBeVisible();
 });
 
+test("工作人员身份残留不会把居民首页切回三栏导航", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "家庭医生", exact: true }).click();
+  await expect(page).toHaveURL(/\/doctor$/);
+
+  await page.goto("/");
+  for (const label of ["首页", "服务", "消息", "我的"]) {
+    await expect(page.locator("nav").getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(page.locator("nav").getByText("待办", { exact: true })).toHaveCount(0);
+});
+
 test("演示环境核心居民、团队和管理接口全部开放", async ({ request }) => {
   for (const path of showcaseApis) {
     const response = await request.get(path);

@@ -9,11 +9,11 @@ type SectionCardProps = {
 export function SectionCard({ title, subtitle, action, children, className = "" }: SectionCardProps) {
   return (
     <section
-      className={`ios-material rounded-[30px] px-4 py-4 ${className}`}
+      className={`resident-section py-2 ${className}`}
     >
       {title ? (
         <div className="mb-4 flex items-start justify-between gap-3">
-          <div><h2 className="text-[1.08rem] font-bold tracking-[-0.01em] text-navy">{title}</h2>{subtitle ? <p className="mt-1 text-xs leading-5 text-navy/48">{subtitle}</p> : null}</div>
+          <div><h2 className="text-[18px] font-bold text-navy">{title}</h2>{subtitle ? <p className="mt-1 text-xs leading-5 text-navy/48">{subtitle}</p> : null}</div>
           {action}
         </div>
       ) : null}

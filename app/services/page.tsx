@@ -14,6 +14,7 @@ import {
   UserRoundPlus,
 } from "lucide-react";
 import { PhoneShell } from "@/components/PhoneShell";
+import { ResidentPageHeader } from "@/components/ResidentPageHeader";
 import { CareSubjectSwitcher } from "@/components/CareSubjectSwitcher";
 
 type Institution = {
@@ -189,15 +190,9 @@ export default function ServicesPage() {
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-4 px-4 pb-8 pt-7">
-        <header>
-          <p className="text-xs font-semibold text-sage">分级诊疗服务</p>
-          <h1 className="mt-1 text-xl font-semibold text-navy">服务</h1>
-          <p className="mt-2 text-sm text-navy/55">
-            从社区首诊开始，需要时由家医团队协助上转。
-          </p>
-        </header>
+        <ResidentPageHeader title="服务" />
         <CareSubjectSwitcher compact />
-        {data?.demo ? <div className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-center text-xs font-semibold text-sage">只读展示数据 · 不会提交服务申请</div> : null}
+        {data?.demo ? <div className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-center text-xs font-semibold text-sage">演示数据</div> : null}
         {data?.access && !data.access.canSubmitService ? (
           <div className="mt-4 rounded-[22px] bg-[#F7F1E6] px-4 py-3 text-sm leading-6 text-[#795427]">
             <p className="font-semibold">社区登记待核验</p>

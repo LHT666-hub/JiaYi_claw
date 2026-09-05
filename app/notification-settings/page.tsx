@@ -23,7 +23,7 @@ export default function NotificationSettingsPage() {
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error?.message ?? "保存失败"); setValue(payload.data.preferences); showToast("通知设置已保存。", "success");
     } catch (error) { showToast(error instanceof Error ? error.message : "保存失败", "warning"); } finally { setSaving(false); }
   }
-  return <PhoneShell showBottomNav><main className="space-y-5 px-4 pb-8"><BackHeader title="通知设置" subtitle="服务结果优先送达，内容通知由您决定。" />
+  return <PhoneShell showBottomNav><main className="space-y-5 px-4 pb-8"><BackHeader title="通知设置" />
     {loading ? <div className="py-16 text-center text-sm text-navy/45">正在读取通知设置...</div> : <>
       <section className="ios-material overflow-hidden rounded-[30px]">{[
         { key: "service_updates" as const, title: "预约与服务进度", note: "受理、补资料、确认时段与办理结果", icon: Bell },

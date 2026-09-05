@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "基层家庭医生服务导航、预约协同与进度追踪。",
     start_url: "/",
     display: "standalone",
-    background_color: "#FFF4E2",
-    theme_color: "#102A43",
+    background_color: "#F5ECE2",
+    theme_color: "#EEE5DB",
     lang: "zh-CN",
     icons: [
       { src: "/app-icon.png", sizes: "512x512", type: "image/png", purpose: "any" },

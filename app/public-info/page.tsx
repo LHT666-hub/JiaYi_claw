@@ -49,7 +49,7 @@ export default function PublicInfoPage() {
   return (
     <PhoneShell>
       <main className="space-y-5 px-4 pb-10">
-        <BackHeader title="海湾镇公开信息" subtitle="无需登录，只展示经过机构审核的公开资料。" />
+        <BackHeader title="海湾镇公开信息" />
 
         <section className="rounded-[28px] border border-sage/15 bg-health-soft/75 p-4">
           <div className="flex items-start gap-3">

@@ -223,7 +223,7 @@ export default function MatchLeaderPage() {
             <ArrowLeft className="h-5 w-5" strokeWidth={2.1} />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold text-navy">小组长智能匹配</h1>
+            <h1 className="page-title">小组长匹配</h1>
             <p className="mt-1 text-xs text-navy/55">帮您找到更合适的社区健康小组长</p>
           </div>
           <Users className="h-5 w-5 text-sage" />
