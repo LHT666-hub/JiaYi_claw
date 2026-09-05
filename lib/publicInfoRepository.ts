@@ -43,7 +43,8 @@ function score(item: PublicInfoRecord, query: string) {
 
 function localRecords(): PublicInfoRecord[] {
   return publicInfoItems.map((item) => {
-    const stale = isStale(item.updatedAt, null);
+    const expiresAt = item.expiresAt ?? null;
+    const stale = isStale(item.updatedAt, expiresAt);
     return {
       id: item.id,
       title: item.title,
@@ -53,7 +54,7 @@ function localRecords(): PublicInfoRecord[] {
       sourceName: item.sourceName,
       sourceUrl: item.sourceUrl,
       verifiedAt: item.updatedAt,
-      expiresAt: null,
+      expiresAt,
       status: stale ? "expired" : "published",
       stale,
     };
@@ -104,8 +105,9 @@ export async function searchPublicInfo(query: string) {
     }
   }
 
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return [];
-
+  // This fallback is not demo-only: every item is curated, source-linked and
+  // versioned in Git. It keeps verified public answers available during an
+  // empty index, a database outage, or before a fresh Supabase seed completes.
   return localRecords()
     .map((item) => ({ item, score: score(item, query) }))
     .filter(({ score: itemScore }) => !query || itemScore > 0)
@@ -164,6 +166,5 @@ export async function getPublicInfoById(id: string) {
       .maybeSingle();
     if (data) return fromDatabaseRow(data);
   }
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") return null;
   return localRecords().find((item) => item.id === id) ?? null;
 }
