@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse, after } from "next/server";
+import { getShareableAskCacheKey } from "@/lib/ai/askCachePolicy";
 import { getAiModelConfig, getTextModelCandidates, modelTemperature } from "@/lib/ai/config";
 import { buildAgentReply, inferServiceRequestFromQuestion } from "@/lib/agent";
 import {
@@ -47,6 +48,7 @@ import {
   saveCandidate,
 } from "@/lib/memory";
 import type { BuiltMemoryContext } from "@/lib/memory";
+import { consumeTrustedAskContext } from "@/lib/assistant/internalAskRequest";
 
 export const runtime = "nodejs";
 
@@ -337,7 +339,7 @@ async function requestKimiWithModelFallback(
 }
 
 async function runKimiWithCache(
-  cacheKey: string,
+  cacheKey: string | null,
   prompt: string,
   systemPrompt: string,
   fallbackMeta: {
@@ -359,7 +361,7 @@ async function runKimiWithCache(
     };
   }
 
-  const cachedReply = getCachedKimiReply(cacheKey);
+  const cachedReply = cacheKey ? getCachedKimiReply(cacheKey) : null;
   if (cachedReply) {
     return { reply: cachedReply, errorReason: null };
   }
@@ -370,7 +372,7 @@ async function runKimiWithCache(
   });
 
   const pending =
-    kimiInFlight.get(cacheKey) ??
+    (cacheKey ? kimiInFlight.get(cacheKey) : null) ??
     (async () => {
       const text = await requestKimiWithModelFallback(
         prompt,
@@ -379,11 +381,11 @@ async function runKimiWithCache(
         modelCandidates,
       );
       const reply = parseStructuredReply(text, fallbackMeta);
-      setCachedKimiReply(cacheKey, reply);
+      if (cacheKey) setCachedKimiReply(cacheKey, reply);
       return reply;
     })();
 
-  kimiInFlight.set(cacheKey, pending);
+  if (cacheKey) kimiInFlight.set(cacheKey, pending);
 
   try {
     return {
@@ -413,7 +415,7 @@ async function runKimiWithCache(
       errorReason: reason,
     };
   } finally {
-    kimiInFlight.delete(cacheKey);
+    if (cacheKey) kimiInFlight.delete(cacheKey);
   }
 }
 
@@ -684,12 +686,26 @@ async function persistAskArtifacts(params: {
   };
 }
 
-export async function POST(request: NextRequest) {
+function legacyApiDisabledResponse() {
+  return NextResponse.json(
+    {
+      error: {
+        code: "LEGACY_API_DISABLED",
+        message: "该旧接口已停用，请使用 /api/v1/assistant/messages。",
+      },
+    },
+    { status: 410 },
+  );
+}
+
+async function handleAskRequest(
+  request: NextRequest,
+  trustedResidentMemory: BuiltMemoryContext | null,
+) {
   try {
     const body = (await request.json()) as {
       question?: string;
       serviceRequest?: ServiceRequestPayload | null;
-      residentMemory?: BuiltMemoryContext | null;
     };
     const question =
       typeof body.question === "string" ? body.question.trim() : "";
@@ -698,8 +714,8 @@ export async function POST(request: NextRequest) {
     const normalizedQuestion = normalizeQuestion(question);
 
     // Build formatted memory text for prompt injection (DATA block, not instruction)
-    const formattedMemoryText = body.residentMemory
-      ? formatMemoryContextForPrompt(body.residentMemory)
+    const formattedMemoryText = trustedResidentMemory
+      ? formatMemoryContextForPrompt(trustedResidentMemory)
       : "";
 
     if (!normalizedQuestion) {
@@ -736,13 +752,15 @@ export async function POST(request: NextRequest) {
       // Async memory candidate extraction — uses Next.js after() for reliable
       // background execution in serverless environments.
       if (profile && supabase && question) {
-        const residentId = profile.role === "resident" ? profile.id : (body.residentMemory?.identity?.residentId ?? null);
+        const residentId = profile.role === "resident"
+          ? profile.id
+          : (trustedResidentMemory?.identity.residentId ?? null);
         if (residentId && profile.organization_id) {
           const extractor = createMemoryExtractor();
           const capturedQuestion = question;
           const capturedResidentId = residentId;
           const capturedOrganizationId = profile.organization_id;
-          const capturedRecentMemories = body.residentMemory?.relevantMemories ?? [];
+          const capturedRecentMemories = trustedResidentMemory?.relevantMemories ?? [];
           after(async () => {
             try {
               const candidate = await extractor.extract(capturedQuestion, {
@@ -791,7 +809,10 @@ export async function POST(request: NextRequest) {
     const faqReply = getLocalAskReply(question, faqItems);
     if (faqReply?.source === "faq") {
       const { reply, errorReason } = await runKimiWithCache(
-        buildFaqCacheKey(question, faqReply),
+        getShareableAskCacheKey(
+          buildFaqCacheKey(question, faqReply),
+          formattedMemoryText,
+        ),
         buildFaqPrompt(question, faqReply, formattedMemoryText || undefined),
         generalSystemPrompt,
         {
@@ -831,7 +852,10 @@ export async function POST(request: NextRequest) {
       };
 
       const { reply, errorReason } = await runKimiWithCache(
-        buildKnowledgeCacheKey(question, knowledgeHits),
+        getShareableAskCacheKey(
+          buildKnowledgeCacheKey(question, knowledgeHits),
+          formattedMemoryText,
+        ),
         buildKnowledgePrompt(question, knowledgeHits) + (formattedMemoryText ? `\n\n${formattedMemoryText}` : ""),
         knowledgeSystemPrompt,
         fallbackMeta,
@@ -853,7 +877,10 @@ export async function POST(request: NextRequest) {
     }
 
     const { reply, errorReason } = await runKimiWithCache(
-      buildGeneralCacheKey(question),
+      getShareableAskCacheKey(
+        buildGeneralCacheKey(question),
+        formattedMemoryText,
+      ),
       buildGeneralPrompt(question, formattedMemoryText || undefined),
       generalSystemPrompt,
       {
@@ -887,11 +914,22 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const trustedContext = consumeTrustedAskContext(request);
+  if (!trustedContext && process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    return legacyApiDisabledResponse();
+  }
+  return handleAskRequest(request, trustedContext?.residentMemory ?? null);
+}
+
 export async function GET(request: NextRequest) {
   const kimi = getKimiRuntimeInfo();
   const question = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
   if (question) {
+    if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+      return legacyApiDisabledResponse();
+    }
     const guardrailReply = getGuardrailReply(question);
     if (guardrailReply) {
       return NextResponse.json({
