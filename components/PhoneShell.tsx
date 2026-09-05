@@ -72,7 +72,7 @@ export function PhoneShell({
       className={`phone-shell-stage mx-auto flex w-full items-center justify-center overflow-hidden sm:px-6 sm:py-6 ${contentMode === "fixed" ? "fixed inset-x-0 top-0 h-dvh min-h-0 overscroll-none" : "min-h-dvh"} ${viewportState?.keyboardOpen ? "phone-keyboard-open" : ""}`}
     >
       <div
-        className={`phone-shell-frame relative w-full max-w-[430px] overflow-hidden border border-line/80 bg-cream shadow-[0_28px_70px_rgba(16,42,67,0.16),inset_0_1px_0_rgba(255,255,255,0.9)] sm:max-h-[920px] ${contentMode === "fixed" ? "h-full" : "h-[calc(100dvh-1.5rem)]"}`}
+        className={`phone-shell-frame relative w-full max-w-[430px] overflow-hidden border border-white/70 shadow-[0_28px_70px_rgba(16,42,67,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] sm:max-h-[920px] ${contentMode === "fixed" ? "h-full" : "h-[calc(100dvh-1.5rem)]"}`}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center pt-3">
           <div className="h-1.5 w-[72px] rounded-full bg-navy/16 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)]" />

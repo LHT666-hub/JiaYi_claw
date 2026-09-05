@@ -193,7 +193,7 @@ function CoursesPageContent() {
   return (
     <PhoneShell>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="家医小课堂" subtitle="每天看一个小课，积少成多" />
+        <BackHeader title="家医小课堂" />
 
         {authMode === "real" && remoteError ? (
           <SectionCard>

@@ -19,7 +19,7 @@ export function TopBar({
 }: TopBarProps) {
   return (
     <div className="px-2 pt-7">
-      <div className="grid grid-cols-[72px_1fr_72px] items-center gap-2">
+      <div className="grid grid-cols-[48px_minmax(0,1fr)_48px] items-center gap-2 pb-2">
         <Link
           href="/me"
           aria-label="进入我的"
@@ -31,12 +31,9 @@ export function TopBar({
         </Link>
 
         <div className="text-center">
-          <p className="font-brand text-[1.85rem] font-semibold leading-none tracking-[-0.03em] text-navy">
+          <h1 className="font-brand text-[28px] font-bold leading-tight text-navy">
             家医 Claw
-          </p>
-          <p className="mt-2 text-xs font-medium tracking-[0.08em] text-navy/50">
-            今日健康助手
-          </p>
+          </h1>
           {typeof points === "number" ? <div className="mt-2 flex justify-center"><PointsBadge points={points} className="px-3 py-1.5 text-xs" /></div> : null}
         </div>
 

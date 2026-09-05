@@ -79,7 +79,6 @@ export default function HealthRecordsPage() {
       <main className="space-y-5 px-4 pb-8">
       <BackHeader
         title="健康记录"
-        subtitle="先支持手工记录，所有数据都标明来源。"
       />
       <CareSubjectSwitcher compact />
       <form

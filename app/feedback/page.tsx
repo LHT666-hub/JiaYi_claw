@@ -178,7 +178,7 @@ export default function FeedbackPage() {
   return (
     <PhoneShell showBottomNav>
       <div className="space-y-5 px-4 pb-8">
-        <BackHeader title="体验反馈" subtitle="告诉我们哪里好用、哪里不清楚，方便继续把 Claw 做得更顺手。" />
+        <BackHeader title="体验反馈" />
 
         <SectionCard title="当前体验身份">
           <div className="space-y-2 rounded-[24px] bg-surface-card px-4 py-4 text-sm text-navy">

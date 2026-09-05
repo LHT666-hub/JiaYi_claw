@@ -34,6 +34,7 @@ export function BottomNav() {
               <Link
                 key={`${item.href}-${item.label}`}
                 href={item.href}
+                aria-current={isActive ? "page" : undefined}
                 className={`flex min-h-[62px] flex-col items-center justify-center gap-1.5 rounded-[22px] px-1 py-2.5 transition active:scale-95 ${
                   isActive
                     ? "-translate-y-1 bg-navy text-white shadow-[0_14px_26px_rgba(16,42,67,0.2)]"
@@ -44,7 +45,7 @@ export function BottomNav() {
                   className={isActive ? "h-[22px] w-[22px] transition" : "h-5 w-5 transition"}
                   strokeWidth={2.1}
                 />
-                <span className={`text-[11px] font-semibold ${isActive ? "tracking-[0.08em]" : ""}`}>
+                <span className="text-[11px] font-semibold">
                   {item.label}
                 </span>
               </Link>

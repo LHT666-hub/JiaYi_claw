@@ -45,7 +45,7 @@ export default function AccountSecurityPage() {
 
   const pending = request?.status === "pending" || request?.status === "processing";
   return <PhoneShell showBottomNav><main className="space-y-5 px-4 pb-8">
-    <BackHeader title="账号与安全" subtitle="管理账号注销与数据处理状态。" />
+    <BackHeader title="账号与安全" />
     {loading ? <div className="py-16 text-center text-sm text-navy/45">正在读取账号状态...</div> : pending ? <>
       <section className="ios-material rounded-[30px] p-5"><div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-risk-soft text-danger"><CalendarClock className="h-5 w-5" /></span><div><h1 className="font-semibold text-navy">注销申请处理中</h1><p className="mt-2 text-sm leading-6 text-navy/58">计划处理时间：{new Date(request.scheduled_for).toLocaleString("zh-CN")}</p></div></div><p className="mt-4 rounded-[20px] bg-white/70 p-4 text-xs leading-5 text-navy/58">冷静期内账号仍可正常使用。正式处理后将停用登录、撤回授权并按数据保留规则删除或匿名化个人资料。</p></section>
       {request.status === "pending" ? <button type="button" disabled={saving} onClick={() => void act("cancel")} className="flex w-full items-center justify-center gap-2 rounded-full border border-line bg-surface-card px-4 py-3.5 text-sm font-semibold text-navy disabled:opacity-50"><Undo2 className="h-4 w-4" />撤销注销申请</button> : null}

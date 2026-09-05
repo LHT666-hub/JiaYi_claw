@@ -19,11 +19,8 @@ export function PrimaryClawCard({
     <section className="relative overflow-hidden rounded-[32px] border border-navySoft bg-navy px-5 py-5 text-white shadow-[0_22px_48px_rgba(16,42,67,0.22)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-brand text-[1.62rem] font-semibold tracking-[-0.03em]">
+          <p className="font-brand text-[26px] font-bold">
             问 Claw
-          </p>
-          <p className="mt-2 text-sm leading-6 text-white/78">
-            健康问题先问问，家医分流更省心。
           </p>
         </div>
         <div className="rounded-full border border-white/22 bg-white/12 px-3 py-1 text-xs font-semibold text-white/82 backdrop-blur-sm">
@@ -42,13 +39,9 @@ export function PrimaryClawCard({
               <Mic className="h-5 w-5" />
             </span>
             <div>
-              <p className="text-base font-bold">去咨询</p>
-              <p className="text-xs text-navy/58">适合一句话直接问</p>
+              <p className="text-base font-bold">语音问 Claw</p>
             </div>
           </div>
-          <span className="rounded-full bg-surface-chip px-2.5 py-1 text-[11px] font-semibold text-navy/55">
-            推荐
-          </span>
         </button>
 
         <div className="grid grid-cols-2 gap-3">
@@ -71,7 +64,6 @@ export function PrimaryClawCard({
             <Keyboard className="h-5 w-5 shrink-0" />
             <div>
               <p className="text-sm font-semibold">打字问</p>
-              <p className="mt-1 text-xs text-white/68">慢慢写也可以</p>
             </div>
           </button>
         </div>

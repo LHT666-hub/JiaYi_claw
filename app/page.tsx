@@ -110,7 +110,7 @@ export default function HomePage() {
 
         {data?.demo ? (
           <div className="rounded-full border border-sage/20 bg-health-soft px-4 py-2 text-center text-xs font-semibold text-sage">
-            当前为只读展示数据 · 正式服务需登录后办理
+            演示数据
           </div>
         ) : null}
 
