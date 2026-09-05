@@ -1,4 +1,5 @@
 import { publicInfoItems } from "@/data/publicInfo";
+import { getRetrievalTerms, normalizeRetrievalQuery } from "@/lib/rag/query";
 import { createSupabasePublicServerClient } from "@/lib/supabase/server";
 import type { AskReply } from "@/lib/types";
 
@@ -22,22 +23,52 @@ function isStale(verifiedAt: string, expiresAt?: string | null) {
   return now - new Date(verifiedAt).getTime() > 365 * 24 * 60 * 60 * 1000;
 }
 
-function score(item: PublicInfoRecord, query: string) {
-  const normalized = query.trim().toLowerCase();
+export function scorePublicInfoRecord(item: PublicInfoRecord, query: string) {
+  const normalized = normalizeRetrievalQuery(query);
   if (!normalized) return 1;
-  const title = item.title.toLowerCase();
-  let value = title === normalized ? 40 : title.includes(normalized) ? 18 : 0;
-  for (const keyword of item.keywords) {
-    const candidate = keyword.trim().toLowerCase();
-    if (!candidate) continue;
-    if (candidate === normalized) value += 32;
-    else if (candidate.includes(normalized)) value += 14;
-    else if (normalized.includes(candidate)) {
-      const specificity = Math.min(10, Math.max(1, candidate.length / normalized.length * 10));
-      value += specificity;
+
+  const title = normalizeRetrievalQuery(item.title);
+  const category = normalizeRetrievalQuery(item.category);
+  const content = normalizeRetrievalQuery(item.content);
+  const sourceName = normalizeRetrievalQuery(item.sourceName);
+  const keywords = item.keywords.map((keyword) => normalizeRetrievalQuery(keyword)).filter(Boolean);
+  const terms = getRetrievalTerms(query);
+
+  let value = title === normalized ? 48 : title.includes(normalized) ? 28 : 0;
+  if (content.includes(normalized)) value += 12;
+
+  let matchedTerms = 0;
+  for (const term of terms) {
+    let matched = false;
+    if (title.includes(term)) {
+      value += 10;
+      matched = true;
     }
+    if (category.includes(term)) {
+      value += 6;
+      matched = true;
+    }
+    for (const keyword of keywords) {
+      if (keyword === term) {
+        value += 14;
+        matched = true;
+      } else if (keyword.includes(term) || term.includes(keyword)) {
+        value += 8;
+        matched = true;
+      }
+    }
+    if (content.includes(term)) {
+      value += 3;
+      matched = true;
+    }
+    if (sourceName.includes(term)) {
+      value += 2;
+      matched = true;
+    }
+    if (matched) matchedTerms += 1;
   }
-  if (item.content.toLowerCase().includes(normalized)) value += 8;
+
+  if (matchedTerms >= 2) value += Math.min(16, matchedTerms * 2);
   return value;
 }
 
@@ -90,10 +121,10 @@ function mergeRecords(databaseRecords: PublicInfoRecord[], curatedRecords: Publi
   return [...merged.values()];
 }
 
-function rankRecords(records: PublicInfoRecord[], query: string) {
+export function rankPublicInfoRecords(records: PublicInfoRecord[], query: string) {
   return records
-    .map((item) => ({ item, score: score(item, query) }))
-    .filter(({ score: itemScore }) => !query || itemScore > 0)
+    .map((item) => ({ item, score: scorePublicInfoRecord(item, query) }))
+    .filter(({ score }) => !query || score >= 6)
     .sort((a, b) => b.score - a.score || new Date(b.item.verifiedAt).getTime() - new Date(a.item.verifiedAt).getTime())
     .slice(0, 20)
     .map(({ item }) => item);
@@ -111,14 +142,14 @@ export async function searchPublicInfo(query: string) {
         .select("id, title, category, content, keywords, source_name, source_url, verified_at, expires_at, status")
         .eq("status", "published")
         .order("verified_at", { ascending: false })
-        .limit(100)
+        .limit(250)
         .abortSignal(AbortSignal.timeout(timeoutMs));
       data = result.data as Record<string, unknown>[] | null;
     } catch {
       data = null;
     }
     if (data?.length) {
-      return rankRecords(
+      return rankPublicInfoRecords(
         mergeRecords(data.map((item) => fromDatabaseRow(item)), curatedRecords),
         query,
       );
@@ -128,7 +159,7 @@ export async function searchPublicInfo(query: string) {
   // Every local item is curated, source-linked and versioned in Git. This keeps
   // verified public answers available during a partial/empty database, an
   // outage, or before the latest Supabase/RAG sync completes.
-  return rankRecords(curatedRecords, query);
+  return rankPublicInfoRecords(curatedRecords, query);
 }
 
 export function buildVerifiedPublicInfoReply(item: PublicInfoRecord): AskReply {
