@@ -180,7 +180,9 @@ async function transcribeTencentAudio(audioPath: string): Promise<SpeechTranscri
 }
 
 export function speechProvider() {
-  return process.env.ASR_PROVIDER?.trim() || "local_whisper_wu";
+  const configured = process.env.ASR_PROVIDER?.trim();
+  if (configured) return configured;
+  return process.env.NODE_ENV === "production" ? "bailian_qwen_asr" : "local_whisper_wu";
 }
 
 export async function transcribeAudio(audioPath: string): Promise<SpeechTranscription> {
