@@ -8,6 +8,18 @@ type SearchRow = {
   version: number; text_score: number; vector_score: number; combined_score: number;
 };
 
+const institutionalKnowledgePattern =
+  /(?:家庭医生|家医|社区卫生服务中心|社区卫生|社卫|签约|门诊|排班|坐班|预约|挂号|转诊|复诊|随访|续方|配药|开药|长处方|体检|报告|检查单|化验单|健康云|政策|流程|办理|材料|地址|电话|几点|什么时候|今天|明天|本周|本月|活动|讲座|服务时间|营业时间)/;
+
+/**
+ * RAG is a verified-source tool, not a mandatory gate in front of every chat.
+ * General health education and everyday questions should go straight to the
+ * base model; institution-specific/current service questions use RAG first.
+ */
+export function shouldSearchInstitutionalKnowledge(question: string) {
+  return institutionalKnowledgePattern.test(question.trim());
+}
+
 export async function searchKnowledge(input: {
   supabase: RagSupabaseClient;
   query: string;
@@ -15,9 +27,12 @@ export async function searchKnowledge(input: {
   communityId?: string | null;
   visibility?: KnowledgeVisibility[];
   limit?: number;
+  force?: boolean;
 }): Promise<KnowledgeSearchHit[]> {
   const query = input.query.trim();
   if (!query) return [];
+  if (!input.force && !shouldSearchInstitutionalKnowledge(query)) return [];
+
   let queryEmbedding: string | null = null;
   try {
     const provider = getEmbeddingProvider();
