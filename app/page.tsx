@@ -137,9 +137,6 @@ export default function HomePage() {
               onVoice={() => router.push("/ask?voice=1")}
               onPhoto={() => router.push("/ask?photo=1")}
               onText={() => router.push("/ask")}
-              onQuickQuestion={(question) =>
-                router.push(`/ask?q=${encodeURIComponent(question)}`)
-              }
             />
 
             <CareSubjectSwitcher
@@ -209,17 +206,7 @@ export default function HomePage() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="服务进度"
-              action={
-                <Link
-                  href="/appointments"
-                  className="text-xs font-semibold text-sage"
-                >
-                  查看全部
-                </Link>
-              }
-            >
+            <SectionCard title="服务进度">
               {nextRequest ? (
                 <Link
                   href={`/service-requests/${nextRequest.id}`}
