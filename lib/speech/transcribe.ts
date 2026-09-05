@@ -68,7 +68,7 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
             role: "user",
             content: [{
               type: "input_text",
-              text: "家医、复诊、转诊、续方、配药、血压、血糖、海湾镇、社区卫生服务中心",
+              text: "上海话 吴语 家庭医生 家医 复诊 转诊 续方 配药 血压 血糖 慢病 奉贤区 南桥 奉浦 海湾镇 社区卫生服务中心",
             }],
           },
           {
@@ -85,7 +85,18 @@ async function transcribeAliyunAudio(audioPath: string): Promise<SpeechTranscrip
       parameters: {
         format: audioFileFormat(audioPath),
         language_hints: ["zh"],
-        vocabulary: { "家医": 5, "复诊": 5, "转诊": 5, "续方": 5, "配药": 5, "海湾镇": 5 },
+        vocabulary: {
+          "家庭医生": 5,
+          "家医": 5,
+          "复诊": 5,
+          "转诊": 5,
+          "续方": 5,
+          "配药": 5,
+          "慢病": 5,
+          "奉贤区": 5,
+          "海湾镇": 5,
+          "社区卫生服务中心": 5,
+        },
       },
     }),
     signal: AbortSignal.timeout(25_000),

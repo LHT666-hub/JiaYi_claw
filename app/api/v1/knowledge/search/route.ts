@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
       communityId: auth.profile.community_id,
       visibility: canAccessWorkbench(auth.profile.role) ? ["public", "resident", "staff"] : ["public", "resident"],
       limit: 8,
+      force: true,
     });
     return apiOk({
       query, hits: hits.map((hit) => ({ ...hit, content: hit.content.slice(0, 1200) })),
