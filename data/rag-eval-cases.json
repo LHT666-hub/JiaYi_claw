@@ -1,0 +1,156 @@
+[
+  {
+    "id": "haiwan-vaccine-saturday-1",
+    "query": "海湾周六能打疫苗吗",
+    "expectedIds": ["haiwan-vaccination-schedule-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "haiwan-vaccine-saturday-2",
+    "query": "海湾礼拜六打预防针伐",
+    "expectedIds": ["haiwan-vaccination-schedule-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "haiwan-vaccine-location",
+    "query": "民乐路打疫苗啥辰光去",
+    "expectedIds": ["haiwan-vaccination-schedule-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "wusi-vaccine-location",
+    "query": "我住五四打预防针去哪",
+    "expectedIds": ["haiwan-branch-vaccination-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_location"
+  },
+  {
+    "id": "wusi-vaccine-saturday",
+    "query": "五四礼拜六能打疫苗吗",
+    "expectedIds": ["haiwan-branch-vaccination-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "hailv-vaccine-time",
+    "query": "海旅啥辰光打预防针",
+    "expectedIds": ["haiwan-branch-vaccination-2026"],
+    "scope": "haiwan",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "nanqiao-vaccine-days",
+    "query": "南桥的预防针哪几天",
+    "expectedIds": ["nanqiao-vaccination-schedule-2026"],
+    "scope": "nanqiao",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "nanqiao-vaccine-address",
+    "query": "育秀东路疫苗门诊什么时候开",
+    "expectedIds": ["nanqiao-vaccination-schedule-2026"],
+    "scope": "nanqiao",
+    "intent": "vaccination_schedule"
+  },
+  {
+    "id": "nanqiao-chronic-support",
+    "query": "南桥现在有慢病支持中心吗",
+    "expectedIds": ["nanqiao-open-month-services-2026"],
+    "scope": "nanqiao",
+    "intent": "service_capability"
+  },
+  {
+    "id": "nanqiao-tcm-friday",
+    "query": "南桥哪里周五上午可以看中医",
+    "expectedIds": ["nanqiao-shangxian-tcm-friday-2026"],
+    "scope": "nanqiao",
+    "intent": "clinic_schedule"
+  },
+  {
+    "id": "nanqiao-rehab",
+    "query": "南桥社区有康复病区吗",
+    "expectedIds": ["nanqiao-rehab-capability-2026"],
+    "scope": "nanqiao",
+    "intent": "service_capability"
+  },
+  {
+    "id": "haiwan-contact-address",
+    "query": "海湾社卫现在地址在哪里",
+    "expectedIds": ["haiwan-center-contact-2026"],
+    "scope": "haiwan",
+    "intent": "contact"
+  },
+  {
+    "id": "haiwan-contact-phone",
+    "query": "海湾社区卫生服务中心电话多少",
+    "expectedIds": ["haiwan-center-contact-2026"],
+    "scope": "haiwan",
+    "intent": "contact"
+  },
+  {
+    "id": "haiwan-capability",
+    "query": "海湾社区医院能看什么，有口腔吗",
+    "expectedIds": ["haiwan-community-hospital-capability-2026"],
+    "scope": "haiwan",
+    "intent": "service_capability"
+  },
+  {
+    "id": "haiwan-network",
+    "query": "海湾有几个分中心和服务点",
+    "expectedIds": ["haiwan-network-structure-2026"],
+    "scope": "haiwan",
+    "intent": "service_network"
+  },
+  {
+    "id": "sh-family-doctor-111",
+    "query": "上海家庭医生1+1+1是怎么签的",
+    "expectedIds": ["sh-family-doctor-spec-2024"],
+    "scope": "shanghai",
+    "intent": "family_doctor_policy"
+  },
+  {
+    "id": "family-doctor-long-rx",
+    "query": "家医签约以后慢病药能开长处方吗",
+    "expectedIds": ["national-family-doctor-experience-2025-2027", "sh-family-doctor-spec-2024"],
+    "scope": "national_shanghai",
+    "intent": "long_prescription"
+  },
+  {
+    "id": "family-doctor-package",
+    "query": "家庭医生签约服务包里有些什么",
+    "expectedIds": ["national-family-doctor-basic-package-2025"],
+    "scope": "national",
+    "intent": "family_doctor_policy"
+  },
+  {
+    "id": "national-hypertension-standard",
+    "query": "基层高血压现在按什么标准管理",
+    "expectedIds": ["national-hypertension-standard-2026"],
+    "scope": "national",
+    "intent": "hypertension_policy"
+  },
+  {
+    "id": "national-chronic-full-chain",
+    "query": "基层慢病防筛诊治管康全流程是什么政策",
+    "expectedIds": ["national-chronic-full-chain-2025"],
+    "scope": "national",
+    "intent": "chronic_policy"
+  },
+  {
+    "id": "national-chronic-center",
+    "query": "社区慢病管理中心怎么建设",
+    "expectedIds": ["national-chronic-capacity-2025"],
+    "scope": "national",
+    "intent": "chronic_policy"
+  },
+  {
+    "id": "national-primary-quality",
+    "query": "2026基层医疗质量改善行动对社区卫生中心有什么要求",
+    "expectedIds": ["national-primary-care-quality-2026-2028"],
+    "scope": "national",
+    "intent": "primary_care_policy"
+  }
+]
