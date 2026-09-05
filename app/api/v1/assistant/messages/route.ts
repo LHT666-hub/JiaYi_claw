@@ -4,6 +4,7 @@ import { POST as legacyAskPost } from "@/app/api/ask/route";
 import { getAiModelConfig } from "@/lib/ai/config";
 import { apiError, apiOk, createTraceId } from "@/lib/api/response";
 import { buildAssistantActions } from "@/lib/assistant/actions";
+import { markTrustedAskRequest } from "@/lib/assistant/internalAskRequest";
 import {
   buildAssistantActivity,
   presentAssistantActivity,
@@ -76,15 +77,18 @@ export async function POST(request: NextRequest) {
       agentReply ??
       (requiresCurrentSource ? buildCurrentInfoNotFoundReply() : null);
     if (!reply && process.env.NEXT_PUBLIC_DEMO_MODE === "true") {
-      const demoRequest = new NextRequest(request.url, {
-        method: "POST",
-        headers: request.headers,
-        body: JSON.stringify({
-          question: parsed.data.question,
-          serviceRequest: null,
-          confirmedWrite: false,
+      const demoRequest = markTrustedAskRequest(
+        new NextRequest(request.url, {
+          method: "POST",
+          headers: request.headers,
+          body: JSON.stringify({
+            question: parsed.data.question,
+            serviceRequest: null,
+            confirmedWrite: false,
+          }),
         }),
-      });
+        null,
+      );
       const demoResponse = await legacyAskPost(demoRequest);
       if (demoResponse.ok) reply = await demoResponse.json();
     }
@@ -308,17 +312,19 @@ export async function POST(request: NextRequest) {
         // Memory context is optional and never blocks the current answer.
       }
     }
-    const legacyRequest = new NextRequest(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: JSON.stringify({
-        question: parsed.data.question,
-        residentId: careSubject?.residentId ?? parsed.data.residentId ?? null,
-        serviceRequest: parsed.data.serviceRequest ?? inferredServiceRequest,
-        confirmedWrite: false,
-        residentMemory,
+    const legacyRequest = markTrustedAskRequest(
+      new NextRequest(request.url, {
+        method: "POST",
+        headers: request.headers,
+        body: JSON.stringify({
+          question: parsed.data.question,
+          residentId: careSubject?.residentId ?? parsed.data.residentId ?? null,
+          serviceRequest: parsed.data.serviceRequest ?? inferredServiceRequest,
+          confirmedWrite: false,
+        }),
       }),
-    });
+      residentMemory,
+    );
     const legacyResponse = await legacyAskPost(legacyRequest);
     reply = await legacyResponse.json();
     if (!legacyResponse.ok)
