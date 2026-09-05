@@ -158,7 +158,9 @@ export function getSkillDefinition(id: string) {
 export function routeSkillIds(question: string) {
   const result = new Set<string>();
   if (isSafetyTriageQuestion(question)) result.add("safety-triage");
-  if (/(几点|什么时候|地址|电话|在哪里|怎么查|流程|政策|门诊时间|服务时间)/.test(question)) {
+  if (
+    /(几点|什么时候|地址|电话|在哪里|怎么查|流程|政策|门诊时间|服务时间|家庭医生签约|签约服务|长处方|社区卫生服务中心|海湾镇|南桥镇|奉贤区|接种|疫苗|义诊|健康讲座|社区活动)/.test(question)
+  ) {
     result.add("public-info-qa");
   }
   if (/(预约|挂.{0,2}号|约.{0,4}医生|帮.{0,4}约|一键约|转诊|上转|转院|报名|参加活动)/.test(question)) {
