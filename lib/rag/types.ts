@@ -34,6 +34,7 @@ export type KnowledgeSearchHit = KnowledgeCitation & {
   textScore: number;
   vectorScore: number;
   combinedScore: number;
+  rerankScore?: number;
 };
 
 export type RagSupabaseClient = SupabaseClient;

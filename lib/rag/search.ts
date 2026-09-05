@@ -1,5 +1,6 @@
 import { getEmbeddingProvider, vectorToSql } from "@/lib/rag/embeddings";
 import { expandRetrievalQuery } from "@/lib/rag/query";
+import { rerankKnowledgeHits } from "@/lib/rag/reranker";
 import type { KnowledgeSearchHit, KnowledgeVisibility, RagSupabaseClient } from "@/lib/rag/types";
 
 type SearchRow = {
@@ -34,7 +35,10 @@ export async function searchKnowledge(input: {
   if (!query) return [];
   if (!input.force && !shouldSearchInstitutionalKnowledge(query)) return [];
 
+  const finalLimit = Math.min(Math.max(input.limit ?? 8, 1), 20);
+  const candidateLimit = Math.min(Math.max(finalLimit * 3, 12), 20);
   const retrievalQuery = expandRetrievalQuery(query) || query;
+
   let queryEmbedding: string | null = null;
   try {
     const provider = getEmbeddingProvider();
@@ -42,19 +46,21 @@ export async function searchKnowledge(input: {
   } catch {
     queryEmbedding = null;
   }
+
   const { data, error } = await input.supabase.rpc("search_knowledge_chunks", {
     p_query_text: retrievalQuery,
     p_query_embedding: queryEmbedding,
     p_organization_id: input.organizationId,
     p_community_id: input.communityId ?? null,
     p_visibility: input.visibility ?? ["public", "resident"],
-    p_limit: Math.min(Math.max(input.limit ?? 8, 1), 20),
+    p_limit: candidateLimit,
   });
   if (error) {
     if (/search_knowledge_chunks|knowledge_chunks|schema cache/i.test(error.message)) return [];
     throw error;
   }
-  return ((data ?? []) as SearchRow[]).map((row, index) => ({
+
+  const hits = ((data ?? []) as SearchRow[]).map((row, index) => ({
     index: index + 1, chunkId: row.chunk_id, documentId: row.document_id,
     sourceId: row.source_id, sourceType: row.source_type as KnowledgeSearchHit["sourceType"],
     title: row.title, heading: row.heading, content: row.content, category: row.category,
@@ -62,6 +68,8 @@ export async function searchKnowledge(input: {
     expiresAt: row.expires_at, version: row.version, textScore: Number(row.text_score ?? 0),
     vectorScore: Number(row.vector_score ?? 0), combinedScore: Number(row.combined_score ?? 0),
   }));
+
+  return rerankKnowledgeHits(query, hits, finalLimit);
 }
 
 export function buildKnowledgeCitations(hits: KnowledgeSearchHit[]) {
