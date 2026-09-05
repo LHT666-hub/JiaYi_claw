@@ -28,9 +28,9 @@ export function getAiModelConfig(purpose: AiPurpose = "text"): AiModelConfig {
   if (provider === "aliyun_bailian") {
     const modelByPurpose: Record<AiPurpose, string> = {
       text: first(process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.8-flash",
-      vision: first(process.env.AI_VISION_MODEL, process.env.DASHSCOPE_VISION_MODEL) || "qwen3.7-plus",
+      vision: first(process.env.AI_VISION_MODEL, process.env.DASHSCOPE_VISION_MODEL) || "qwen3.8-flash",
       memory: first(process.env.MEMORY_EXTRACTION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.8-flash",
-      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.7-plus",
+      rag: first(process.env.RAG_GENERATION_MODEL, process.env.AI_MODEL, process.env.DASHSCOPE_MODEL) || "qwen3.8-flash",
     };
     return {
       provider,
