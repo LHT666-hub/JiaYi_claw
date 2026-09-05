@@ -52,7 +52,6 @@ export function PrimaryClawCard({
             </span>
             <div>
               <p className="text-sm font-bold">拍照问</p>
-              <p className="mt-1 text-xs text-navy/55">药盒、体检单</p>
             </div>
           </button>
           <button
