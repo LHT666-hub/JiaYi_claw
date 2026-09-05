@@ -42,8 +42,17 @@ export function getDashscopeCompatibleBaseURL() {
 }
 
 export function getDashscopeNativeBaseURL() {
-  const explicit = first(process.env.DASHSCOPE_NATIVE_BASE_URL);
-  if (explicit) return explicit.replace(/\/$/, "");
+  const explicitNative = first(process.env.DASHSCOPE_NATIVE_BASE_URL);
+  if (explicitNative) return explicitNative.replace(/\/$/, "");
+
+  const explicitCompatible = first(process.env.DASHSCOPE_BASE_URL);
+  if (explicitCompatible) {
+    const normalized = explicitCompatible.replace(/\/$/, "");
+    if (normalized.endsWith("/compatible-mode/v1")) {
+      return normalized.slice(0, -"/compatible-mode/v1".length) + "/api/v1";
+    }
+  }
+
   const workspaceOrigin = dashscopeWorkspaceOrigin();
   if (workspaceOrigin) return `${workspaceOrigin}/api/v1`;
   return "https://dashscope.aliyuncs.com/api/v1";
